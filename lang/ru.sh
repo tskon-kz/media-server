@@ -19,6 +19,7 @@ MSG_QB_PASS_FAIL="⚠️  Не удалось установить пароль.
 MSG_JF_WAIT="Жду запуска Jellyfin..."
 MSG_JF_SETUP_OK="✅ Jellyfin настроен, API ключ сохранён"
 MSG_JF_SETUP_FAIL="⚠️  Не удалось настроить Jellyfin. Добавь JELLYFIN_API_KEY в .env вручную"
+MSG_JF_ALREADY_SET="⚠️  Jellyfin уже был настроен ранее (wizard завершён). Запусти teardown.sh и затем setup.sh заново — либо создай API ключ вручную: Jellyfin Dashboard → API Keys"
 MSG_DONE="=== Готово! ==="
 MSG_TEARDOWN_CONFIRM="Удалить контейнеры, .env и data? [y/n]: "
 MSG_TEARDOWN_IMAGES_CONFIRM="Удалить Docker-образы? (n = оставить, следующий setup быстрее) [y/n]: "

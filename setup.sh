@@ -3,7 +3,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Language selection — hardcoded before sourcing
 echo ""
 echo "1) English"
 echo "2) Русский"
@@ -67,7 +66,6 @@ echo "$MSG_STARTING"
 docker compose pull
 docker compose up -d
 
-# ── Auto-configure qBittorrent ────────────────────────────────────────────────
 if [ ! -f "$SCRIPT_DIR/bot/creds.json" ]; then
     echo "$MSG_QB_WAIT"
     TEMP_PASS=""
@@ -92,7 +90,6 @@ if [ ! -f "$SCRIPT_DIR/bot/creds.json" ]; then
     fi
 fi
 
-# ── Auto-configure Jellyfin ───────────────────────────────────────────────────
 if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     echo "$MSG_JF_WAIT"
     for i in $(seq 1 30); do
@@ -100,7 +97,7 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
         [ "$STATUS" = "200" ] && break
         sleep 3
     done
-    sleep 5  # wait for Jellyfin to fully initialize internally
+    sleep 5
 
     JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
 
@@ -112,31 +109,29 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
             | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4 || true
     }
 
-    # Try auth first (Jellyfin may already be configured)
     JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
 
-    # If auth failed — run startup wizard
     if [ -z "$JF_TOKEN" ]; then
-        WZ1=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/Configuration" \
+        curl -s "http://localhost:8096/Startup/User" > /dev/null
+        curl -s -X POST "http://localhost:8096/Startup/Configuration" \
             -H "Content-Type: application/json" \
-            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}')
-        WZ2=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/User" \
+            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null
+        WZ=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/User" \
             -H "Content-Type: application/json" \
             -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}")
-        WZ3=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/Complete")
-        sleep 5  # wait for wizard to be applied
+        curl -s -X POST "http://localhost:8096/Startup/Complete" > /dev/null
+        sleep 5
 
-        JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
-
-        if [ -z "$JF_TOKEN" ]; then
-            echo "  Wizard steps: config=$WZ1 user=$WZ2 complete=$WZ3"
+        if [ "$WZ" = "404" ]; then
+            echo "$MSG_JF_ALREADY_SET"
+        else
+            JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
         fi
     fi
 
     if [ -n "$JF_TOKEN" ]; then
         echo "JELLYFIN_API_KEY=$JF_TOKEN" >> "$SCRIPT_DIR/.env"
 
-        # Add default libraries
         curl -s -X POST \
             "http://localhost:8096/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
             -H "X-Emby-Token: $JF_TOKEN" -H "Content-Type: application/json" \
