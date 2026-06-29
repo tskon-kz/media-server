@@ -1,0 +1,15 @@
+M = {
+    "no_access": "⛔ Access denied",
+    "start":     "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/status — status\n/lang — language",
+    "empty":     "📭 List is empty",
+    "qb_error":  "❌ qBittorrent unavailable: {e}",
+    "del_btn":   "🗑 Delete",
+    "status_ok": "📊 qBittorrent: ✅\n⬇️ {dl} KB/s  ⬆️ {ul} KB/s",
+    "status_err":"qBittorrent: ❌ unavailable",
+    "added":     "✅ Torrent added",
+    "add_error": "❌ Error: {e}",
+    "hint":      "Send a magnet link or /list /status",
+    "deleted":   "🗑 Torrent and files deleted",
+    "lang_pick": "Choose language:",
+    "lang_set":  "🇬🇧 Language: English",
+}

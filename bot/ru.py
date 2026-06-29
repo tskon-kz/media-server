@@ -1,0 +1,15 @@
+M = {
+    "no_access": "⛔ Нет доступа",
+    "start":     "🎬 *Медиасервер*\n\nОтправь magnet-ссылку\n\n/list — торренты\n/status — статус\n/lang — язык",
+    "empty":     "📭 Список пуст",
+    "qb_error":  "❌ qBittorrent недоступен: {e}",
+    "del_btn":   "🗑 Удалить",
+    "status_ok": "📊 qBittorrent: ✅\n⬇️ {dl} KB/s  ⬆️ {ul} KB/s",
+    "status_err":"qBittorrent: ❌ недоступен",
+    "added":     "✅ Торрент добавлен",
+    "add_error": "❌ Ошибка: {e}",
+    "hint":      "Отправь magnet-ссылку или /list /status",
+    "deleted":   "🗑 Торрент и файлы удалены",
+    "lang_pick": "Выбери язык:",
+    "lang_set":  "🇷🇺 Язык: Русский",
+}

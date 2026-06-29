@@ -26,9 +26,10 @@ bash setup.sh
 
 | Команда | Действие |
 |---------|----------|
-| `magnet:...` | Добавить торрент |
-| `/list` | Список загрузок |
-| `/status` | Статус серверов |
+| `magnet:...` | Добавить торрент / Add torrent |
+| `/list` | Список загрузок / Download list |
+| `/status` | Статус серверов / Server status |
+| `/lang` | Сменить язык / Change language |
 
 ## Доступ
 

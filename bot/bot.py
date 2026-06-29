@@ -1,19 +1,41 @@
-import os
+import os, json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, MessageHandler, CallbackQueryHandler,
-    CommandHandler, filters, ContextTypes
+    ApplicationBuilder, CallbackQueryHandler,
+    CommandHandler, MessageHandler, filters, ContextTypes,
 )
 import qbittorrentapi
+import ru, en
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-ALLOWED = int(os.environ["ALLOWED_USER"])
-QB_HOST = os.environ["QB_HOST"]
-QB_USER = os.environ.get("QB_USER", "admin")
-QB_PASS = os.environ.get("QB_PASS", "adminadmin")
+ALLOWED   = int(os.environ["ALLOWED_USER"])
+QB_HOST   = os.environ["QB_HOST"]
+QB_USER   = os.environ.get("QB_USER", "admin")
+QB_PASS   = os.environ.get("QB_PASS", "adminadmin")
+LANG_FILE = "/app/lang.json"
+
+LANGS = {"ru": ru.M, "en": en.M}
+LANG  = "ru"
+
+ICONS = {
+    "downloading": "⬇️", "stalledDL": "⏸", "uploading": "⬆️",
+    "seeding": "🌱", "pausedDL": "⏸", "pausedUP": "✅", "error": "❌",
+}
 
 
-def get_qb():
+def t(key, **kw):
+    s = LANGS[LANG][key]
+    return s.format(**kw) if kw else s
+
+
+def set_lang(code):
+    global LANG
+    LANG = code
+    with open(LANG_FILE, "w") as f:
+        json.dump({"lang": code}, f)
+
+
+def qb():
     c = qbittorrentapi.Client(host=QB_HOST, username=QB_USER, password=QB_PASS)
     c.auth_log_in()
     return c
@@ -22,117 +44,103 @@ def get_qb():
 def auth(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != ALLOWED:
-            await update.message.reply_text("⛔ Нет доступа")
+            await update.message.reply_text(t("no_access"))
             return
         await func(update, ctx)
     return wrapper
 
 
 @auth
-async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🎬 *Медиасервер*\n\n"
-        "Отправь magnet-ссылку для загрузки\n\n"
-        "Команды:\n"
-        "/list — список торрентов\n"
-        "/status — состояние серверов",
-        parse_mode="Markdown"
-    )
+async def cmd_start(update, ctx):
+    await update.message.reply_text(t("start"), parse_mode="Markdown")
 
 
 @auth
-async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def cmd_lang(update, ctx):
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
+        InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
+    ]])
+    await update.message.reply_text(t("lang_pick"), reply_markup=kb)
+
+
+@auth
+async def cmd_list(update, ctx):
     try:
-        torrents = get_qb().torrents_info()
+        torrents = qb().torrents_info()
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка подключения к qBittorrent: {e}")
+        await update.message.reply_text(t("qb_error", e=e))
         return
 
     if not torrents:
-        await update.message.reply_text("📭 Список торрентов пуст")
+        await update.message.reply_text(t("empty"))
         return
 
-    for t in torrents:
-        state_icon = {
-            "downloading": "⬇️", "stalledDL": "⏸", "uploading": "⬆️",
-            "seeding": "🌱", "pausedDL": "⏸", "pausedUP": "✅",
-            "error": "❌",
-        }.get(t.state, "❓")
-
-        progress = t.progress * 100
-        bar = "█" * int(progress / 10) + "░" * (10 - int(progress / 10))
-        size_gb = t.size / 1024**3
-
-        text = (
-            f"{state_icon} *{t.name[:40]}*\n"
-            f"`{bar}` {progress:.0f}%\n"
-            f"💾 {size_gb:.1f} GB"
-        )
-
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🗑 Удалить", callback_data=f"delete:{t.hash}")
-        ]])
-        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
+    for tor in torrents:
+        pct = tor.progress * 100
+        bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
+        text = f"{ICONS.get(tor.state, '❓')} *{tor.name[:40]}*\n`{bar}` {pct:.0f}%\n💾 {tor.size/1024**3:.1f} GB"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("del_btn"), callback_data=f"del:{tor.hash}")]])
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
 
 
 @auth
-async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def cmd_status(update, ctx):
     try:
-        qb = get_qb()
-        info = qb.transfer_info()
-        msg = (
-            "📊 *Статус серверов*\n\n"
-            f"qBittorrent: ✅\n"
-            f"⬇️ {info.dl_info_speed / 1024:.0f} KB/s\n"
-            f"⬆️ {info.up_info_speed / 1024:.0f} KB/s"
-        )
+        info = qb().transfer_info()
+        msg = t("status_ok", dl=f"{info.dl_info_speed/1024:.0f}", ul=f"{info.up_info_speed/1024:.0f}")
     except Exception:
-        msg = "qBittorrent: ❌ недоступен"
-
+        msg = t("status_err")
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
 @auth
-async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def on_message(update, ctx):
     text = update.message.text or ""
-
     if text.startswith("magnet:"):
         try:
-            get_qb().torrents_add(urls=text, save_path="/media/downloads")
-            await update.message.reply_text("✅ Торрент добавлен в очередь")
+            qb().torrents_add(urls=text, save_path="/media/downloads")
+            await update.message.reply_text(t("added"))
         except Exception as e:
-            await update.message.reply_text(f"❌ Ошибка: {e}")
+            await update.message.reply_text(t("add_error", e=e))
     else:
-        await update.message.reply_text(
-            "Отправь magnet-ссылку или используй /list /status"
-        )
+        await update.message.reply_text(t("hint"))
 
 
-async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def on_callback(update, ctx):
     query = update.callback_query
     if update.effective_user.id != ALLOWED:
-        await query.answer("⛔ Нет доступа")
+        await query.answer(t("no_access"))
         return
-
     await query.answer()
-    data = query.data
 
-    if data.startswith("delete:"):
-        torrent_hash = data.split(":")[1]
+    action, value = query.data.split(":", 1)
+    if action == "lang":
+        set_lang(value)
+        await query.edit_message_text(t("lang_set"))
+    elif action == "del":
         try:
-            get_qb().torrents_delete(delete_files=True, torrent_hashes=torrent_hash)
-            await query.edit_message_text("🗑 Торрент и файлы удалены")
+            qb().torrents_delete(delete_files=True, torrent_hashes=value)
+            await query.edit_message_text(t("deleted"))
         except Exception as e:
-            await query.edit_message_text(f"❌ Ошибка: {e}")
+            await query.edit_message_text(t("add_error", e=e))
 
 
 def main():
+    global LANG
+    try:
+        with open(LANG_FILE) as f:
+            LANG = json.load(f).get("lang", "ru")
+    except (FileNotFoundError, json.JSONDecodeError):
+        set_lang(LANG)
+
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("list", cmd_list))
+    app.add_handler(CommandHandler("start",  cmd_start))
+    app.add_handler(CommandHandler("lang",   cmd_lang))
+    app.add_handler(CommandHandler("list",   cmd_list))
     app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CallbackQueryHandler(handle_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(on_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     print("Bot started")
     app.run_polling()
 
