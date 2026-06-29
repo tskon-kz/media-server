@@ -45,7 +45,7 @@ services:
       - ./lang:/app/lang
     working_dir: /app
     command: >
-      sh -c "pip install python-telegram-bot==21.* qbittorrent-api -q && python bot.py"
+      sh -c "pip install 'python-telegram-bot[job-queue]==21.*' qbittorrent-api -q && python bot.py"
     depends_on:
       - qbittorrent
       - jellyfin
