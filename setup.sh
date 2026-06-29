@@ -128,18 +128,28 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     fi
 
     if [ -n "$JF_TOKEN" ]; then
-        echo "JELLYFIN_API_KEY=$JF_TOKEN" >> "$SCRIPT_DIR/.env"
+        # Create a permanent API key (visible in Jellyfin Dashboard → API Keys)
+        curl -s -X POST "http://localhost:8096/Auth/Keys?key=MediaServer" \
+            -H "X-Emby-Token: $JF_TOKEN" > /dev/null
+
+        JF_API_KEY=$(curl -s "http://localhost:8096/Auth/Keys" \
+            -H "X-Emby-Token: $JF_TOKEN" \
+            | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | tail -1 | cut -d'"' -f4)
+
+        FINAL_KEY="${JF_API_KEY:-$JF_TOKEN}"
+        echo "JELLYFIN_API_KEY=$FINAL_KEY" >> "$SCRIPT_DIR/.env"
 
         curl -s -X POST \
             "http://localhost:8096/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
-            -H "X-Emby-Token: $JF_TOKEN" -H "Content-Type: application/json" \
+            -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/movies"}]}}' > /dev/null
 
         curl -s -X POST \
             "http://localhost:8096/Library/VirtualFolders?name=Series&collectionType=tvshows&refreshLibrary=false" \
-            -H "X-Emby-Token: $JF_TOKEN" -H "Content-Type: application/json" \
+            -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/series"}]}}' > /dev/null
 
+        docker compose restart telegram-bot
         echo "$MSG_JF_SETUP_OK"
     else
         echo "$MSG_JF_SETUP_FAIL"
