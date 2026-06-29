@@ -10,6 +10,7 @@ import ru, en
 BOT_TOKEN  = os.environ["BOT_TOKEN"]
 ALLOWED    = int(os.environ["ALLOWED_USER"])
 QB_HOST    = os.environ["QB_HOST"]
+PROXY_URL  = os.environ.get("PROXY_URL")  # e.g. socks5://user:pass@host:port
 LANG_FILE  = "/app/lang.json"
 CREDS_FILE = "/app/creds.json"
 
@@ -167,7 +168,10 @@ def main():
     except (FileNotFoundError, json.JSONDecodeError):
         save_creds(QB_USER, QB_PASS)
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    builder = ApplicationBuilder().token(BOT_TOKEN)
+    if PROXY_URL:
+        builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
+    app = builder.build()
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("lang",    cmd_lang))
     app.add_handler(CommandHandler("setpass", cmd_setpass))

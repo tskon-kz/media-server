@@ -37,6 +37,7 @@ services:
       - BOT_TOKEN=${BOT_TOKEN}
       - QB_HOST=http://qbittorrent:8080
       - ALLOWED_USER=${ALLOWED_USER}
+      - PROXY_URL=${PROXY_URL:-}
     volumes:
       - ./bot:/app
     working_dir: /app
