@@ -119,18 +119,27 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
             -H "Content-Type: application/json" \
             -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}")
         curl -s -X POST "http://localhost:8096/Startup/Complete" > /dev/null
-        sleep 5
+
+        for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8096/System/Info/Public" 2>/dev/null || echo "000")
+            [ "$STATUS" = "200" ] && break
+            sleep 3
+        done
 
         if [ "$WZ" = "404" ]; then
             echo "$MSG_JF_ALREADY_SET"
         else
-            JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
+            for i in $(seq 1 20); do
+                JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
+                [ -n "$JF_TOKEN" ] && break
+                sleep 3
+            done
         fi
     fi
 
     if [ -n "$JF_TOKEN" ]; then
         # Create a permanent API key (visible in Jellyfin Dashboard → API Keys)
-        curl -s -X POST "http://localhost:8096/Auth/Keys?key=MediaServer" \
+        curl -s -X POST "http://localhost:8096/Auth/Keys?app=MediaServer" \
             -H "X-Emby-Token: $JF_TOKEN" > /dev/null
 
         JF_API_KEY=$(curl -s "http://localhost:8096/Auth/Keys" \
