@@ -19,8 +19,8 @@ CREDS_FILE = "/app/creds.json"
 CATS_FILE  = "/app/categories.json"
 
 DEFAULT_CATS = [
-    {"name": "🎬 Movies", "path": "/media/movies", "jf_type": "movies"},
-    {"name": "📺 Series", "path": "/media/series", "jf_type": "tvshows"},
+    {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
+    {"name": "Series", "path": "/media/series", "jf_type": "tvshows"},
 ]
 
 QB_USER = os.environ.get("QB_USER", "admin")
