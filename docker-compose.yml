@@ -45,6 +45,7 @@ services:
     volumes:
       - ./bot:/app
       - ./lang:/app/lang
+      - ./media:/media
     working_dir: /app
     command: >
       sh -c "pip install 'python-telegram-bot[job-queue]==21.*' qbittorrent-api -q && python bot.py"
