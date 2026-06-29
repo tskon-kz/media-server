@@ -3,6 +3,8 @@ M = {
     "start":         "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/status — status\n/settings — settings",
     "empty":         "📭 List is empty",
     "qb_error":      "❌ qBittorrent unavailable: {e}",
+    "list_title":    "Torrents",
+    "list_edit_btn": "✏️ Edit",
     "del_btn":       "🗑 Delete",
     "status_ok":     "📊 qBittorrent: ✅\n⬇️ {dl} KB/s  ⬆️ {ul} KB/s",
     "status_err":    "qBittorrent: ❌ unavailable",

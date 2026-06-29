@@ -3,6 +3,8 @@ M = {
     "start":         "🎬 *Медиасервер*\n\nОтправь magnet-ссылку\n\n/list — торренты\n/status — статус\n/settings — настройки",
     "empty":         "📭 Список пуст",
     "qb_error":      "❌ qBittorrent недоступен: {e}",
+    "list_title":    "Торренты",
+    "list_edit_btn": "✏️ Изменить",
     "del_btn":       "🗑 Удалить",
     "status_ok":     "📊 qBittorrent: ✅\n⬇️ {dl} KB/s  ⬆️ {ul} KB/s",
     "status_err":    "qBittorrent: ❌ недоступен",

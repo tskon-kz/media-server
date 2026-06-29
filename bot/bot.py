@@ -89,6 +89,42 @@ def jf_add_library(name, path, lib_type):
     jf("POST", f"/Library/VirtualFolders?{params}", {"LibraryOptions": {"PathInfos": [{"Path": path}]}})
 
 
+def list_text(torrents):
+    lines = []
+    for i, tor in enumerate(torrents, 1):
+        icon = ICONS.get(tor.state, "❓")
+        pct = f" {tor.progress * 100:.0f}%" if tor.progress < 1 else ""
+        size = f"{tor.size / 1024**3:.1f} GB"
+        lines.append(f"{i}. {icon} {tor.name[:35]}{pct} — {size}")
+    return f"*{t('list_title')}* ({len(torrents)})\n\n" + "\n".join(lines)
+
+
+def list_normal_kb():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(t("list_edit_btn"), callback_data="list:edit"),
+        InlineKeyboardButton("🔄", callback_data="list:view"),
+    ]])
+
+
+def list_edit_kb(torrents):
+    cats = load_cats()
+    buttons = []
+    for i, tor in enumerate(torrents):
+        row = [InlineKeyboardButton(f"🗑 {i + 1}", callback_data=f"del:{tor.hash}")]
+        if cats:
+            row.append(InlineKeyboardButton(f"📁 {i + 1}", callback_data=f"move:{tor.hash}"))
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="list:view")])
+    return InlineKeyboardMarkup(buttons)
+
+
+def move_cats_kb(torrent_hash):
+    cats = load_cats()
+    buttons = [[InlineKeyboardButton(c["name"], callback_data=f"moveto:{torrent_hash}:{i}")] for i, c in enumerate(cats)]
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="list:edit")])
+    return InlineKeyboardMarkup(buttons)
+
+
 def qb():
     c = qbittorrentapi.Client(host=QB_HOST, username=QB_USER, password=QB_PASS)
     c.auth_log_in()
@@ -182,15 +218,9 @@ async def cmd_list(update, ctx):
     if not torrents:
         await update.message.reply_text(t("empty"))
         return
-    for tor in torrents:
-        pct = tor.progress * 100
-        bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
-        text = f"{ICONS.get(tor.state, '❓')} *{tor.name[:40]}*\n`{bar}` {pct:.0f}%\n💾 {tor.size/1024**3:.1f} GB"
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton(t("del_btn"),  callback_data=f"del:{tor.hash}"),
-            InlineKeyboardButton(t("move_btn"), callback_data=f"move:{tor.hash}"),
-        ]])
-        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+    await update.message.reply_text(
+        list_text(torrents), parse_mode="Markdown", reply_markup=list_normal_kb()
+    )
 
 
 @auth
@@ -306,7 +336,21 @@ async def on_callback(update, ctx):
 
     action, _, value = query.data.partition(":")
 
-    if action == "settings":
+    if action == "list":
+        try:
+            torrents = qb().torrents_info()
+        except Exception as e:
+            await edit(query, t("qb_error", e=e))
+            return
+        if not torrents:
+            await edit(query, t("empty"))
+            return
+        if value == "edit":
+            await edit(query, list_text(torrents), list_edit_kb(torrents))
+        else:
+            await edit(query, list_text(torrents), list_normal_kb())
+
+    elif action == "settings":
         if value == "menu":
             await edit(query, t("settings_main"), settings_kb())
         elif value == "cats":
@@ -330,9 +374,18 @@ async def on_callback(update, ctx):
     elif action == "del":
         try:
             qb().torrents_delete(delete_files=True, torrent_hashes=value)
-            await edit(query, t("deleted"))
         except Exception as e:
             await edit(query, t("add_error", e=e))
+            return
+        try:
+            torrents = qb().torrents_info()
+        except Exception as e:
+            await edit(query, t("qb_error", e=e))
+            return
+        if not torrents:
+            await edit(query, t("empty"))
+            return
+        await edit(query, list_text(torrents), list_edit_kb(torrents))
 
     elif action == "addmagnet":
         magnet = ctx.user_data.pop("pending_magnet", None)
@@ -363,17 +416,25 @@ async def on_callback(update, ctx):
         if not cats:
             await query.answer(t("no_cats"))
             return
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(c["name"], callback_data=f"moveto:{value}:{i}")] for i, c in enumerate(cats)])
-        await query.edit_message_reply_markup(reply_markup=kb)
+        await query.edit_message_reply_markup(reply_markup=move_cats_kb(value))
 
     elif action == "moveto":
         torrent_hash, _, cat_idx = value.partition(":")
         cat = load_cats()[int(cat_idx)]
         try:
             qb().torrents_set_location(torrent_hashes=torrent_hash, location=cat["path"])
-            await edit(query, t("moved", name=cat["name"]))
         except Exception as e:
             await edit(query, t("add_error", e=e))
+            return
+        try:
+            torrents = qb().torrents_info()
+        except Exception as e:
+            await edit(query, t("qb_error", e=e))
+            return
+        if not torrents:
+            await edit(query, t("empty"))
+            return
+        await edit(query, list_text(torrents), list_normal_kb())
 
     elif action == "editcat":
         ctx.user_data["pending_cat_idx"] = int(value)
