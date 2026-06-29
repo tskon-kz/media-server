@@ -22,6 +22,6 @@ echo "$MSG_TEARDOWN_STOPPING"
 docker compose down --volumes --rmi all 2>/dev/null || true
 
 echo "$MSG_TEARDOWN_REMOVING"
-rm -rf media data bot/creds.json bot/lang.json .env
+sudo rm -rf media data bot/creds.json bot/lang.json .env
 
 echo "$MSG_TEARDOWN_DONE"
