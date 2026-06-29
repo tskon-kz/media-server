@@ -41,6 +41,7 @@ services:
       - JELLYFIN_URL=http://jellyfin:8096
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
       - SERVER_IP=${SERVER_IP}
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./bot:/app
       - ./lang:/app/lang
