@@ -166,16 +166,8 @@ async def cmd_scan(update, ctx):
 
 @auth
 async def cmd_setpass(update, ctx):
-    if not ctx.args:
-        await update.message.reply_text(t("setpass_usage"))
-        return
-    try:
-        qb().app_set_preferences({"web_ui_password": ctx.args[0]})
-        save_creds(QB_USER, ctx.args[0])
-        await update.message.delete()
-        await update.effective_chat.send_message(t("setpass_ok"))
-    except Exception as e:
-        await update.message.reply_text(t("setpass_error", e=e))
+    ctx.user_data["state"] = "await_new_pass"
+    await update.message.reply_text(t("setpass_prompt"))
 
 
 @auth
@@ -217,6 +209,17 @@ async def cmd_status(update, ctx):
 async def on_message(update, ctx):
     text  = update.message.text or ""
     state = ctx.user_data.get("state")
+
+    if state == "await_new_pass":
+        ctx.user_data.pop("state", None)
+        try:
+            qb().app_set_preferences({"web_ui_password": text})
+            save_creds(QB_USER, text)
+            await update.message.delete()
+            await update.effective_chat.send_message(t("setpass_ok"))
+        except Exception as e:
+            await update.message.reply_text(t("setpass_error", e=e))
+        return
 
     if state == "await_cat_name":
         ctx.user_data["pending_cat_name"] = text
