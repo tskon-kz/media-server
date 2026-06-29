@@ -460,6 +460,10 @@ async def on_callback(update, ctx):
         path = ctx.user_data.pop("pending_cat_path", "")
         if path:
             os.makedirs(path, exist_ok=True)
+            try:
+                os.chown(path, 1000, 1000)
+            except Exception:
+                os.chmod(path, 0o777)
         cats = load_cats()
         cats.append({"name": name, "path": path, "jf_type": value})
         save_cats(cats)
