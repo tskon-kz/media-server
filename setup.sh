@@ -96,35 +96,41 @@ fi
 if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     echo "$MSG_JF_WAIT"
     for i in $(seq 1 30); do
-        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8096/System/Info/Public" 2>/dev/null)
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8096/System/Info/Public" 2>/dev/null || echo "000")
         [ "$STATUS" = "200" ] && break
         sleep 3
     done
+    sleep 5  # wait for Jellyfin to fully initialize internally
 
     JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
 
+    _jf_auth() {
+        curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
+            -H "Content-Type: application/json" \
+            -H "$JF_AUTH_HEADER" \
+            -d "{\"Username\":\"$1\",\"Pw\":\"$2\"}" \
+            | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4 || true
+    }
+
     # Try auth first (Jellyfin may already be configured)
-    JF_TOKEN=$(curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
-        -H "Content-Type: application/json" \
-        -H "$JF_AUTH_HEADER" \
-        -d "{\"Username\":\"$JF_USER\",\"Pw\":\"$JF_PASS\"}" \
-        | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4)
+    JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
 
     # If auth failed — run startup wizard
     if [ -z "$JF_TOKEN" ]; then
-        curl -s -X POST "http://localhost:8096/Startup/Configuration" \
+        WZ1=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/Configuration" \
             -H "Content-Type: application/json" \
-            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null
-        curl -s -X POST "http://localhost:8096/Startup/User" \
+            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}')
+        WZ2=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/User" \
             -H "Content-Type: application/json" \
-            -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}" > /dev/null
-        curl -s -X POST "http://localhost:8096/Startup/Complete" > /dev/null
+            -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}")
+        WZ3=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/Complete")
+        sleep 5  # wait for wizard to be applied
 
-        JF_TOKEN=$(curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
-            -H "Content-Type: application/json" \
-            -H "$JF_AUTH_HEADER" \
-            -d "{\"Username\":\"$JF_USER\",\"Pw\":\"$JF_PASS\"}" \
-            | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4)
+        JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
+
+        if [ -z "$JF_TOKEN" ]; then
+            echo "  Wizard steps: config=$WZ1 user=$WZ2 complete=$WZ3"
+        fi
     fi
 
     if [ -n "$JF_TOKEN" ]; then
