@@ -172,9 +172,9 @@ def jf_users_view(users):
 
 def cats_view(cats):
     type_label = {"movies": t("jf_movies"), "tvshows": t("jf_tvshows"), "music": t("jf_music"), "mixed": t("jf_mixed")}
-    lines = "\n".join(f"• {c['name']} ({type_label.get(c.get('jf_type',''), '?')}) → `{c['path']}`" for c in cats) if cats else t("no_cats")
+    lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
     buttons = [
-        [InlineKeyboardButton(f"✏️ {c['name']}", callback_data=f"editcat:{i}"),
+        [InlineKeyboardButton(f"✏️ {c['name']} · {type_label.get(c.get('jf_type',''), '?')}", callback_data=f"editcat:{i}"),
          InlineKeyboardButton("🗑", callback_data=f"delcat:{i}")]
         for i, c in enumerate(cats)
     ]
