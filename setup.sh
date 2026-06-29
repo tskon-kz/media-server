@@ -57,6 +57,7 @@ printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
 echo "$MSG_ENV_SAVED"
 
 # Dirs & start
+cd "$SCRIPT_DIR"
 mkdir -p media data/jellyfin/config data/jellyfin/cache data/qbittorrent/config
 
 echo ""
