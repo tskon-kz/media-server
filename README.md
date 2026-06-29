@@ -35,7 +35,6 @@ Every push to `main` deploys automatically.
 | `/list` | Torrent list with delete and move buttons |
 | `/status` | qBittorrent status |
 | `/settings` | Settings: categories, language, qBittorrent password |
-| `/scan` | Trigger Jellyfin library scan |
 
 ## Media flow
 

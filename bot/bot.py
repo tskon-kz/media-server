@@ -12,6 +12,7 @@ ALLOWED    = int(os.environ["ALLOWED_USER"])
 QB_HOST    = os.environ["QB_HOST"]
 PROXY_URL  = os.environ.get("PROXY_URL")
 JF_URL     = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
+SERVER_IP  = os.environ.get("SERVER_IP", "")
 JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
 LANG_FILE  = "/app/lang.json"
 CREDS_FILE = "/app/creds.json"
@@ -122,11 +123,17 @@ def auth(func):
 
 
 def settings_kb():
-    return InlineKeyboardMarkup([
+    buttons = [
         [InlineKeyboardButton(t("settings_cats"), callback_data="settings:cats")],
         [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang"),
          InlineKeyboardButton(t("settings_pass"), callback_data="settings:pass")],
-    ])
+    ]
+    if SERVER_IP:
+        buttons.append([
+            InlineKeyboardButton("qBittorrent ↗", url=f"http://{SERVER_IP}:8080"),
+            InlineKeyboardButton("Jellyfin ↗",    url=f"http://{SERVER_IP}:8096"),
+        ])
+    return InlineKeyboardMarkup(buttons)
 
 
 def cats_view(cats):
@@ -159,13 +166,14 @@ async def cmd_start(update, ctx):
 
 
 @auth
-async def cmd_settings(update, ctx):
-    await update.message.reply_text(t("settings_main"), reply_markup=settings_kb())
+async def cmd_scan(update, ctx):
+    await update.message.reply_text(t("scan_ok") if jf_scan() else t("scan_error"))
 
 
 @auth
-async def cmd_scan(update, ctx):
-    await update.message.reply_text(t("scan_ok") if jf_scan() else t("scan_error"))
+async def cmd_settings(update, ctx):
+    await update.message.reply_text(t("settings_main"), reply_markup=settings_kb())
+
 
 
 @auth
@@ -376,6 +384,7 @@ async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
         prev = known.get(tor.hash)
         if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
             await ctx.bot.send_message(ALLOWED, t("download_done", name=tor.name))
+            jf_scan()
         known[tor.hash] = tor.state
     for h in list(known):
         if h not in {tor.hash for tor in torrents}:
@@ -406,8 +415,8 @@ def main():
         await application.bot.set_my_commands([
             BotCommand("list",     "Список торрентов"),
             BotCommand("status",   "Статус сети"),
-            BotCommand("settings", "Настройки"),
             BotCommand("scan",     "Сканировать Jellyfin"),
+            BotCommand("settings", "Настройки"),
         ])
 
     builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
@@ -418,8 +427,8 @@ def main():
     app.add_handler(CommandHandler("start",    cmd_start))
     app.add_handler(CommandHandler("list",     cmd_list))
     app.add_handler(CommandHandler("status",   cmd_status))
-    app.add_handler(CommandHandler("settings", cmd_settings))
     app.add_handler(CommandHandler("scan",     cmd_scan))
+    app.add_handler(CommandHandler("settings", cmd_settings))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     app.job_queue.run_repeating(check_done, interval=30, first=10)

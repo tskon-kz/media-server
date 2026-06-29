@@ -1,6 +1,6 @@
 M = {
     "no_access":     "⛔ Access denied",
-    "start":         "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/status — status\n/settings — settings\n/scan — scan Jellyfin",
+    "start":         "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/status — status\n/settings — settings",
     "empty":         "📭 List is empty",
     "qb_error":      "❌ qBittorrent unavailable: {e}",
     "del_btn":       "🗑 Delete",
@@ -36,7 +36,7 @@ M = {
     "cat_added":     "✅ Category added",
     "move_btn":      "📁 Move",
     "moved":         "📁 Moved to: {name}",
-    "download_done": "✅ *{name}* — download complete",
     "scan_ok":       "🔄 Jellyfin: scan started",
     "scan_error":    "❌ Failed to start Jellyfin scan",
+    "download_done": "✅ *{name}* — download complete",
 }

@@ -1,6 +1,6 @@
 M = {
     "no_access":     "⛔ Нет доступа",
-    "start":         "🎬 *Медиасервер*\n\nОтправь magnet-ссылку\n\n/list — торренты\n/status — статус\n/settings — настройки\n/scan — сканировать Jellyfin",
+    "start":         "🎬 *Медиасервер*\n\nОтправь magnet-ссылку\n\n/list — торренты\n/status — статус\n/settings — настройки",
     "empty":         "📭 Список пуст",
     "qb_error":      "❌ qBittorrent недоступен: {e}",
     "del_btn":       "🗑 Удалить",
@@ -36,7 +36,7 @@ M = {
     "cat_added":     "✅ Категория добавлена",
     "move_btn":      "📁 Переместить",
     "moved":         "📁 Перемещён: {name}",
-    "download_done": "✅ *{name}* — загрузка завершена",
     "scan_ok":       "🔄 Jellyfin: сканирование запущено",
     "scan_error":    "❌ Не удалось запустить сканирование Jellyfin",
+    "download_done": "✅ *{name}* — загрузка завершена",
 }

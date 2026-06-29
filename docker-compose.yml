@@ -40,6 +40,7 @@ services:
       - PROXY_URL=${PROXY_URL:-}
       - JELLYFIN_URL=http://jellyfin:8096
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+      - SERVER_IP=${SERVER_IP}
     volumes:
       - ./bot:/app
       - ./lang:/app/lang
