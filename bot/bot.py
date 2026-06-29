@@ -69,6 +69,7 @@ def save_cats(cats):
 
 def jf(method, path, body=None):
     if not JF_KEY:
+        print(f"JF skip — no API key", flush=True)
         return None
     req = urllib.request.Request(
         f"{JF_URL}{path}",
@@ -80,7 +81,15 @@ def jf(method, path, body=None):
         with urllib.request.urlopen(req, timeout=5) as resp:
             raw = resp.read()
             return json.loads(raw) if raw else True
-    except Exception:
+    except Exception as e:
+        code = getattr(e, "code", "?")
+        body_err = ""
+        if hasattr(e, "read"):
+            try:
+                body_err = e.read().decode()[:300]
+            except Exception:
+                pass
+        print(f"JF {method} {path} → {code}: {body_err or e}", flush=True)
         return None
 
 
@@ -457,6 +466,8 @@ async def on_callback(update, ctx):
     elif action == "cattype":
         name = ctx.user_data.pop("pending_cat_name", "")
         path = ctx.user_data.pop("pending_cat_path", "")
+        if path:
+            os.makedirs(path, exist_ok=True)
         cats = load_cats()
         cats.append({"name": name, "path": path, "jf_type": value})
         save_cats(cats)
