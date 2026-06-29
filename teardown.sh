@@ -3,7 +3,6 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo ""
 echo "1) English"
 echo "2) Русский"
 printf "Select language / Выберите язык [1/2]: "
