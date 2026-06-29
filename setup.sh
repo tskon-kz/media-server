@@ -3,7 +3,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo ""
 echo "1) English"
 echo "2) Русский"
 printf "Select language / Выберите язык [1/2]: "
@@ -59,7 +58,7 @@ echo "$MSG_ENV_SAVED"
 
 # Dirs & start
 cd "$SCRIPT_DIR"
-mkdir -p media data/jellyfin/config data/jellyfin/cache data/qbittorrent/config
+mkdir -p media/movies media/series data/jellyfin/config data/jellyfin/cache data/qbittorrent/config
 
 echo ""
 echo "$MSG_STARTING"
@@ -97,7 +96,6 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
         [ "$STATUS" = "200" ] && break
         sleep 3
     done
-    sleep 5
 
     JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
 
