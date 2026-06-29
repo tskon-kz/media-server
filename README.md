@@ -45,6 +45,15 @@ bash teardown.sh
 
 Removes containers, images, volumes, `media/`, `data/`, `.env`, `creds.json`. Repository files are untouched.
 
+## Media flow
+
+```
+Bot (magnet link) → qBittorrent → ./media/ ← Jellyfin
+```
+
+qBittorrent downloads to `./media/` on the host. Jellyfin reads from the same folder.  
+On first Jellyfin launch add a library and set the path to `/media`.
+
 ## Access
 
 - Jellyfin: `http://SERVER_IP:8096`

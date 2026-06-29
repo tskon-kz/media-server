@@ -45,6 +45,15 @@ bash teardown.sh
 
 Удаляет контейнеры, образы, volumes, `media/`, `data/`, `.env`, `creds.json`. Файлы репозитория не трогает.
 
+## Как работает медиа
+
+```
+Бот (magnet-ссылка) → qBittorrent → ./media/ ← Jellyfin
+```
+
+qBittorrent скачивает в папку `./media/` на хосте. Jellyfin читает из той же папки.  
+При первом запуске Jellyfin добавь библиотеку и укажи путь `/media`.
+
 ## Доступ
 
 - Jellyfin: `http://SERVER_IP:8096`

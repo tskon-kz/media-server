@@ -5,3 +5,4 @@ media/
 .idea/
 bot/lang.json
 bot/creds.json
+bot/categories.json

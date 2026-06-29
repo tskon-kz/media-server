@@ -10,9 +10,15 @@ from lang import ru, en
 BOT_TOKEN  = os.environ["BOT_TOKEN"]
 ALLOWED    = int(os.environ["ALLOWED_USER"])
 QB_HOST    = os.environ["QB_HOST"]
-PROXY_URL  = os.environ.get("PROXY_URL")  # e.g. socks5://user:pass@host:port
+PROXY_URL  = os.environ.get("PROXY_URL")
 LANG_FILE  = "/app/lang.json"
 CREDS_FILE = "/app/creds.json"
+CATS_FILE  = "/app/categories.json"
+
+DEFAULT_CATS = [
+    {"name": "🎬 Фильмы", "path": "/media/movies"},
+    {"name": "📺 Сериалы", "path": "/media/series"},
+]
 
 QB_USER = os.environ.get("QB_USER", "admin")
 QB_PASS = os.environ.get("QB_PASS", "adminadmin")
@@ -42,6 +48,27 @@ def save_creds(user, password):
     QB_USER, QB_PASS = user, password
     with open(CREDS_FILE, "w") as f:
         json.dump({"qb_user": user, "qb_pass": password}, f)
+
+
+def load_cats():
+    try:
+        with open(CATS_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return DEFAULT_CATS.copy()
+
+
+def save_cats(cats):
+    with open(CATS_FILE, "w") as f:
+        json.dump(cats, f, ensure_ascii=False, indent=2)
+
+
+def settings_view(cats):
+    lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
+    text = f"{t('settings_title')}\n\n{lines}"
+    buttons = [[InlineKeyboardButton(f"🗑 {c['name']}", callback_data=f"delcat:{i}")] for i, c in enumerate(cats)]
+    buttons.append([InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")])
+    return text, InlineKeyboardMarkup(buttons)
 
 
 def qb():
@@ -74,15 +101,19 @@ async def cmd_lang(update, ctx):
 
 
 @auth
+async def cmd_settings(update, ctx):
+    text, kb = settings_view(load_cats())
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+
+
+@auth
 async def cmd_setpass(update, ctx):
     if not ctx.args:
         await update.message.reply_text(t("setpass_usage"))
         return
-    new_pass = ctx.args[0]
     try:
-        client = qb()
-        client.app_set_preferences({"web_ui_password": new_pass})
-        save_creds(QB_USER, new_pass)
+        qb().app_set_preferences({"web_ui_password": ctx.args[0]})
+        save_creds(QB_USER, ctx.args[0])
         await update.message.delete()
         await update.effective_chat.send_message(t("setpass_ok"))
     except Exception as e:
@@ -105,7 +136,10 @@ async def cmd_list(update, ctx):
         pct = tor.progress * 100
         bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
         text = f"{ICONS.get(tor.state, '❓')} *{tor.name[:40]}*\n`{bar}` {pct:.0f}%\n💾 {tor.size/1024**3:.1f} GB"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("del_btn"), callback_data=f"del:{tor.hash}")]])
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(t("del_btn"),  callback_data=f"del:{tor.hash}"),
+            InlineKeyboardButton(t("move_btn"), callback_data=f"move:{tor.hash}"),
+        ]])
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
 
 
@@ -122,12 +156,34 @@ async def cmd_status(update, ctx):
 @auth
 async def on_message(update, ctx):
     text = update.message.text or ""
+    state = ctx.user_data.get("state")
+
+    if state == "await_cat_name":
+        ctx.user_data["pending_cat_name"] = text
+        ctx.user_data["state"] = "await_cat_path"
+        await update.message.reply_text(t("cat_add_path"))
+        return
+
+    if state == "await_cat_path":
+        cats = load_cats()
+        cats.append({"name": ctx.user_data.pop("pending_cat_name"), "path": text})
+        ctx.user_data.pop("state", None)
+        save_cats(cats)
+        await update.message.reply_text(t("cat_added"))
+        return
+
     if text.startswith("magnet:"):
-        try:
-            qb().torrents_add(urls=text, save_path="/media/downloads")
-            await update.message.reply_text(t("added"))
-        except Exception as e:
-            await update.message.reply_text(t("add_error", e=e))
+        cats = load_cats()
+        if not cats:
+            try:
+                qb().torrents_add(urls=text, save_path="/media/downloads")
+                await update.message.reply_text(t("added"))
+            except Exception as e:
+                await update.message.reply_text(t("add_error", e=e))
+            return
+        ctx.user_data["pending_magnet"] = text
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(c["name"], callback_data=f"addmagnet:{i}")] for i, c in enumerate(cats)])
+        await update.message.reply_text(t("pick_cat"), reply_markup=kb)
     else:
         await update.message.reply_text(t("hint"))
 
@@ -139,16 +195,58 @@ async def on_callback(update, ctx):
         return
     await query.answer()
 
-    action, value = query.data.split(":", 1)
+    action, _, value = query.data.partition(":")
+
     if action == "lang":
         set_lang(value)
         await query.edit_message_text(t("lang_set"))
+
     elif action == "del":
         try:
             qb().torrents_delete(delete_files=True, torrent_hashes=value)
             await query.edit_message_text(t("deleted"))
         except Exception as e:
             await query.edit_message_text(t("add_error", e=e))
+
+    elif action == "addmagnet":
+        cats = load_cats()
+        magnet = ctx.user_data.pop("pending_magnet", None)
+        if not magnet:
+            await query.edit_message_text(t("add_error", e="magnet expired"))
+            return
+        try:
+            qb().torrents_add(urls=magnet, save_path=cats[int(value)]["path"])
+            await query.edit_message_text(t("added"))
+        except Exception as e:
+            await query.edit_message_text(t("add_error", e=e))
+
+    elif action == "delcat":
+        cats = load_cats()
+        cats.pop(int(value))
+        save_cats(cats)
+        text, kb = settings_view(cats)
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+
+    elif action == "move":
+        cats = load_cats()
+        if not cats:
+            await query.answer(t("no_cats"))
+            return
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(c["name"], callback_data=f"moveto:{value}:{i}")] for i, c in enumerate(cats)])
+        await query.edit_message_reply_markup(reply_markup=kb)
+
+    elif action == "moveto":
+        torrent_hash, _, cat_idx = value.partition(":")
+        cat = load_cats()[int(cat_idx)]
+        try:
+            qb().torrents_set_location(torrent_hashes=torrent_hash, location=cat["path"])
+            await query.edit_message_text(t("moved", name=cat["name"]))
+        except Exception as e:
+            await query.edit_message_text(t("add_error", e=e))
+
+    elif query.data == "addcat":
+        ctx.user_data["state"] = "await_cat_name"
+        await query.edit_message_text(t("cat_add_name"))
 
 
 def main():
@@ -172,11 +270,13 @@ def main():
     if PROXY_URL:
         builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
     app = builder.build()
-    app.add_handler(CommandHandler("start",   cmd_start))
-    app.add_handler(CommandHandler("lang",    cmd_lang))
-    app.add_handler(CommandHandler("setpass", cmd_setpass))
-    app.add_handler(CommandHandler("list",    cmd_list))
-    app.add_handler(CommandHandler("status",  cmd_status))
+
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("lang",     cmd_lang))
+    app.add_handler(CommandHandler("settings", cmd_settings))
+    app.add_handler(CommandHandler("setpass",  cmd_setpass))
+    app.add_handler(CommandHandler("list",     cmd_list))
+    app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     print("Bot started")
