@@ -159,7 +159,7 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
             -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/series"}]}}' > /dev/null
 
-        docker compose restart telegram-bot
+        docker compose up -d telegram-bot
         echo "$MSG_JF_SETUP_OK"
     else
         echo "$MSG_JF_SETUP_FAIL"
