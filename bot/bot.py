@@ -1,4 +1,4 @@
-import os, json, urllib.request, urllib.parse
+import os, json, re, urllib.request, urllib.parse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
@@ -18,8 +18,8 @@ CREDS_FILE = "/app/creds.json"
 CATS_FILE  = "/app/categories.json"
 
 DEFAULT_CATS = [
-    {"name": "🎬 Фильмы",  "path": "/media/movies", "jf_type": "movies"},
-    {"name": "📺 Сериалы", "path": "/media/series", "jf_type": "tvshows"},
+    {"name": "🎬 Movies", "path": "/media/movies", "jf_type": "movies"},
+    {"name": "📺 Series", "path": "/media/series", "jf_type": "tvshows"},
 ]
 
 QB_USER = os.environ.get("QB_USER", "admin")
@@ -121,11 +121,24 @@ def auth(func):
     return wrapper
 
 
-def settings_view(cats):
+def settings_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("settings_cats"), callback_data="settings:cats")],
+        [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang"),
+         InlineKeyboardButton(t("settings_pass"), callback_data="settings:pass")],
+    ])
+
+
+def cats_view(cats):
     lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
     text = f"{t('settings_title')}\n\n{lines}"
-    buttons = [[InlineKeyboardButton(f"🗑 {c['name']}", callback_data=f"delcat:{i}")] for i, c in enumerate(cats)]
+    buttons = [
+        [InlineKeyboardButton(f"✏️ {c['name']}", callback_data=f"editcat:{i}"),
+         InlineKeyboardButton("🗑", callback_data=f"delcat:{i}")]
+        for i, c in enumerate(cats)
+    ]
     buttons.append([InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")])
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
     return text, InlineKeyboardMarkup(buttons)
 
 
@@ -146,29 +159,13 @@ async def cmd_start(update, ctx):
 
 
 @auth
-async def cmd_lang(update, ctx):
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
-        InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
-    ]])
-    await update.message.reply_text(t("lang_pick"), reply_markup=kb)
-
-
-@auth
 async def cmd_settings(update, ctx):
-    text, kb = settings_view(load_cats())
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+    await update.message.reply_text(t("settings_main"), reply_markup=settings_kb())
 
 
 @auth
 async def cmd_scan(update, ctx):
     await update.message.reply_text(t("scan_ok") if jf_scan() else t("scan_error"))
-
-
-@auth
-async def cmd_setpass(update, ctx):
-    ctx.user_data["state"] = "await_new_pass"
-    await update.message.reply_text(t("setpass_prompt"))
 
 
 @auth
@@ -222,10 +219,25 @@ async def on_message(update, ctx):
             await update.message.reply_text(t("setpass_error", e=e))
         return
 
+    if state == "await_cat_rename":
+        ctx.user_data.pop("state", None)
+        idx = ctx.user_data.pop("pending_cat_idx", None)
+        if idx is not None:
+            cats = load_cats()
+            if 0 <= idx < len(cats):
+                cats[idx]["name"] = text
+                save_cats(cats)
+        text_msg, kb = cats_view(load_cats())
+        await update.message.reply_text(text_msg, parse_mode="Markdown", reply_markup=kb)
+        return
+
     if state == "await_cat_name":
         ctx.user_data["pending_cat_name"] = text
         ctx.user_data["state"] = "await_cat_path"
-        await update.message.reply_text(t("cat_add_path"))
+        slug = re.sub(r'[^\w\s]', '', text, flags=re.UNICODE).strip().lower().replace(' ', '_')
+        suggested = f"/media/{slug}" if slug else "/media/"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(suggested, callback_data=f"catpath:{suggested}")]])
+        await update.message.reply_text(t("cat_add_path"), reply_markup=kb)
         return
 
     if state == "await_cat_path":
@@ -261,9 +273,25 @@ async def on_callback(update, ctx):
 
     action, _, value = query.data.partition(":")
 
-    if action == "lang":
+    if action == "settings":
+        if value == "menu":
+            await query.edit_message_text(t("settings_main"), reply_markup=settings_kb())
+        elif value == "cats":
+            text, kb = cats_view(load_cats())
+            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        elif value == "lang":
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
+                InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
+            ]])
+            await query.edit_message_text(t("lang_pick"), reply_markup=kb)
+        elif value == "pass":
+            ctx.user_data["state"] = "await_new_pass"
+            await query.edit_message_text(t("setpass_prompt"))
+
+    elif action == "lang":
         set_lang(value)
-        await query.edit_message_text(t("lang_set"))
+        await query.edit_message_text(t("settings_main"), reply_markup=settings_kb())
 
     elif action == "del":
         try:
@@ -301,13 +329,23 @@ async def on_callback(update, ctx):
         except Exception as e:
             await query.edit_message_text(t("add_error", e=e))
 
+    elif action == "editcat":
+        ctx.user_data["pending_cat_idx"] = int(value)
+        ctx.user_data["state"] = "await_cat_rename"
+        await query.edit_message_text(t("cat_rename_prompt"))
+
     elif action == "delcat":
         cats = load_cats()
         cat = cats.pop(int(value))
         save_cats(cats)
         jf_del_library(cat["name"])
-        text, kb = settings_view(cats)
+        text, kb = cats_view(cats)
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+
+    elif action == "catpath":
+        ctx.user_data["pending_cat_path"] = value
+        ctx.user_data.pop("state", None)
+        await query.edit_message_text(t("cat_pick_type"), reply_markup=type_keyboard())
 
     elif action == "cattype":
         name = ctx.user_data.pop("pending_cat_name", "")
@@ -316,7 +354,8 @@ async def on_callback(update, ctx):
         cats.append({"name": name, "path": path, "jf_type": value})
         save_cats(cats)
         jf_add_library(name, path, value)
-        await query.edit_message_text(t("cat_added"))
+        text, kb = cats_view(cats)
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
     elif query.data == "addcat":
         ctx.user_data["state"] = "await_cat_name"
@@ -367,10 +406,8 @@ def main():
         await application.bot.set_my_commands([
             BotCommand("list",     "Список торрентов"),
             BotCommand("status",   "Статус сети"),
-            BotCommand("settings", "Категории загрузки"),
+            BotCommand("settings", "Настройки"),
             BotCommand("scan",     "Сканировать Jellyfin"),
-            BotCommand("setpass",  "Сменить пароль qBittorrent"),
-            BotCommand("lang",     "Язык"),
         ])
 
     builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
@@ -379,12 +416,10 @@ def main():
     app = builder.build()
 
     app.add_handler(CommandHandler("start",    cmd_start))
-    app.add_handler(CommandHandler("lang",     cmd_lang))
-    app.add_handler(CommandHandler("settings", cmd_settings))
-    app.add_handler(CommandHandler("scan",     cmd_scan))
-    app.add_handler(CommandHandler("setpass",  cmd_setpass))
     app.add_handler(CommandHandler("list",     cmd_list))
     app.add_handler(CommandHandler("status",   cmd_status))
+    app.add_handler(CommandHandler("settings", cmd_settings))
+    app.add_handler(CommandHandler("scan",     cmd_scan))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     app.job_queue.run_repeating(check_done, interval=30, first=10)

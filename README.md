@@ -34,10 +34,8 @@ Every push to `main` deploys automatically.
 | `magnet:...` | Add torrent — asks for category |
 | `/list` | Torrent list with delete and move buttons |
 | `/status` | qBittorrent status |
-| `/settings` | Manage download categories (synced with Jellyfin) |
+| `/settings` | Settings: categories, language, qBittorrent password |
 | `/scan` | Trigger Jellyfin library scan |
-| `/setpass <pass>` | Change qBittorrent password |
-| `/lang` | Switch language |
 
 ## Media flow
 
