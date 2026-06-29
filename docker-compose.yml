@@ -38,6 +38,8 @@ services:
       - QB_HOST=http://qbittorrent:8080
       - ALLOWED_USER=${ALLOWED_USER}
       - PROXY_URL=${PROXY_URL:-}
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
     volumes:
       - ./bot:/app
       - ./lang:/app/lang
@@ -46,3 +48,4 @@ services:
       sh -c "pip install python-telegram-bot==21.* qbittorrent-api -q && python bot.py"
     depends_on:
       - qbittorrent
+      - jellyfin

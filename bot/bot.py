@@ -1,4 +1,4 @@
-import os, json
+import os, json, urllib.request, urllib.parse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
@@ -11,13 +11,15 @@ BOT_TOKEN  = os.environ["BOT_TOKEN"]
 ALLOWED    = int(os.environ["ALLOWED_USER"])
 QB_HOST    = os.environ["QB_HOST"]
 PROXY_URL  = os.environ.get("PROXY_URL")
+JF_URL     = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
+JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
 LANG_FILE  = "/app/lang.json"
 CREDS_FILE = "/app/creds.json"
 CATS_FILE  = "/app/categories.json"
 
 DEFAULT_CATS = [
-    {"name": "🎬 Фильмы", "path": "/media/movies"},
-    {"name": "📺 Сериалы", "path": "/media/series"},
+    {"name": "🎬 Фильмы",  "path": "/media/movies", "jf_type": "movies"},
+    {"name": "📺 Сериалы", "path": "/media/series", "jf_type": "tvshows"},
 ]
 
 QB_USER = os.environ.get("QB_USER", "admin")
@@ -31,6 +33,8 @@ ICONS = {
 }
 
 
+# ── translations ──────────────────────────────────────────────────────────────
+
 def t(key, **kw):
     s = LANGS[LANG][key]
     return s.format(**kw) if kw else s
@@ -42,6 +46,8 @@ def set_lang(code):
     with open(LANG_FILE, "w") as f:
         json.dump({"lang": code}, f)
 
+
+# ── persistence ───────────────────────────────────────────────────────────────
 
 def save_creds(user, password):
     global QB_USER, QB_PASS
@@ -63,19 +69,47 @@ def save_cats(cats):
         json.dump(cats, f, ensure_ascii=False, indent=2)
 
 
-def settings_view(cats):
-    lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
-    text = f"{t('settings_title')}\n\n{lines}"
-    buttons = [[InlineKeyboardButton(f"🗑 {c['name']}", callback_data=f"delcat:{i}")] for i, c in enumerate(cats)]
-    buttons.append([InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")])
-    return text, InlineKeyboardMarkup(buttons)
+# ── jellyfin ──────────────────────────────────────────────────────────────────
 
+def jf(method, path, body=None):
+    if not JF_KEY:
+        return False
+    req = urllib.request.Request(
+        f"{JF_URL}{path}",
+        data=json.dumps(body).encode() if body is not None else None,
+        headers={"X-Emby-Token": JF_KEY, "Content-Type": "application/json"},
+        method=method,
+    )
+    try:
+        urllib.request.urlopen(req, timeout=5)
+        return True
+    except Exception:
+        return False
+
+
+def jf_add_library(name, path, lib_type):
+    params = urllib.parse.urlencode({"name": name, "collectionType": lib_type, "refreshLibrary": "true"})
+    jf("POST", f"/Library/VirtualFolders?{params}", {"LibraryOptions": {"PathInfos": [{"Path": path}]}})
+
+
+def jf_del_library(name):
+    params = urllib.parse.urlencode({"name": name, "refreshLibrary": "true"})
+    jf("DELETE", f"/Library/VirtualFolders?{params}")
+
+
+def jf_scan():
+    return jf("POST", "/Library/Refresh")
+
+
+# ── qbittorrent ───────────────────────────────────────────────────────────────
 
 def qb():
     c = qbittorrentapi.Client(host=QB_HOST, username=QB_USER, password=QB_PASS)
     c.auth_log_in()
     return c
 
+
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 def auth(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -85,6 +119,25 @@ def auth(func):
         await func(update, ctx)
     return wrapper
 
+
+def settings_view(cats):
+    lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
+    text = f"{t('settings_title')}\n\n{lines}"
+    buttons = [[InlineKeyboardButton(f"🗑 {c['name']}", callback_data=f"delcat:{i}")] for i, c in enumerate(cats)]
+    buttons.append([InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")])
+    return text, InlineKeyboardMarkup(buttons)
+
+
+def type_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎬 " + t("jf_movies"),  callback_data="cattype:movies"),
+         InlineKeyboardButton("📺 " + t("jf_tvshows"), callback_data="cattype:tvshows")],
+        [InlineKeyboardButton("🎵 " + t("jf_music"),   callback_data="cattype:music"),
+         InlineKeyboardButton("📦 " + t("jf_mixed"),   callback_data="cattype:mixed")],
+    ])
+
+
+# ── commands ──────────────────────────────────────────────────────────────────
 
 @auth
 async def cmd_start(update, ctx):
@@ -104,6 +157,11 @@ async def cmd_lang(update, ctx):
 async def cmd_settings(update, ctx):
     text, kb = settings_view(load_cats())
     await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+
+
+@auth
+async def cmd_scan(update, ctx):
+    await update.message.reply_text(t("scan_ok") if jf_scan() else t("scan_error"))
 
 
 @auth
@@ -153,9 +211,11 @@ async def cmd_status(update, ctx):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
+# ── message handler ───────────────────────────────────────────────────────────
+
 @auth
 async def on_message(update, ctx):
-    text = update.message.text or ""
+    text  = update.message.text or ""
     state = ctx.user_data.get("state")
 
     if state == "await_cat_name":
@@ -165,11 +225,9 @@ async def on_message(update, ctx):
         return
 
     if state == "await_cat_path":
-        cats = load_cats()
-        cats.append({"name": ctx.user_data.pop("pending_cat_name"), "path": text})
+        ctx.user_data["pending_cat_path"] = text
         ctx.user_data.pop("state", None)
-        save_cats(cats)
-        await update.message.reply_text(t("cat_added"))
+        await update.message.reply_text(t("cat_pick_type"), reply_markup=type_keyboard())
         return
 
     if text.startswith("magnet:"):
@@ -187,6 +245,8 @@ async def on_message(update, ctx):
     else:
         await update.message.reply_text(t("hint"))
 
+
+# ── callback handler ──────────────────────────────────────────────────────────
 
 async def on_callback(update, ctx):
     query = update.callback_query
@@ -209,23 +269,16 @@ async def on_callback(update, ctx):
             await query.edit_message_text(t("add_error", e=e))
 
     elif action == "addmagnet":
-        cats = load_cats()
         magnet = ctx.user_data.pop("pending_magnet", None)
         if not magnet:
             await query.edit_message_text(t("add_error", e="magnet expired"))
             return
+        cat = load_cats()[int(value)]
         try:
-            qb().torrents_add(urls=magnet, save_path=cats[int(value)]["path"])
+            qb().torrents_add(urls=magnet, save_path=cat["path"])
             await query.edit_message_text(t("added"))
         except Exception as e:
             await query.edit_message_text(t("add_error", e=e))
-
-    elif action == "delcat":
-        cats = load_cats()
-        cats.pop(int(value))
-        save_cats(cats)
-        text, kb = settings_view(cats)
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
     elif action == "move":
         cats = load_cats()
@@ -244,10 +297,29 @@ async def on_callback(update, ctx):
         except Exception as e:
             await query.edit_message_text(t("add_error", e=e))
 
+    elif action == "delcat":
+        cats = load_cats()
+        cat = cats.pop(int(value))
+        save_cats(cats)
+        jf_del_library(cat["name"])
+        text, kb = settings_view(cats)
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+
+    elif action == "cattype":
+        name = ctx.user_data.pop("pending_cat_name", "")
+        path = ctx.user_data.pop("pending_cat_path", "")
+        cats = load_cats()
+        cats.append({"name": name, "path": path, "jf_type": value})
+        save_cats(cats)
+        jf_add_library(name, path, value)
+        await query.edit_message_text(t("cat_added"))
+
     elif query.data == "addcat":
         ctx.user_data["state"] = "await_cat_name"
         await query.edit_message_text(t("cat_add_name"))
 
+
+# ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
     global LANG, QB_USER, QB_PASS
@@ -274,6 +346,7 @@ def main():
     app.add_handler(CommandHandler("start",    cmd_start))
     app.add_handler(CommandHandler("lang",     cmd_lang))
     app.add_handler(CommandHandler("settings", cmd_settings))
+    app.add_handler(CommandHandler("scan",     cmd_scan))
     app.add_handler(CommandHandler("setpass",  cmd_setpass))
     app.add_handler(CommandHandler("list",     cmd_list))
     app.add_handler(CommandHandler("status",   cmd_status))

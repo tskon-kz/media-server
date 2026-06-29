@@ -1,6 +1,6 @@
 M = {
     "no_access":     "⛔ Access denied",
-    "start":         "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/status — status\n/settings — categories\n/setpass — qBittorrent password\n/lang — language",
+    "start":         "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/status — status\n/settings — categories\n/scan — scan Jellyfin\n/setpass — qBittorrent password\n/lang — language",
     "empty":         "📭 List is empty",
     "qb_error":      "❌ qBittorrent unavailable: {e}",
     "del_btn":       "🗑 Delete",
@@ -21,7 +21,14 @@ M = {
     "cat_add_btn":   "➕ Add category",
     "cat_add_name":  "Enter category name:",
     "cat_add_path":  "Enter path (e.g. /media/anime):",
+    "cat_pick_type": "Choose Jellyfin library type:",
+    "jf_movies":     "Movies",
+    "jf_tvshows":    "TV Shows",
+    "jf_music":      "Music",
+    "jf_mixed":      "Other",
     "cat_added":     "✅ Category added",
     "move_btn":      "📁 Move",
     "moved":         "📁 Moved to: {name}",
+    "scan_ok":       "🔄 Jellyfin: scan started",
+    "scan_error":    "❌ Failed to start Jellyfin scan",
 }

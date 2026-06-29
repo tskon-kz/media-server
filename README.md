@@ -7,12 +7,12 @@ Jellyfin + qBittorrent + Telegram Bot.
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/mediaserver.git ~/mediaserver
-cd ~/mediaserver
+git clone https://github.com/YOUR_USERNAME/mediaserver.git ~/media-server
+cd ~/media-server
 bash setup.sh
 ```
 
-`setup.sh` installs Docker, asks for credentials, writes `.env`, starts containers.
+`setup.sh` handles everything: installs Docker, asks for credentials, configures qBittorrent and Jellyfin automatically, starts all containers.
 
 ## CI/CD
 
@@ -31,11 +31,21 @@ Every push to `main` deploys automatically.
 
 | Command | Action |
 |---------|--------|
-| `magnet:...` | Add torrent |
-| `/list` | Torrent list |
-| `/status` | Server status |
+| `magnet:...` | Add torrent — asks for category |
+| `/list` | Torrent list with delete and move buttons |
+| `/status` | qBittorrent status |
+| `/settings` | Manage download categories (synced with Jellyfin) |
+| `/scan` | Trigger Jellyfin library scan |
 | `/setpass <pass>` | Change qBittorrent password |
 | `/lang` | Switch language |
+
+## Media flow
+
+```
+Bot (magnet) → qBittorrent → ./media/<category>/ ← Jellyfin
+```
+
+Categories are managed via `/settings`. Adding or removing a category automatically creates or removes the corresponding Jellyfin library.
 
 ## Teardown
 
@@ -44,15 +54,6 @@ bash teardown.sh
 ```
 
 Removes containers, images, volumes, `media/`, `data/`, `.env`, `creds.json`. Repository files are untouched.
-
-## Media flow
-
-```
-Bot (magnet link) → qBittorrent → ./media/ ← Jellyfin
-```
-
-qBittorrent downloads to `./media/` on the host. Jellyfin reads from the same folder.  
-On first Jellyfin launch add a library and set the path to `/media`.
 
 ## Access
 

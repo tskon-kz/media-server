@@ -22,6 +22,15 @@ echo "$MSG_TEARDOWN_STOPPING"
 docker compose down --volumes --rmi all 2>/dev/null || true
 
 echo "$MSG_TEARDOWN_REMOVING"
-sudo rm -rf media data bot/creds.json bot/lang.json .env
+sudo rm -rf data bot/creds.json bot/lang.json bot/categories.json .env
+
+printf "%s" "$MSG_TEARDOWN_MEDIA_CONFIRM"
+read -r REMOVE_MEDIA
+if [[ "$REMOVE_MEDIA" =~ ^[Yy]$ ]]; then
+    sudo rm -rf media
+    echo "$MSG_TEARDOWN_MEDIA_REMOVED"
+else
+    echo "$MSG_TEARDOWN_MEDIA_KEPT"
+fi
 
 echo "$MSG_TEARDOWN_DONE"

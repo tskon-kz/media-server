@@ -1,6 +1,6 @@
 M = {
     "no_access":     "⛔ Нет доступа",
-    "start":         "🎬 *Медиасервер*\n\nОтправь magnet-ссылку\n\n/list — торренты\n/status — статус\n/settings — категории\n/setpass — пароль qBittorrent\n/lang — язык",
+    "start":         "🎬 *Медиасервер*\n\nОтправь magnet-ссылку\n\n/list — торренты\n/status — статус\n/settings — категории\n/scan — сканировать Jellyfin\n/setpass — пароль qBittorrent\n/lang — язык",
     "empty":         "📭 Список пуст",
     "qb_error":      "❌ qBittorrent недоступен: {e}",
     "del_btn":       "🗑 Удалить",
@@ -21,7 +21,14 @@ M = {
     "cat_add_btn":   "➕ Добавить категорию",
     "cat_add_name":  "Введи название категории:",
     "cat_add_path":  "Введи путь (например: /media/anime):",
+    "cat_pick_type": "Выбери тип библиотеки Jellyfin:",
+    "jf_movies":     "Фильмы",
+    "jf_tvshows":    "Сериалы",
+    "jf_music":      "Музыка",
+    "jf_mixed":      "Другое",
     "cat_added":     "✅ Категория добавлена",
     "move_btn":      "📁 Переместить",
     "moved":         "📁 Перемещён: {name}",
+    "scan_ok":       "🔄 Jellyfin: сканирование запущено",
+    "scan_error":    "❌ Не удалось запустить сканирование Jellyfin",
 }

@@ -7,12 +7,12 @@ Jellyfin + qBittorrent + Telegram-бот.
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/mediaserver.git ~/mediaserver
-cd ~/mediaserver
+git clone https://github.com/YOUR_USERNAME/mediaserver.git ~/media-server
+cd ~/media-server
 bash setup.sh
 ```
 
-`setup.sh` устанавливает Docker, запрашивает настройки, пишет `.env`, запускает контейнеры.
+`setup.sh` делает всё сам: устанавливает Docker, запрашивает настройки, автоматически конфигурирует qBittorrent и Jellyfin, запускает контейнеры.
 
 ## CI/CD
 
@@ -31,11 +31,21 @@ bash setup.sh
 
 | Команда | Действие |
 |---------|----------|
-| `magnet:...` | Добавить торрент |
-| `/list` | Список торрентов |
-| `/status` | Статус серверов |
+| `magnet:...` | Добавить торрент — спросит категорию |
+| `/list` | Список торрентов с кнопками удаления и перемещения |
+| `/status` | Статус qBittorrent |
+| `/settings` | Управление категориями загрузки (синхронизируется с Jellyfin) |
+| `/scan` | Запустить сканирование библиотек Jellyfin |
 | `/setpass <пароль>` | Сменить пароль qBittorrent |
 | `/lang` | Сменить язык |
+
+## Как работает медиа
+
+```
+Бот (magnet) → qBittorrent → ./media/<категория>/ ← Jellyfin
+```
+
+Категории управляются через `/settings`. При добавлении или удалении категории библиотека в Jellyfin создаётся или удаляется автоматически.
 
 ## Сброс
 
@@ -44,15 +54,6 @@ bash teardown.sh
 ```
 
 Удаляет контейнеры, образы, volumes, `media/`, `data/`, `.env`, `creds.json`. Файлы репозитория не трогает.
-
-## Как работает медиа
-
-```
-Бот (magnet-ссылка) → qBittorrent → ./media/ ← Jellyfin
-```
-
-qBittorrent скачивает в папку `./media/` на хосте. Jellyfin читает из той же папки.  
-При первом запуске Jellyfin добавь библиотеку и укажи путь `/media`.
 
 ## Доступ
 
