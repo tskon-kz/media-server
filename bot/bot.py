@@ -270,6 +270,22 @@ async def on_message(update, ctx):
         await update.message.reply_text(t("hint"))
 
 
+@auth
+async def on_torrent_file(update, ctx):
+    file = await (await update.message.document.get_file()).download_as_bytearray()
+    cats = load_cats()
+    if not cats:
+        try:
+            qb().torrents_add(torrent_files=bytes(file), save_path="/media/downloads")
+            await update.message.reply_text(t("added"))
+        except Exception as e:
+            await update.message.reply_text(t("add_error", e=e))
+        return
+    ctx.user_data["pending_torrent"] = bytes(file)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton(c["name"], callback_data=f"addtorrent:{i}")] for i, c in enumerate(cats)])
+    await update.message.reply_text(t("pick_cat"), reply_markup=kb)
+
+
 # ── callback handler ──────────────────────────────────────────────────────────
 
 async def on_callback(update, ctx):
@@ -316,6 +332,18 @@ async def on_callback(update, ctx):
         cat = load_cats()[int(value)]
         try:
             qb().torrents_add(urls=magnet, save_path=cat["path"])
+            await query.edit_message_text(t("added"))
+        except Exception as e:
+            await query.edit_message_text(t("add_error", e=e))
+
+    elif action == "addtorrent":
+        torrent = ctx.user_data.pop("pending_torrent", None)
+        if not torrent:
+            await query.edit_message_text(t("add_error", e="file expired"))
+            return
+        cat = load_cats()[int(value)]
+        try:
+            qb().torrents_add(torrent_files=torrent, save_path=cat["path"])
             await query.edit_message_text(t("added"))
         except Exception as e:
             await query.edit_message_text(t("add_error", e=e))
@@ -430,6 +458,7 @@ def main():
     app.add_handler(CommandHandler("scan",     cmd_scan))
     app.add_handler(CommandHandler("settings", cmd_settings))
     app.add_handler(CallbackQueryHandler(on_callback))
+    app.add_handler(MessageHandler(filters.Document.FileExtension("torrent"), on_torrent_file))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     app.job_queue.run_repeating(check_done, interval=30, first=10)
     print("Bot started")

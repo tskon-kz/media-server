@@ -45,6 +45,7 @@ printf "%s" "$MSG_ASK_SERVER_IP"; read -r SERVER_IP
 printf "%s" "$MSG_ASK_QB_PASS";   read -r QB_PASS
 printf "%s" "$MSG_ASK_JF_USER";   read -r JF_USER
 printf "%s" "$MSG_ASK_JF_PASS";   read -r JF_PASS
+printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
 printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
 
 {
@@ -113,7 +114,7 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
         curl -s "http://localhost:8096/Startup/User" > /dev/null
         curl -s -X POST "http://localhost:8096/Startup/Configuration" \
             -H "Content-Type: application/json" \
-            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null
+            -d "{\"ServerName\":\"${JF_NAME:-Media Server}\",\"UICulture\":\"en-US\",\"MetadataCountryCode\":\"US\",\"PreferredMetadataLanguage\":\"en\"}" > /dev/null
         WZ=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/User" \
             -H "Content-Type: application/json" \
             -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}")

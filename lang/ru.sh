@@ -11,6 +11,7 @@ MSG_ASK_QB_PASS="Пароль для qBittorrent WebUI (логин будет: a
 MSG_ASK_PROXY="Прокси для Telegram (пусто — не использовать): "
 MSG_ASK_JF_USER="Логин администратора Jellyfin: "
 MSG_ASK_JF_PASS="Пароль администратора Jellyfin: "
+MSG_ASK_JF_NAME="Название сервера Jellyfin (Enter — Media Server): "
 MSG_ENV_SAVED=".env сохранён"
 MSG_STARTING="Запускаю контейнеры..."
 MSG_QB_WAIT="Жду запуска qBittorrent..."
