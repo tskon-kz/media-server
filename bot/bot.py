@@ -5,7 +5,7 @@ from telegram.ext import (
     CommandHandler, MessageHandler, filters, ContextTypes,
 )
 import qbittorrentapi
-import ru, en
+from lang import ru, en
 
 BOT_TOKEN  = os.environ["BOT_TOKEN"]
 ALLOWED    = int(os.environ["ALLOWED_USER"])

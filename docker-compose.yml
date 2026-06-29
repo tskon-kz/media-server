@@ -40,6 +40,7 @@ services:
       - PROXY_URL=${PROXY_URL:-}
     volumes:
       - ./bot:/app
+      - ./lang:/app/lang
     working_dir: /app
     command: >
       sh -c "pip install python-telegram-bot==21.* qbittorrent-api -q && python bot.py"
