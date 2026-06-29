@@ -37,6 +37,14 @@ Every push to `main` deploys automatically.
 | `/setpass <pass>` | Change qBittorrent password |
 | `/lang` | Switch language |
 
+## Teardown
+
+```bash
+bash teardown.sh
+```
+
+Removes containers, images, volumes, `media/`, `data/`, `.env`, `creds.json`. Repository files are untouched.
+
 ## Access
 
 - Jellyfin: `http://SERVER_IP:8096`

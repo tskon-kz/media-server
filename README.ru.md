@@ -37,6 +37,14 @@ bash setup.sh
 | `/setpass <пароль>` | Сменить пароль qBittorrent |
 | `/lang` | Сменить язык |
 
+## Сброс
+
+```bash
+bash teardown.sh
+```
+
+Удаляет контейнеры, образы, volumes, `media/`, `data/`, `.env`, `creds.json`. Файлы репозитория не трогает.
+
 ## Доступ
 
 - Jellyfin: `http://SERVER_IP:8096`
