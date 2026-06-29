@@ -8,7 +8,7 @@ import qbittorrentapi
 from lang import ru, en
 
 BOT_TOKEN  = os.environ["BOT_TOKEN"]
-ALLOWED    = int(os.environ["ALLOWED_USER"])
+ALLOWED    = frozenset(int(x.strip()) for x in os.environ["ALLOWED_USER"].split(","))
 QB_HOST    = os.environ["QB_HOST"]
 PROXY_URL  = os.environ.get("PROXY_URL")
 JF_URL     = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
@@ -75,7 +75,7 @@ def save_cats(cats):
 
 def jf(method, path, body=None):
     if not JF_KEY:
-        return False
+        return None
     req = urllib.request.Request(
         f"{JF_URL}{path}",
         data=json.dumps(body).encode() if body is not None else None,
@@ -83,10 +83,11 @@ def jf(method, path, body=None):
         method=method,
     )
     try:
-        urllib.request.urlopen(req, timeout=5)
-        return True
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = resp.read()
+            return json.loads(raw) if raw else True
     except Exception:
-        return False
+        return None
 
 
 def jf_add_library(name, path, lib_type):
@@ -103,6 +104,22 @@ def jf_scan():
     return jf("POST", "/Library/Refresh")
 
 
+def jf_users():
+    return jf("GET", "/Users") or []
+
+
+def jf_create_user(name):
+    return jf("POST", "/Users/New", {"Name": name})
+
+
+def jf_set_password(user_id, password):
+    return jf("POST", f"/Users/{user_id}/Password", {"NewPw": password}) is not None
+
+
+def jf_delete_user(user_id):
+    return jf("DELETE", f"/Users/{user_id}") is not None
+
+
 # ── qbittorrent ───────────────────────────────────────────────────────────────
 
 def qb():
@@ -115,7 +132,7 @@ def qb():
 
 def auth(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user.id != ALLOWED:
+        if update.effective_user.id not in ALLOWED:
             await update.message.reply_text(t("no_access"))
             return
         await func(update, ctx)
@@ -128,12 +145,26 @@ def settings_kb():
         [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang"),
          InlineKeyboardButton(t("settings_pass"), callback_data="settings:pass")],
     ]
+    if JF_KEY:
+        buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
     if SERVER_IP:
         buttons.append([
             InlineKeyboardButton("qBittorrent ↗", url=f"http://{SERVER_IP}:8080"),
             InlineKeyboardButton("Jellyfin ↗",    url=f"http://{SERVER_IP}:8096"),
         ])
     return InlineKeyboardMarkup(buttons)
+
+
+def jf_users_view(users):
+    body = "\n".join(f"• {u['Name']}" for u in users) if users else t("jf_no_users")
+    text = f"{t('jf_users_title')}\n\n{body}"
+    buttons = [
+        [InlineKeyboardButton(f"🗑 {u['Name']}", callback_data=f"jf_deluser:{u['Id']}")]
+        for u in users
+    ]
+    buttons.append([InlineKeyboardButton(t("jf_add_user_btn"), callback_data="jf_adduser")])
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
+    return text, InlineKeyboardMarkup(buttons)
 
 
 def cats_view(cats):
@@ -239,6 +270,25 @@ async def on_message(update, ctx):
         await update.message.reply_text(text_msg, parse_mode="Markdown", reply_markup=kb)
         return
 
+    if state == "await_jf_user_name":
+        ctx.user_data.pop("state", None)
+        ctx.user_data["pending_jf_user_name"] = text
+        ctx.user_data["state"] = "await_jf_user_pass"
+        await update.message.reply_text(t("jf_add_user_pass", name=text), parse_mode="Markdown")
+        return
+
+    if state == "await_jf_user_pass":
+        ctx.user_data.pop("state", None)
+        name = ctx.user_data.pop("pending_jf_user_name", "")
+        user = jf_create_user(name)
+        if isinstance(user, dict) and "Id" in user:
+            jf_set_password(user["Id"], text)
+            await update.message.delete()
+            await update.effective_chat.send_message(t("jf_user_added", name=name), parse_mode="Markdown")
+        else:
+            await update.message.reply_text(t("jf_user_error"))
+        return
+
     if state == "await_cat_name":
         ctx.user_data["pending_cat_name"] = text
         ctx.user_data["state"] = "await_cat_path"
@@ -290,7 +340,7 @@ async def on_torrent_file(update, ctx):
 
 async def on_callback(update, ctx):
     query = update.callback_query
-    if update.effective_user.id != ALLOWED:
+    if update.effective_user.id not in ALLOWED:
         await query.answer(t("no_access"))
         return
     await query.answer()
@@ -312,6 +362,9 @@ async def on_callback(update, ctx):
         elif value == "pass":
             ctx.user_data["state"] = "await_new_pass"
             await query.edit_message_text(t("setpass_prompt"))
+        elif value == "jf_users":
+            text, kb = jf_users_view(jf_users())
+            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
     elif action == "lang":
         set_lang(value)
@@ -393,6 +446,17 @@ async def on_callback(update, ctx):
         text, kb = cats_view(cats)
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
+    elif action == "jf_deluser":
+        if jf_delete_user(value):
+            text, kb = jf_users_view(jf_users())
+            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        else:
+            await query.answer(t("jf_user_error"))
+
+    elif action == "jf_adduser":
+        ctx.user_data["state"] = "await_jf_user_name"
+        await query.edit_message_text(t("jf_add_user_name"))
+
     elif query.data == "addcat":
         ctx.user_data["state"] = "await_cat_name"
         await query.edit_message_text(t("cat_add_name"))
@@ -411,7 +475,8 @@ async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
     for tor in torrents:
         prev = known.get(tor.hash)
         if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
-            await ctx.bot.send_message(ALLOWED, t("download_done", name=tor.name))
+            for uid in ALLOWED:
+                await ctx.bot.send_message(uid, t("download_done", name=tor.name))
             jf_scan()
         known[tor.hash] = tor.state
     for h in list(known):
