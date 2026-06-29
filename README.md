@@ -1,37 +1,43 @@
 # Media Server
 
-Домашний медиасервер: Jellyfin + qBittorrent + Telegram Bot.
+> [Русская версия](README.ru.md)
 
-## Быстрый старт (на сервере)
+Jellyfin + qBittorrent + Telegram Bot.
+
+## Quick start
 
 ```bash
-git clone https://github.com/ВАШ_НИКНЕЙМ/mediaserver.git ~/mediaserver
+git clone https://github.com/YOUR_USERNAME/mediaserver.git ~/mediaserver
 cd ~/mediaserver
 bash setup.sh
 ```
 
-## GitHub Actions (CD)
+`setup.sh` installs Docker, asks for credentials, writes `.env`, starts containers.
 
-В настройках репозитория → Settings → Secrets добавь:
+## CI/CD
 
-| Secret | Значение |
-|--------|----------|
-| `SERVER_HOST` | IP сервера |
-| `SERVER_USER` | Пользователь SSH |
-| `SERVER_SSH_KEY` | Приватный SSH ключ |
+Add GitHub secrets: Settings → Secrets → Actions
 
-После этого каждый `git push` в `main` автоматически обновит сервер.
+| Secret | Value |
+|--------|-------|
+| `SERVER_HOST` | Server IP |
+| `SERVER_USER` | SSH username |
+| `SERVER_SSH_KEY` | Private SSH key |
+| `SSH_PORT` | SSH port |
 
-## Команды Telegram бота
+Every push to `main` deploys automatically.
 
-| Команда | Действие |
-|---------|----------|
-| `magnet:...` | Добавить торрент / Add torrent |
-| `/list` | Список загрузок / Download list |
-| `/status` | Статус серверов / Server status |
-| `/lang` | Сменить язык / Change language |
+## Bot commands
 
-## Доступ
+| Command | Action |
+|---------|--------|
+| `magnet:...` | Add torrent |
+| `/list` | Torrent list |
+| `/status` | Server status |
+| `/setpass <pass>` | Change qBittorrent password |
+| `/lang` | Switch language |
+
+## Access
 
 - Jellyfin: `http://SERVER_IP:8096`
-- qBittorrent WebUI: `http://SERVER_IP:8080`
+- qBittorrent: `http://SERVER_IP:8080`
