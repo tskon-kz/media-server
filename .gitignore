@@ -1,1 +1,5 @@
 context/
+.env
+data/
+media/
+.idea/
