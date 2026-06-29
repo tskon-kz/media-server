@@ -1,0 +1,48 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./data/jellyfin/config:/config
+      - ./data/jellyfin/cache:/cache
+      - ./media:/media
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://${SERVER_IP}:8096
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
+      - WEBUI_PORT=8080
+    ports:
+      - "8080:8080"
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
+    volumes:
+      - ./data/qbittorrent/config:/config
+      - ./media:/media/downloads
+
+  telegram-bot:
+    image: python:3.11-slim
+    container_name: telegram-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - QB_HOST=http://qbittorrent:8080
+      - QB_USER=${QB_USER}
+      - QB_PASS=${QB_PASS}
+      - ALLOWED_USER=${ALLOWED_USER}
+    volumes:
+      - ./bot:/app
+    working_dir: /app
+    command: >
+      sh -c "pip install python-telegram-bot==21.* qbittorrent-api -q && python bot.py"
+    depends_on:
+      - qbittorrent
