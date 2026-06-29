@@ -35,8 +35,6 @@ ICONS = {
 DONE_STATES = {"pausedUP", "uploading", "seeding", "stalledUP", "forcedUP"}
 
 
-# ── translations ──────────────────────────────────────────────────────────────
-
 def t(key, **kw):
     s = LANGS[LANG][key]
     return s.format(**kw) if kw else s
@@ -48,8 +46,6 @@ def set_lang(code):
     with open(LANG_FILE, "w") as f:
         json.dump({"lang": code}, f)
 
-
-# ── persistence ───────────────────────────────────────────────────────────────
 
 def save_creds(user, password):
     global QB_USER, QB_PASS
@@ -70,8 +66,6 @@ def save_cats(cats):
     with open(CATS_FILE, "w") as f:
         json.dump(cats, f, ensure_ascii=False, indent=2)
 
-
-# ── jellyfin ──────────────────────────────────────────────────────────────────
 
 def jf(method, path, body=None):
     if not JF_KEY:
@@ -95,40 +89,11 @@ def jf_add_library(name, path, lib_type):
     jf("POST", f"/Library/VirtualFolders?{params}", {"LibraryOptions": {"PathInfos": [{"Path": path}]}})
 
 
-def jf_del_library(name):
-    params = urllib.parse.urlencode({"name": name, "refreshLibrary": "true"})
-    jf("DELETE", f"/Library/VirtualFolders?{params}")
-
-
-def jf_scan():
-    return jf("POST", "/Library/Refresh")
-
-
-def jf_users():
-    return jf("GET", "/Users") or []
-
-
-def jf_create_user(name):
-    return jf("POST", "/Users/New", {"Name": name})
-
-
-def jf_set_password(user_id, password):
-    return jf("POST", f"/Users/{user_id}/Password", {"NewPw": password}) is not None
-
-
-def jf_delete_user(user_id):
-    return jf("DELETE", f"/Users/{user_id}") is not None
-
-
-# ── qbittorrent ───────────────────────────────────────────────────────────────
-
 def qb():
     c = qbittorrentapi.Client(host=QB_HOST, username=QB_USER, password=QB_PASS)
     c.auth_log_in()
     return c
 
-
-# ── helpers ───────────────────────────────────────────────────────────────────
 
 def auth(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -137,6 +102,10 @@ def auth(func):
             return
         await func(update, ctx)
     return wrapper
+
+
+async def edit(query, text, kb=None):
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
 
 def settings_kb():
@@ -157,27 +126,26 @@ def settings_kb():
 
 def jf_users_view(users):
     body = "\n".join(f"• {u['Name']}" for u in users) if users else t("jf_no_users")
-    text = f"{t('jf_users_title')}\n\n{body}"
-    buttons = [
-        [InlineKeyboardButton(f"🗑 {u['Name']}", callback_data=f"jf_deluser:{u['Id']}")]
-        for u in users
+    buttons = [[InlineKeyboardButton(f"🗑 {u['Name']}", callback_data=f"jf_deluser:{u['Id']}")] for u in users]
+    buttons += [
+        [InlineKeyboardButton(t("jf_add_user_btn"), callback_data="jf_adduser")],
+        [InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")],
     ]
-    buttons.append([InlineKeyboardButton(t("jf_add_user_btn"), callback_data="jf_adduser")])
-    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
-    return text, InlineKeyboardMarkup(buttons)
+    return f"{t('jf_users_title')}\n\n{body}", InlineKeyboardMarkup(buttons)
 
 
 def cats_view(cats):
     lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
-    text = f"{t('settings_title')}\n\n{lines}"
     buttons = [
         [InlineKeyboardButton(f"✏️ {c['name']}", callback_data=f"editcat:{i}"),
          InlineKeyboardButton("🗑", callback_data=f"delcat:{i}")]
         for i, c in enumerate(cats)
     ]
-    buttons.append([InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")])
-    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
-    return text, InlineKeyboardMarkup(buttons)
+    buttons += [
+        [InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")],
+        [InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")],
+    ]
+    return f"{t('settings_title')}\n\n{lines}", InlineKeyboardMarkup(buttons)
 
 
 def type_keyboard():
@@ -189,8 +157,6 @@ def type_keyboard():
     ])
 
 
-# ── commands ──────────────────────────────────────────────────────────────────
-
 @auth
 async def cmd_start(update, ctx):
     await update.message.reply_text(t("start"), parse_mode="Markdown")
@@ -198,13 +164,12 @@ async def cmd_start(update, ctx):
 
 @auth
 async def cmd_scan(update, ctx):
-    await update.message.reply_text(t("scan_ok") if jf_scan() else t("scan_error"))
+    await update.message.reply_text(t("scan_ok") if jf("POST", "/Library/Refresh") else t("scan_error"))
 
 
 @auth
 async def cmd_settings(update, ctx):
     await update.message.reply_text(t("settings_main"), reply_markup=settings_kb())
-
 
 
 @auth
@@ -214,11 +179,9 @@ async def cmd_list(update, ctx):
     except Exception as e:
         await update.message.reply_text(t("qb_error", e=e))
         return
-
     if not torrents:
         await update.message.reply_text(t("empty"))
         return
-
     for tor in torrents:
         pct = tor.progress * 100
         bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
@@ -239,8 +202,6 @@ async def cmd_status(update, ctx):
         msg = t("status_err")
     await update.message.reply_text(msg, parse_mode="Markdown")
 
-
-# ── message handler ───────────────────────────────────────────────────────────
 
 @auth
 async def on_message(update, ctx):
@@ -280,9 +241,9 @@ async def on_message(update, ctx):
     if state == "await_jf_user_pass":
         ctx.user_data.pop("state", None)
         name = ctx.user_data.pop("pending_jf_user_name", "")
-        user = jf_create_user(name)
+        user = jf("POST", "/Users/New", {"Name": name})
         if isinstance(user, dict) and "Id" in user:
-            jf_set_password(user["Id"], text)
+            jf("POST", f"/Users/{user['Id']}/Password", {"NewPw": text})
             await update.message.delete()
             await update.effective_chat.send_message(t("jf_user_added", name=name), parse_mode="Markdown")
         else:
@@ -336,8 +297,6 @@ async def on_torrent_file(update, ctx):
     await update.message.reply_text(t("pick_cat"), reply_markup=kb)
 
 
-# ── callback handler ──────────────────────────────────────────────────────────
-
 async def on_callback(update, ctx):
     query = update.callback_query
     if update.effective_user.id not in ALLOWED:
@@ -349,57 +308,55 @@ async def on_callback(update, ctx):
 
     if action == "settings":
         if value == "menu":
-            await query.edit_message_text(t("settings_main"), reply_markup=settings_kb())
+            await edit(query, t("settings_main"), settings_kb())
         elif value == "cats":
-            text, kb = cats_view(load_cats())
-            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+            await edit(query, *cats_view(load_cats()))
         elif value == "lang":
             kb = InlineKeyboardMarkup([[
                 InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
                 InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
             ]])
-            await query.edit_message_text(t("lang_pick"), reply_markup=kb)
+            await edit(query, t("lang_pick"), kb)
         elif value == "pass":
             ctx.user_data["state"] = "await_new_pass"
-            await query.edit_message_text(t("setpass_prompt"))
+            await edit(query, t("setpass_prompt"))
         elif value == "jf_users":
-            text, kb = jf_users_view(jf_users())
-            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+            await edit(query, *jf_users_view(jf("GET", "/Users") or []))
 
     elif action == "lang":
         set_lang(value)
-        await query.edit_message_text(t("settings_main"), reply_markup=settings_kb())
+        await edit(query, t("settings_main"), settings_kb())
 
     elif action == "del":
         try:
             qb().torrents_delete(delete_files=True, torrent_hashes=value)
-            await query.edit_message_text(t("deleted"))
+            await edit(query, t("deleted"))
         except Exception as e:
-            await query.edit_message_text(t("add_error", e=e))
+            await edit(query, t("add_error", e=e))
 
     elif action == "addmagnet":
         magnet = ctx.user_data.pop("pending_magnet", None)
         if not magnet:
-            await query.edit_message_text(t("add_error", e="magnet expired"))
+            await edit(query, t("add_error", e="magnet expired"))
             return
         cat = load_cats()[int(value)]
         try:
             qb().torrents_add(urls=magnet, save_path=cat["path"])
-            await query.edit_message_text(t("added"))
+            await edit(query, t("added"))
         except Exception as e:
-            await query.edit_message_text(t("add_error", e=e))
+            await edit(query, t("add_error", e=e))
 
     elif action == "addtorrent":
         torrent = ctx.user_data.pop("pending_torrent", None)
         if not torrent:
-            await query.edit_message_text(t("add_error", e="file expired"))
+            await edit(query, t("add_error", e="file expired"))
             return
         cat = load_cats()[int(value)]
         try:
             qb().torrents_add(torrent_files=torrent, save_path=cat["path"])
-            await query.edit_message_text(t("added"))
+            await edit(query, t("added"))
         except Exception as e:
-            await query.edit_message_text(t("add_error", e=e))
+            await edit(query, t("add_error", e=e))
 
     elif action == "move":
         cats = load_cats()
@@ -414,27 +371,27 @@ async def on_callback(update, ctx):
         cat = load_cats()[int(cat_idx)]
         try:
             qb().torrents_set_location(torrent_hashes=torrent_hash, location=cat["path"])
-            await query.edit_message_text(t("moved", name=cat["name"]))
+            await edit(query, t("moved", name=cat["name"]))
         except Exception as e:
-            await query.edit_message_text(t("add_error", e=e))
+            await edit(query, t("add_error", e=e))
 
     elif action == "editcat":
         ctx.user_data["pending_cat_idx"] = int(value)
         ctx.user_data["state"] = "await_cat_rename"
-        await query.edit_message_text(t("cat_rename_prompt"))
+        await edit(query, t("cat_rename_prompt"))
 
     elif action == "delcat":
         cats = load_cats()
         cat = cats.pop(int(value))
         save_cats(cats)
-        jf_del_library(cat["name"])
-        text, kb = cats_view(cats)
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        params = urllib.parse.urlencode({"name": cat["name"], "refreshLibrary": "true"})
+        jf("DELETE", f"/Library/VirtualFolders?{params}")
+        await edit(query, *cats_view(cats))
 
     elif action == "catpath":
         ctx.user_data["pending_cat_path"] = value
         ctx.user_data.pop("state", None)
-        await query.edit_message_text(t("cat_pick_type"), reply_markup=type_keyboard())
+        await edit(query, t("cat_pick_type"), type_keyboard())
 
     elif action == "cattype":
         name = ctx.user_data.pop("pending_cat_name", "")
@@ -443,26 +400,22 @@ async def on_callback(update, ctx):
         cats.append({"name": name, "path": path, "jf_type": value})
         save_cats(cats)
         jf_add_library(name, path, value)
-        text, kb = cats_view(cats)
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        await edit(query, *cats_view(cats))
 
     elif action == "jf_deluser":
-        if jf_delete_user(value):
-            text, kb = jf_users_view(jf_users())
-            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        if jf("DELETE", f"/Users/{value}") is not None:
+            await edit(query, *jf_users_view(jf("GET", "/Users") or []))
         else:
             await query.answer(t("jf_user_error"))
 
     elif action == "jf_adduser":
         ctx.user_data["state"] = "await_jf_user_name"
-        await query.edit_message_text(t("jf_add_user_name"))
+        await edit(query, t("jf_add_user_name"))
 
     elif query.data == "addcat":
         ctx.user_data["state"] = "await_cat_name"
-        await query.edit_message_text(t("cat_add_name"))
+        await edit(query, t("cat_add_name"))
 
-
-# ── download watcher ─────────────────────────────────────────────────────────
 
 async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
     known = ctx.bot_data.setdefault("states", {})
@@ -477,14 +430,12 @@ async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
         if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
             for uid in ALLOWED:
                 await ctx.bot.send_message(uid, t("download_done", name=tor.name))
-            jf_scan()
+            jf("POST", "/Library/Refresh")
         known[tor.hash] = tor.state
     for h in list(known):
         if h not in {tor.hash for tor in torrents}:
             del known[h]
 
-
-# ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
     global LANG, QB_USER, QB_PASS
