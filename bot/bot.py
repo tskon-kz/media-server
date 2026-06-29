@@ -31,6 +31,7 @@ ICONS = {
     "downloading": "⬇️", "stalledDL": "⏸", "uploading": "⬆️",
     "seeding": "🌱", "pausedDL": "⏸", "pausedUP": "✅", "error": "❌",
 }
+DONE_STATES = {"pausedUP", "uploading", "seeding", "stalledUP", "forcedUP"}
 
 
 # ── translations ──────────────────────────────────────────────────────────────
@@ -322,6 +323,26 @@ async def on_callback(update, ctx):
         await query.edit_message_text(t("cat_add_name"))
 
 
+# ── download watcher ─────────────────────────────────────────────────────────
+
+async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
+    known = ctx.bot_data.setdefault("states", {})
+    if known and all(s in DONE_STATES for s in known.values()):
+        return
+    try:
+        torrents = qb().torrents_info()
+    except Exception:
+        return
+    for tor in torrents:
+        prev = known.get(tor.hash)
+        if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
+            await ctx.bot.send_message(ALLOWED, t("download_done", name=tor.name))
+        known[tor.hash] = tor.state
+    for h in list(known):
+        if h not in {tor.hash for tor in torrents}:
+            del known[h]
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -341,7 +362,18 @@ def main():
     except (FileNotFoundError, json.JSONDecodeError):
         save_creds(QB_USER, QB_PASS)
 
-    builder = ApplicationBuilder().token(BOT_TOKEN)
+    async def post_init(application):
+        from telegram import BotCommand
+        await application.bot.set_my_commands([
+            BotCommand("list",     "Список торрентов"),
+            BotCommand("status",   "Статус сети"),
+            BotCommand("settings", "Категории загрузки"),
+            BotCommand("scan",     "Сканировать Jellyfin"),
+            BotCommand("setpass",  "Сменить пароль qBittorrent"),
+            BotCommand("lang",     "Язык"),
+        ])
+
+    builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
     if PROXY_URL:
         builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
     app = builder.build()
@@ -355,6 +387,7 @@ def main():
     app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
+    app.job_queue.run_repeating(check_done, interval=30, first=10)
     print("Bot started")
     app.run_polling()
 

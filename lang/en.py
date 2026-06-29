@@ -30,6 +30,7 @@ M = {
     "cat_added":     "✅ Category added",
     "move_btn":      "📁 Move",
     "moved":         "📁 Moved to: {name}",
+    "download_done": "✅ *{name}* — download complete",
     "scan_ok":       "🔄 Jellyfin: scan started",
     "scan_error":    "❌ Failed to start Jellyfin scan",
 }
