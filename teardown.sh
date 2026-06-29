@@ -18,8 +18,15 @@ printf "%s" "$MSG_TEARDOWN_CONFIRM"
 read -r CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "$MSG_TEARDOWN_ABORT"; exit 0; }
 
-echo "$MSG_TEARDOWN_STOPPING"
-docker compose down --volumes --rmi all 2>/dev/null || true
+printf "%s" "$MSG_TEARDOWN_IMAGES_CONFIRM"
+read -r REMOVE_IMAGES
+if [[ "$REMOVE_IMAGES" =~ ^[Yy]$ ]]; then
+    echo "$MSG_TEARDOWN_STOPPING"
+    docker compose down --volumes --rmi all 2>/dev/null || true
+else
+    echo "$MSG_TEARDOWN_STOPPING"
+    docker compose down --volumes 2>/dev/null || true
+fi
 
 echo "$MSG_TEARDOWN_REMOVING"
 sudo rm -rf data bot/creds.json bot/lang.json bot/categories.json .env
