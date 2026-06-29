@@ -4,3 +4,4 @@ data/
 media/
 .idea/
 bot/lang.json
+bot/creds.json

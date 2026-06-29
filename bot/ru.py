@@ -11,5 +11,8 @@ M = {
     "hint":      "Отправь magnet-ссылку или /list /status",
     "deleted":   "🗑 Торрент и файлы удалены",
     "lang_pick": "Выбери язык:",
-    "lang_set":  "🇷🇺 Язык: Русский",
+    "lang_set":     "🇷🇺 Язык: Русский",
+    "setpass_usage":"Использование: /setpass <новый_пароль>",
+    "setpass_ok":   "✅ Пароль qBittorrent изменён",
+    "setpass_error":"❌ Не удалось сменить пароль: {e}",
 }

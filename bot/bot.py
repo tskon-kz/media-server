@@ -7,15 +7,16 @@ from telegram.ext import (
 import qbittorrentapi
 import ru, en
 
-BOT_TOKEN = os.environ["BOT_TOKEN"]
-ALLOWED   = int(os.environ["ALLOWED_USER"])
-QB_HOST   = os.environ["QB_HOST"]
-QB_USER   = os.environ.get("QB_USER", "admin")
-QB_PASS   = os.environ.get("QB_PASS", "adminadmin")
-LANG_FILE = "/app/lang.json"
+BOT_TOKEN  = os.environ["BOT_TOKEN"]
+ALLOWED    = int(os.environ["ALLOWED_USER"])
+QB_HOST    = os.environ["QB_HOST"]
+LANG_FILE  = "/app/lang.json"
+CREDS_FILE = "/app/creds.json"
 
-LANGS = {"ru": ru.M, "en": en.M}
-LANG  = "ru"
+QB_USER = os.environ.get("QB_USER", "admin")
+QB_PASS = os.environ.get("QB_PASS", "adminadmin")
+LANGS   = {"ru": ru.M, "en": en.M}
+LANG    = "ru"
 
 ICONS = {
     "downloading": "⬇️", "stalledDL": "⏸", "uploading": "⬆️",
@@ -33,6 +34,13 @@ def set_lang(code):
     LANG = code
     with open(LANG_FILE, "w") as f:
         json.dump({"lang": code}, f)
+
+
+def save_creds(user, password):
+    global QB_USER, QB_PASS
+    QB_USER, QB_PASS = user, password
+    with open(CREDS_FILE, "w") as f:
+        json.dump({"qb_user": user, "qb_pass": password}, f)
 
 
 def qb():
@@ -62,6 +70,22 @@ async def cmd_lang(update, ctx):
         InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
     ]])
     await update.message.reply_text(t("lang_pick"), reply_markup=kb)
+
+
+@auth
+async def cmd_setpass(update, ctx):
+    if not ctx.args:
+        await update.message.reply_text(t("setpass_usage"))
+        return
+    new_pass = ctx.args[0]
+    try:
+        client = qb()
+        client.app_set_preferences({"web_ui_password": new_pass})
+        save_creds(QB_USER, new_pass)
+        await update.message.delete()
+        await update.effective_chat.send_message(t("setpass_ok"))
+    except Exception as e:
+        await update.message.reply_text(t("setpass_error", e=e))
 
 
 @auth
@@ -127,18 +151,28 @@ async def on_callback(update, ctx):
 
 
 def main():
-    global LANG
+    global LANG, QB_USER, QB_PASS
+
     try:
         with open(LANG_FILE) as f:
             LANG = json.load(f).get("lang", "ru")
     except (FileNotFoundError, json.JSONDecodeError):
         set_lang(LANG)
 
+    try:
+        with open(CREDS_FILE) as f:
+            data = json.load(f)
+            QB_USER = data.get("qb_user", QB_USER)
+            QB_PASS = data.get("qb_pass", QB_PASS)
+    except (FileNotFoundError, json.JSONDecodeError):
+        save_creds(QB_USER, QB_PASS)
+
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start",  cmd_start))
-    app.add_handler(CommandHandler("lang",   cmd_lang))
-    app.add_handler(CommandHandler("list",   cmd_list))
-    app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("start",   cmd_start))
+    app.add_handler(CommandHandler("lang",    cmd_lang))
+    app.add_handler(CommandHandler("setpass", cmd_setpass))
+    app.add_handler(CommandHandler("list",    cmd_list))
+    app.add_handler(CommandHandler("status",  cmd_status))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     print("Bot started")

@@ -36,8 +36,6 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - QB_HOST=http://qbittorrent:8080
-      - QB_USER=${QB_USER}
-      - QB_PASS=${QB_PASS}
       - ALLOWED_USER=${ALLOWED_USER}
     volumes:
       - ./bot:/app

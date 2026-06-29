@@ -11,5 +11,8 @@ M = {
     "hint":      "Send a magnet link or /list /status",
     "deleted":   "🗑 Torrent and files deleted",
     "lang_pick": "Choose language:",
-    "lang_set":  "🇬🇧 Language: English",
+    "lang_set":     "🇬🇧 Language: English",
+    "setpass_usage":"Usage: /setpass <new_password>",
+    "setpass_ok":   "✅ qBittorrent password changed",
+    "setpass_error":"❌ Failed to change password: {e}",
 }
