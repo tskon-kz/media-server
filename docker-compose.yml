@@ -27,7 +27,7 @@ services:
       - "6881:6881/udp"
     volumes:
       - ./data/qbittorrent/config:/config
-      - ./media:/media/downloads
+      - ./media:/media
 
   telegram-bot:
     image: python:3.11-slim
