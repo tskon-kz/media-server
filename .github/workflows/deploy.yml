@@ -16,6 +16,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            if [ ! -d ~/mediaserver ]; then
+              git clone https://github.com/${{ github.repository }}.git ~/mediaserver
+            fi
             cd ~/mediaserver
             git pull origin main
             docker compose pull telegram-bot
