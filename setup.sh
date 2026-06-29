@@ -101,9 +101,17 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
         sleep 3
     done
 
-    # Run wizard only if not already completed
-    WIZARD_DONE=$(curl -s "http://localhost:8096/System/Info/Public" | grep -o '"IsStartupWizardCompleted":[^,}]*' | cut -d: -f2)
-    if [ "$WIZARD_DONE" != "true" ]; then
+    JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
+
+    # Try auth first (Jellyfin may already be configured)
+    JF_TOKEN=$(curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
+        -H "Content-Type: application/json" \
+        -H "$JF_AUTH_HEADER" \
+        -d "{\"Username\":\"$JF_USER\",\"Pw\":\"$JF_PASS\"}" \
+        | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4)
+
+    # If auth failed — run startup wizard
+    if [ -z "$JF_TOKEN" ]; then
         curl -s -X POST "http://localhost:8096/Startup/Configuration" \
             -H "Content-Type: application/json" \
             -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null
@@ -111,14 +119,13 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
             -H "Content-Type: application/json" \
             -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}" > /dev/null
         curl -s -X POST "http://localhost:8096/Startup/Complete" > /dev/null
-    fi
 
-    # Authenticate and get token
-    JF_TOKEN=$(curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
-        -H "Content-Type: application/json" \
-        -H 'X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"' \
-        -d "{\"Username\":\"$JF_USER\",\"Pw\":\"$JF_PASS\"}" \
-        | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4)
+        JF_TOKEN=$(curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
+            -H "Content-Type: application/json" \
+            -H "$JF_AUTH_HEADER" \
+            -d "{\"Username\":\"$JF_USER\",\"Pw\":\"$JF_PASS\"}" \
+            | grep -o '"AccessToken":"[^"]*"' | cut -d'"' -f4)
+    fi
 
     if [ -n "$JF_TOKEN" ]; then
         echo "JELLYFIN_API_KEY=$JF_TOKEN" >> "$SCRIPT_DIR/.env"
