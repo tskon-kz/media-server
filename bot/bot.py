@@ -570,10 +570,10 @@ def main():
         ])
 
     builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
-    builder = builder.bot_data({"states": load_states()})
     if PROXY_URL:
         builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
     app = builder.build()
+    app.bot_data["states"] = load_states()
 
     app.add_handler(CommandHandler("start",    cmd_start))
     app.add_handler(CommandHandler("list",     cmd_list))
