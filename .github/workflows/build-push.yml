@@ -7,6 +7,7 @@ on:
       - "bot/**"
       - "pyproject.toml"
       - "lang/**"
+      - ".github/workflows/**"
   workflow_dispatch: 
 
 jobs:
