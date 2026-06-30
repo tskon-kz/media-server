@@ -1,4 +1,5 @@
 MSG_TITLE="=== Media Server Setup ==="
+MSG_DOWNLOADING="Downloading files..."
 MSG_DOCKER_INSTALL="Installing Docker..."
 MSG_DOCKER_DONE="Docker installed. Start a new session: newgrp docker"
 MSG_ENV_EXISTS="File .env already exists. Overwrite? [y/n]: "

@@ -1,8 +1,8 @@
-context/
 .env
 data/
 media/
+bot-data/
 .idea/
-bot/lang.json
-bot/creds.json
-bot/categories.json
+.venv/
+__pycache__/
+*.pyc

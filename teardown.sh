@@ -28,7 +28,7 @@ else
 fi
 
 echo "$MSG_TEARDOWN_REMOVING"
-sudo rm -rf data bot/creds.json bot/lang.json bot/categories.json .env
+sudo rm -rf data bot-data .env
 
 printf "%s" "$MSG_TEARDOWN_MEDIA_CONFIRM"
 read -r REMOVE_MEDIA

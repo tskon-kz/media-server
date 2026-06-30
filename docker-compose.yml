@@ -30,7 +30,7 @@ services:
       - ${MEDIA_PATH:-./media}:/media
 
   telegram-bot:
-    image: python:3.11-slim
+    image: ghcr.io/tskon-kz/media-server:latest
     container_name: telegram-bot
     restart: unless-stopped
     environment:
@@ -44,13 +44,24 @@ services:
       - JELLYFIN_PORT=${JELLYFIN_PORT:-8096}
       - QB_PORT=${QB_PORT:-8080}
       - PYTHONUNBUFFERED=1
+      - WATCHTOWER_TOKEN=${WATCHTOWER_TOKEN}
     volumes:
-      - ./bot:/app
-      - ./lang:/app/lang
+      - ./bot-data:/app/data
       - ${MEDIA_PATH:-./media}:/media
-    working_dir: /app
-    command: >
-      sh -c "pip install 'python-telegram-bot[job-queue]==21.*' qbittorrent-api -q && python bot.py"
     depends_on:
       - qbittorrent
       - jellyfin
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_TOKEN}
+      - WATCHTOWER_LABEL_ENABLE=true
+    command: --http-api-update --label-enable --interval 604800

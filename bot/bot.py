@@ -1,4 +1,4 @@
-import os, json, re, urllib.request, urllib.parse
+import os, json, re, tomllib, urllib.request, urllib.parse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
@@ -16,10 +16,16 @@ SERVER_IP  = os.environ.get("SERVER_IP", "")
 JF_PORT    = os.environ.get("JELLYFIN_PORT", "8096")
 QB_PORT    = os.environ.get("QB_PORT", "8080")
 JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
-LANG_FILE   = "/app/lang.json"
-CREDS_FILE  = "/app/creds.json"
-CATS_FILE   = "/app/categories.json"
-STATES_FILE = "/app/states.json"
+APP_VERSION       = os.environ.get("APP_VERSION", "dev")
+WATCHTOWER_TOKEN  = os.environ.get("WATCHTOWER_TOKEN", "")
+WATCHTOWER_URL    = "http://watchtower:8080"
+REPO_SLUG         = "tskon-kz/media-server"
+
+DATA_DIR    = "/app/data"
+LANG_FILE   = f"{DATA_DIR}/lang.json"
+CREDS_FILE  = f"{DATA_DIR}/creds.json"
+CATS_FILE   = f"{DATA_DIR}/categories.json"
+STATES_FILE = f"{DATA_DIR}/states.json"
 
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
@@ -30,6 +36,8 @@ QB_USER = os.environ.get("QB_USER", "admin")
 QB_PASS = os.environ.get("QB_PASS", "adminadmin")
 LANGS   = {"ru": ru.M, "en": en.M}
 LANG    = "ru"
+
+_update_notified: set[str] = set()
 
 ICONS = {
     "downloading":        "⬇️",
@@ -99,6 +107,17 @@ def load_states():
 def save_states(states):
     with open(STATES_FILE, "w") as f:
         json.dump(states, f)
+
+
+def _remote_version():
+    try:
+        url = f"https://raw.githubusercontent.com/{REPO_SLUG}/main/pyproject.toml"
+        req = urllib.request.Request(url, headers={"User-Agent": "MediaServerBot/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = tomllib.loads(resp.read().decode())
+            return data["project"]["version"]
+    except Exception:
+        return None
 
 
 def jf(method, path, body=None):
@@ -190,12 +209,30 @@ def settings_kb():
     ]
     if JF_KEY:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
+    buttons.append([InlineKeyboardButton(t("settings_update"), callback_data="settings:update")])
     if SERVER_IP:
         buttons.append([
             InlineKeyboardButton("qBittorrent ↗", url=f"http://{SERVER_IP}:{QB_PORT}"),
             InlineKeyboardButton("Jellyfin ↗",    url=f"http://{SERVER_IP}:{JF_PORT}"),
         ])
     return InlineKeyboardMarkup(buttons)
+
+
+def update_view():
+    remote = _remote_version()
+    if remote is None:
+        text = t("update_check_fail", v=APP_VERSION)
+        buttons = [[InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")]]
+    elif remote == APP_VERSION:
+        text = t("update_up_to_date", v=APP_VERSION)
+        buttons = [[InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")]]
+    else:
+        text = t("update_available", local=APP_VERSION, remote=remote)
+        buttons = [
+            [InlineKeyboardButton(t("update_btn"), callback_data="update:start")],
+            [InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")],
+        ]
+    return text, InlineKeyboardMarkup(buttons)
 
 
 def jf_users_view(users):
@@ -397,10 +434,26 @@ async def on_callback(update, ctx):
             await edit(query, t("setpass_prompt"))
         elif value == "jf_users":
             await edit(query, *jf_users_view(jf("GET", "/Users") or []))
+        elif value == "update":
+            await edit(query, *update_view())
 
     elif action == "lang":
         set_lang(value)
         await edit(query, t("settings_main"), settings_kb())
+
+    elif action == "update":
+        if value == "start":
+            try:
+                req = urllib.request.Request(
+                    f"{WATCHTOWER_URL}/v1/update",
+                    method="POST",
+                    headers={"Authorization": f"Bearer {WATCHTOWER_TOKEN}"},
+                )
+                with urllib.request.urlopen(req, timeout=10):
+                    pass
+                await edit(query, t("update_started"))
+            except Exception:
+                await edit(query, t("update_error"))
 
     elif action == "del":
         try:
@@ -532,8 +585,22 @@ async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
     save_states(known)
 
 
+async def check_update(ctx: ContextTypes.DEFAULT_TYPE):
+    global _update_notified
+    remote = _remote_version()
+    if remote and remote != APP_VERSION and remote not in _update_notified:
+        _update_notified.add(remote)
+        for uid in ALLOWED:
+            try:
+                await ctx.bot.send_message(uid, t("update_notify", v=remote), parse_mode="Markdown")
+            except Exception:
+                pass
+
+
 def main():
     global LANG, QB_USER, QB_PASS
+
+    os.makedirs(DATA_DIR, exist_ok=True)
 
     try:
         with open(LANG_FILE) as f:
@@ -572,8 +639,9 @@ def main():
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.Document.FileExtension("torrent"), on_torrent_file))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
-    app.job_queue.run_repeating(check_done, interval=30, first=10)
-    print("Bot started")
+    app.job_queue.run_repeating(check_done,   interval=30,      first=10)
+    app.job_queue.run_repeating(check_update, interval=6*3600,  first=300)
+    print(f"Bot started (version {APP_VERSION})")
     app.run_polling()
 
 

@@ -50,4 +50,12 @@ M = {
     "jf_user_added":    "✅ User *{name}* created",
     "jf_user_deleted":  "🗑 User deleted",
     "jf_user_error":    "❌ Jellyfin error",
+    "settings_update":  "🔄 Update",
+    "update_up_to_date":"✅ Up to date: `{v}`",
+    "update_available": "🆕 Update available!\n\nCurrent: `{local}`\nLatest:  `{remote}`",
+    "update_check_fail":"⚠️ Could not check for updates\n\nCurrent: `{v}`",
+    "update_btn":       "⬆️ Update now",
+    "update_started":   "🔄 Update started. Bot will restart in ~1 min.",
+    "update_error":     "❌ Update failed. Try again later.",
+    "update_notify":    "🆕 Update `{v}` available! Open Settings → Update",
 }

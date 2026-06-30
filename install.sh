@@ -1,22 +1,33 @@
 #!/bin/bash
+# curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh | bash
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec < /dev/tty  # allow interactive input when piped from curl
+
+REPO="tskon-kz/media-server"
+RAW="https://raw.githubusercontent.com/$REPO/main"
+INSTALL_DIR="$HOME/media-server"
 
 echo "1) English"
 echo "2) Русский"
 printf "Select language / Выберите язык [1/2]: "
 read -r LANG_CHOICE
+
+TMP_LANG=$(mktemp -d)
+trap 'rm -rf "$TMP_LANG"' EXIT
+
+curl -fsSL "$RAW/lang/en.sh" -o "$TMP_LANG/en.sh"
+curl -fsSL "$RAW/lang/ru.sh" -o "$TMP_LANG/ru.sh"
+
 case "$LANG_CHOICE" in
-    2) source "$SCRIPT_DIR/lang/ru.sh" ;;
-    *) source "$SCRIPT_DIR/lang/en.sh" ;;
+    2) source "$TMP_LANG/ru.sh" ;;
+    *) source "$TMP_LANG/en.sh" ;;
 esac
 
 echo ""
 echo "$MSG_TITLE"
 echo ""
 
-# Docker check
 if ! command -v docker &>/dev/null; then
     echo "$MSG_DOCKER_INSTALL"
     curl -fsSL https://get.docker.com | sh
@@ -25,12 +36,23 @@ if ! command -v docker &>/dev/null; then
     exit 0
 fi
 
-# .env setup
-if [ -f "$SCRIPT_DIR/.env" ]; then
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+
+echo "$MSG_DOWNLOADING"
+curl -fsSL "$RAW/docker-compose.yml" -o docker-compose.yml
+mkdir -p lang
+curl -fsSL "$RAW/lang/en.sh" -o lang/en.sh
+curl -fsSL "$RAW/lang/ru.sh" -o lang/ru.sh
+curl -fsSL "$RAW/teardown.sh"     -o teardown.sh     && chmod +x teardown.sh
+curl -fsSL "$RAW/migrate-media.sh" -o migrate-media.sh && chmod +x migrate-media.sh
+
+if [ -f "$INSTALL_DIR/.env" ]; then
     printf "%s" "$MSG_ENV_EXISTS"
     read -r OVERWRITE
     if [[ ! "$OVERWRITE" =~ ^[Yy]$ ]]; then
         echo "$MSG_SKIP_ENV"
+        docker compose pull
         docker compose up -d
         exit 0
     fi
@@ -62,35 +84,39 @@ else
     echo "$MSG_PORTS_DEFAULT"
 fi
 
+WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null \
+    || openssl rand -hex 16 2>/dev/null \
+    || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' | head -c 32)
+
 {
     echo "BOT_TOKEN=$BOT_TOKEN"
     echo "ALLOWED_USER=$ALLOWED_USER"
     echo "SERVER_IP=$SERVER_IP"
+    echo "WATCHTOWER_TOKEN=$WATCHTOWER_TOKEN"
     [ -n "$PROXY_URL" ] && echo "PROXY_URL=$PROXY_URL"
     [ "$JF_PORT" != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
     [ "$QB_PORT" != "8080" ] && echo "QB_PORT=$QB_PORT"
     [ "$MEDIA_PATH" != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
-} > "$SCRIPT_DIR/.env"
+} > "$INSTALL_DIR/.env"
 
 echo "$MSG_ENV_SAVED"
 
-# Dirs & start
-cd "$SCRIPT_DIR"
 if [[ "$MEDIA_PATH" == /* ]]; then
     _media_abs="$MEDIA_PATH"
 else
-    _media_abs="$SCRIPT_DIR/${MEDIA_PATH#./}"
+    _media_abs="$INSTALL_DIR/${MEDIA_PATH#./}"
 fi
 mkdir -p "$_media_abs/movies" "$_media_abs/series" \
-    "$SCRIPT_DIR/data/jellyfin/config" "$SCRIPT_DIR/data/jellyfin/cache" \
-    "$SCRIPT_DIR/data/qbittorrent/config"
+    "$INSTALL_DIR/data/jellyfin/config" "$INSTALL_DIR/data/jellyfin/cache" \
+    "$INSTALL_DIR/data/qbittorrent/config" \
+    "$INSTALL_DIR/bot-data"
 
 echo ""
 echo "$MSG_STARTING"
 docker compose pull
 docker compose up -d
 
-if [ ! -f "$SCRIPT_DIR/bot/creds.json" ]; then
+if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
     echo "$MSG_QB_WAIT"
     TEMP_PASS=""
     for i in $(seq 1 30); do
@@ -107,14 +133,14 @@ if [ ! -f "$SCRIPT_DIR/bot/creds.json" ]; then
             -d "json={\"web_ui_password\":\"$QB_PASS\"}" \
             "http://localhost:$QB_PORT/api/v2/app/setPreferences" > /dev/null
         rm -f /tmp/qb_sid.txt
-        echo "{\"qb_user\":\"admin\",\"qb_pass\":\"$QB_PASS\"}" > "$SCRIPT_DIR/bot/creds.json"
+        echo "{\"qb_user\":\"admin\",\"qb_pass\":\"$QB_PASS\"}" > "$INSTALL_DIR/bot-data/creds.json"
         echo "$MSG_QB_PASS_SET"
     else
         echo "$MSG_QB_PASS_FAIL"
     fi
 fi
 
-if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
+if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
     echo "$MSG_JF_WAIT"
     for i in $(seq 1 30); do
         STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/System/Info/Public" 2>/dev/null || echo "000")
@@ -162,7 +188,6 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     fi
 
     if [ -n "$JF_TOKEN" ]; then
-        # Create a permanent API key (visible in Jellyfin Dashboard → API Keys)
         curl -s -X POST "http://localhost:$JF_PORT/Auth/Keys?app=MediaServer" \
             -H "X-Emby-Token: $JF_TOKEN" > /dev/null
 
@@ -171,7 +196,7 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
             | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | tail -1 | cut -d'"' -f4)
 
         FINAL_KEY="${JF_API_KEY:-$JF_TOKEN}"
-        echo "JELLYFIN_API_KEY=$FINAL_KEY" >> "$SCRIPT_DIR/.env"
+        echo "JELLYFIN_API_KEY=$FINAL_KEY" >> "$INSTALL_DIR/.env"
 
         curl -s -X POST \
             "http://localhost:$JF_PORT/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
