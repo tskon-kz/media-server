@@ -4,13 +4,13 @@ services:
     container_name: jellyfin
     restart: unless-stopped
     ports:
-      - "8096:8096"
+      - "${JELLYFIN_PORT:-8096}:8096"
     volumes:
       - ./data/jellyfin/config:/config
       - ./data/jellyfin/cache:/cache
       - ./media:/media
     environment:
-      - JELLYFIN_PublishedServerUrl=http://${SERVER_IP}:8096
+      - JELLYFIN_PublishedServerUrl=http://${SERVER_IP}:${JELLYFIN_PORT:-8096}
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -22,7 +22,7 @@ services:
       - TZ=Europe/Moscow
       - WEBUI_PORT=8080
     ports:
-      - "8080:8080"
+      - "${QB_PORT:-8080}:8080"
       - "6881:6881/tcp"
       - "6881:6881/udp"
     volumes:
@@ -41,6 +41,8 @@ services:
       - JELLYFIN_URL=http://jellyfin:8096
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
       - SERVER_IP=${SERVER_IP}
+      - JELLYFIN_PORT=${JELLYFIN_PORT:-8096}
+      - QB_PORT=${QB_PORT:-8080}
       - PYTHONUNBUFFERED=1
     volumes:
       - ./bot:/app

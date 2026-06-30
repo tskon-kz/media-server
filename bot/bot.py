@@ -13,6 +13,8 @@ QB_HOST    = os.environ["QB_HOST"]
 PROXY_URL  = os.environ.get("PROXY_URL")
 JF_URL     = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
 SERVER_IP  = os.environ.get("SERVER_IP", "")
+JF_PORT    = os.environ.get("JELLYFIN_PORT", "8096")
+QB_PORT    = os.environ.get("QB_PORT", "8080")
 JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
 LANG_FILE   = "/app/lang.json"
 CREDS_FILE  = "/app/creds.json"
@@ -190,8 +192,8 @@ def settings_kb():
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
     if SERVER_IP:
         buttons.append([
-            InlineKeyboardButton("qBittorrent ↗", url=f"http://{SERVER_IP}:8080"),
-            InlineKeyboardButton("Jellyfin ↗",    url=f"http://{SERVER_IP}:8096"),
+            InlineKeyboardButton("qBittorrent ↗", url=f"http://{SERVER_IP}:{QB_PORT}"),
+            InlineKeyboardButton("Jellyfin ↗",    url=f"http://{SERVER_IP}:{JF_PORT}"),
         ])
     return InlineKeyboardMarkup(buttons)
 

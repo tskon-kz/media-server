@@ -48,11 +48,25 @@ printf "%s" "$MSG_ASK_JF_PASS";   read -r JF_PASS
 printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
 printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
 
+JF_PORT=8096
+QB_PORT=8080
+printf "%s" "$MSG_ASK_PORTS"; read -r CUSTOM_PORTS
+if [[ "$CUSTOM_PORTS" =~ ^[Yy]$ ]]; then
+    printf "%s" "$MSG_ASK_JF_PORT"; read -r _JF_PORT
+    printf "%s" "$MSG_ASK_QB_PORT"; read -r _QB_PORT
+    [ -n "$_JF_PORT" ] && JF_PORT="$_JF_PORT"
+    [ -n "$_QB_PORT" ] && QB_PORT="$_QB_PORT"
+else
+    echo "$MSG_PORTS_DEFAULT"
+fi
+
 {
     echo "BOT_TOKEN=$BOT_TOKEN"
     echo "ALLOWED_USER=$ALLOWED_USER"
     echo "SERVER_IP=$SERVER_IP"
     [ -n "$PROXY_URL" ] && echo "PROXY_URL=$PROXY_URL"
+    [ "$JF_PORT" != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
+    [ "$QB_PORT" != "8080" ] && echo "QB_PORT=$QB_PORT"
 } > "$SCRIPT_DIR/.env"
 
 echo "$MSG_ENV_SAVED"
@@ -78,10 +92,10 @@ if [ ! -f "$SCRIPT_DIR/bot/creds.json" ]; then
     if [ -n "$TEMP_PASS" ]; then
         curl -s -c /tmp/qb_sid.txt \
             -d "username=admin&password=$TEMP_PASS" \
-            "http://localhost:8080/api/v2/auth/login" > /dev/null
+            "http://localhost:$QB_PORT/api/v2/auth/login" > /dev/null
         curl -s -b /tmp/qb_sid.txt \
             -d "json={\"web_ui_password\":\"$QB_PASS\"}" \
-            "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
+            "http://localhost:$QB_PORT/api/v2/app/setPreferences" > /dev/null
         rm -f /tmp/qb_sid.txt
         echo "{\"qb_user\":\"admin\",\"qb_pass\":\"$QB_PASS\"}" > "$SCRIPT_DIR/bot/creds.json"
         echo "$MSG_QB_PASS_SET"
@@ -93,7 +107,7 @@ fi
 if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     echo "$MSG_JF_WAIT"
     for i in $(seq 1 30); do
-        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8096/System/Info/Public" 2>/dev/null || echo "000")
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/System/Info/Public" 2>/dev/null || echo "000")
         [ "$STATUS" = "200" ] && break
         sleep 3
     done
@@ -101,7 +115,7 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
 
     _jf_auth() {
-        curl -s -X POST "http://localhost:8096/Users/AuthenticateByName" \
+        curl -s -X POST "http://localhost:$JF_PORT/Users/AuthenticateByName" \
             -H "Content-Type: application/json" \
             -H "$JF_AUTH_HEADER" \
             -d "{\"Username\":\"$1\",\"Pw\":\"$2\"}" \
@@ -111,17 +125,17 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
     JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
 
     if [ -z "$JF_TOKEN" ]; then
-        curl -s "http://localhost:8096/Startup/User" > /dev/null
-        curl -s -X POST "http://localhost:8096/Startup/Configuration" \
+        curl -s "http://localhost:$JF_PORT/Startup/User" > /dev/null
+        curl -s -X POST "http://localhost:$JF_PORT/Startup/Configuration" \
             -H "Content-Type: application/json" \
             -d "{\"ServerName\":\"${JF_NAME:-Media Server}\",\"UICulture\":\"en-US\",\"MetadataCountryCode\":\"US\",\"PreferredMetadataLanguage\":\"en\"}" > /dev/null
-        WZ=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8096/Startup/User" \
+        WZ=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$JF_PORT/Startup/User" \
             -H "Content-Type: application/json" \
             -d "{\"Name\":\"$JF_USER\",\"Password\":\"$JF_PASS\"}")
-        curl -s -X POST "http://localhost:8096/Startup/Complete" > /dev/null
+        curl -s -X POST "http://localhost:$JF_PORT/Startup/Complete" > /dev/null
 
         for i in $(seq 1 30); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8096/System/Info/Public" 2>/dev/null || echo "000")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/System/Info/Public" 2>/dev/null || echo "000")
             [ "$STATUS" = "200" ] && break
             sleep 3
         done
@@ -139,10 +153,10 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
 
     if [ -n "$JF_TOKEN" ]; then
         # Create a permanent API key (visible in Jellyfin Dashboard → API Keys)
-        curl -s -X POST "http://localhost:8096/Auth/Keys?app=MediaServer" \
+        curl -s -X POST "http://localhost:$JF_PORT/Auth/Keys?app=MediaServer" \
             -H "X-Emby-Token: $JF_TOKEN" > /dev/null
 
-        JF_API_KEY=$(curl -s "http://localhost:8096/Auth/Keys" \
+        JF_API_KEY=$(curl -s "http://localhost:$JF_PORT/Auth/Keys" \
             -H "X-Emby-Token: $JF_TOKEN" \
             | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | tail -1 | cut -d'"' -f4)
 
@@ -150,12 +164,12 @@ if ! grep -q "JELLYFIN_API_KEY" "$SCRIPT_DIR/.env" 2>/dev/null; then
         echo "JELLYFIN_API_KEY=$FINAL_KEY" >> "$SCRIPT_DIR/.env"
 
         curl -s -X POST \
-            "http://localhost:8096/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
+            "http://localhost:$JF_PORT/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
             -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/movies"}]}}' > /dev/null
 
         curl -s -X POST \
-            "http://localhost:8096/Library/VirtualFolders?name=Series&collectionType=tvshows&refreshLibrary=false" \
+            "http://localhost:$JF_PORT/Library/VirtualFolders?name=Series&collectionType=tvshows&refreshLibrary=false" \
             -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/series"}]}}' > /dev/null
 
@@ -168,5 +182,5 @@ fi
 
 echo ""
 echo "$MSG_DONE"
-echo "Jellyfin:    http://$SERVER_IP:8096"
-echo "qBittorrent: http://$SERVER_IP:8080"
+echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
+echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
