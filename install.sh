@@ -34,6 +34,12 @@ if ! command -v docker &>/dev/null; then
     exit 0
 fi
 
+if ! docker info &>/dev/null 2>&1; then
+    sudo usermod -aG docker "$USER"
+    echo "$MSG_DOCKER_GROUP"
+    exit 1
+fi
+
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 

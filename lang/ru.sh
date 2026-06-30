@@ -1,5 +1,6 @@
 MSG_TITLE="=== Настройка медиасервера ==="
 MSG_DOWNLOADING="Загружаю файлы..."
+MSG_DOCKER_GROUP="Добавлен в группу docker. Выполни: newgrp docker — затем запусти установщик повторно."
 MSG_DOCKER_INSTALL="Устанавливаю Docker..."
 MSG_DOCKER_DONE="Docker установлен. Запусти новую сессию: newgrp docker"
 MSG_ENV_EXISTS="Файл .env уже существует. Перезаписать? [y/n]: "
