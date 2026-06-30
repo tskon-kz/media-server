@@ -3,6 +3,10 @@ name: Build and Push
 on:
   push:
     branches: [main]
+    paths:
+      - "bot/**"
+      - "pyproject.toml"
+      - "lang/**"
 
 jobs:
   build:
