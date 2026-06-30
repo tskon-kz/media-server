@@ -89,13 +89,17 @@ def jf_add_library(name, path, lib_type):
     jf("POST", f"/Library/VirtualFolders?{params}", {"LibraryOptions": {"PathInfos": [{"Path": path}]}})
 
 
+def _esc(text):
+    return text.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[')
+
+
 def list_text(torrents):
     lines = []
     for i, tor in enumerate(torrents, 1):
         icon = ICONS.get(tor.state, "❓")
         pct = f" {tor.progress * 100:.0f}%" if tor.progress < 1 else ""
         size = f"{tor.size / 1024**3:.1f} GB"
-        lines.append(f"{i}. {icon} {tor.name[:35]}{pct} — {size}")
+        lines.append(f"{i}. {icon} {_esc(tor.name[:35])}{pct} — {size}")
     return f"*{t('list_title')}* ({len(torrents)})\n\n" + "\n".join(lines)
 
 
