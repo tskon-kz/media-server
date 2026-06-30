@@ -1,8 +1,6 @@
 #!/bin/bash
-# curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh | bash
+# bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh)
 set -e
-
-exec < /dev/tty  # allow interactive input when piped from curl
 
 REPO="tskon-kz/media-server"
 RAW="https://raw.githubusercontent.com/$REPO/main"

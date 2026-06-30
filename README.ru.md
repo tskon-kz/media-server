@@ -7,7 +7,7 @@ Jellyfin + qBittorrent + Telegram-бот на одном сервере.
 ## Установка
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh)
 ```
 
 Скрипт устанавливает Docker если его нет, скачивает нужные файлы в `~/media-server/`, запрашивает настройки, автоматически конфигурирует qBittorrent и Jellyfin, запускает контейнеры.
