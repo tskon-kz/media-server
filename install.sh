@@ -114,6 +114,7 @@ mkdir -p "$_media_abs/movies" "$_media_abs/series" \
     "$INSTALL_DIR/data/jellyfin/config" "$INSTALL_DIR/data/jellyfin/cache" \
     "$INSTALL_DIR/data/qbittorrent/config" \
     "$INSTALL_DIR/bot-data"
+sudo chown -R "$USER:$USER" "$INSTALL_DIR" 2>/dev/null || true
 
 echo ""
 echo "$MSG_STARTING"
