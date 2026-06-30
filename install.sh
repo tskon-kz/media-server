@@ -70,9 +70,9 @@ printf "%s" "$MSG_ASK_USER_ID";    read -r ALLOWED_USER
 printf "%s" "$MSG_ASK_SERVER_IP";  read -r SERVER_IP
 printf "%s" "$MSG_ASK_MEDIA_PATH"; read -r MEDIA_PATH_INPUT
 MEDIA_PATH="${MEDIA_PATH_INPUT:-./media}"
-printf "%s" "$MSG_ASK_QB_PASS";   read -r QB_PASS
-printf "%s" "$MSG_ASK_JF_USER";   read -r JF_USER
-printf "%s" "$MSG_ASK_JF_PASS";   read -r JF_PASS
+printf "%s" "$MSG_ASK_QB_PASS";   read -rs QB_PASS;   echo
+printf "%s" "$MSG_ASK_JF_USER";   read -r  JF_USER
+printf "%s" "$MSG_ASK_JF_PASS";   read -rs JF_PASS;  echo
 printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
 printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
 
