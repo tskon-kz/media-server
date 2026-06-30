@@ -51,6 +51,7 @@ jobs:
 
       - name: Trigger update on server
         if: steps.server_check.outputs.configured == 'true'
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -58,5 +59,14 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            TOKEN=$(grep ^WATCHTOWER_TOKEN ~/media-server/.env | cut -d'=' -f2)
+            ENV_FILE=~/media-server/.env
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Server not set up yet, skipping update"
+              exit 0
+            fi
+            TOKEN=$(grep ^WATCHTOWER_TOKEN "$ENV_FILE" | cut -d'=' -f2)
+            if [ -z "$TOKEN" ]; then
+              echo "WATCHTOWER_TOKEN not found in .env"
+              exit 1
+            fi
             curl -sf -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/update
