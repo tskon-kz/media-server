@@ -10,20 +10,21 @@ Jellyfin + qBittorrent + Telegram Bot on a single server.
 bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh)
 ```
 
-The script installs Docker if missing, downloads the necessary files to `~/media-server/`, asks for credentials, configures qBittorrent and Jellyfin, and starts all containers.
+The script starts by asking for the interface language, then installs Docker if missing, downloads the necessary files to `~/media-server/`, asks for credentials, configures qBittorrent and Jellyfin, and starts all containers.
 
 ### What the installer asks for
 
 | Prompt | Description |
 |--------|-------------|
+| Language | English or Russian |
 | Telegram Bot Token | From [@BotFather](https://t.me/BotFather) |
 | Your Telegram ID | From [@userinfobot](https://t.me/userinfobot). Comma-separated for multiple users |
 | Server IP | External IP for web UI links in the bot |
+| Media path | Host path mounted as `/media` (default: `./media`). Use a mounted disk path, e.g. `/mnt/disk2` |
 | qBittorrent password | WebUI password (login: `admin`) |
 | Jellyfin admin username / password | Created automatically on first run |
 | Jellyfin server name | Optional, defaults to `Media Server` |
 | Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
-| Media path | Host path mounted as `/media` (default: `./media`). Use a mounted disk path, e.g. `/mnt/disk2` |
 | Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080) |
 
 ### .env reference
