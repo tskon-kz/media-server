@@ -29,8 +29,26 @@ LANGS   = {"ru": ru.M, "en": en.M}
 LANG    = "ru"
 
 ICONS = {
-    "downloading": "⬇️", "stalledDL": "⏸", "uploading": "⬆️",
-    "seeding": "🌱", "pausedDL": "⏸", "pausedUP": "✅", "error": "❌",
+    "downloading":        "⬇️",
+    "forcedDL":           "⬇️",
+    "stalledDL":          "🔄",
+    "metaDL":             "🔍",
+    "allocating":         "💾",
+    "checkingDL":         "🔎",
+    "checkingResumeData": "🔎",
+    "queuedDL":           "⏳",
+    "uploading":          "⬆️",
+    "forcedUP":           "⬆️",
+    "stalledUP":          "🌱",
+    "seeding":            "🌱",
+    "queuedUP":           "⏳",
+    "checkingUP":         "🔎",
+    "pausedDL":           "⏸",
+    "pausedUP":           "✅",
+    "moving":             "📦",
+    "missingFiles":       "⚠️",
+    "error":              "❌",
+    "unknown":            "❓",
 }
 DONE_STATES = {"pausedUP", "uploading", "seeding", "stalledUP", "forcedUP"}
 
@@ -106,7 +124,7 @@ def list_text(torrents):
 def list_normal_kb():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton(t("list_edit_btn"), callback_data="list:edit"),
-        InlineKeyboardButton("🔄", callback_data="list:view"),
+        InlineKeyboardButton(t("list_refresh_btn"), callback_data="list:view"),
     ]])
 
 
