@@ -14,9 +14,10 @@ PROXY_URL  = os.environ.get("PROXY_URL")
 JF_URL     = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
 SERVER_IP  = os.environ.get("SERVER_IP", "")
 JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
-LANG_FILE  = "/app/lang.json"
-CREDS_FILE = "/app/creds.json"
-CATS_FILE  = "/app/categories.json"
+LANG_FILE   = "/app/lang.json"
+CREDS_FILE  = "/app/creds.json"
+CATS_FILE   = "/app/categories.json"
+STATES_FILE = "/app/states.json"
 
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
@@ -83,6 +84,19 @@ def load_cats():
 def save_cats(cats):
     with open(CATS_FILE, "w") as f:
         json.dump(cats, f, ensure_ascii=False, indent=2)
+
+
+def load_states():
+    try:
+        with open(STATES_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_states(states):
+    with open(STATES_FILE, "w") as f:
+        json.dump(states, f)
 
 
 def jf(method, path, body=None):
@@ -515,6 +529,7 @@ async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
         torrents = qb().torrents_info()
     except Exception:
         return
+    active = {tor.hash for tor in torrents}
     for tor in torrents:
         prev = known.get(tor.hash)
         if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
@@ -523,8 +538,9 @@ async def check_done(ctx: ContextTypes.DEFAULT_TYPE):
             jf("POST", "/Library/Refresh")
         known[tor.hash] = tor.state
     for h in list(known):
-        if h not in {tor.hash for tor in torrents}:
+        if h not in active:
             del known[h]
+    save_states(known)
 
 
 def main():
@@ -554,6 +570,7 @@ def main():
         ])
 
     builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
+    builder = builder.bot_data({"states": load_states()})
     if PROXY_URL:
         builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
     app = builder.build()
