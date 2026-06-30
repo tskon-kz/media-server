@@ -119,7 +119,7 @@ sudo chown -R "$USER:$USER" "$INSTALL_DIR" 2>/dev/null || true
 echo ""
 echo "$MSG_STARTING"
 docker compose pull
-docker compose up -d
+docker compose up -d qbittorrent jellyfin watchtower
 
 if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
     echo "$MSG_QB_WAIT"
@@ -213,12 +213,13 @@ if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
             -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/series"}]}}' > /dev/null
 
-        docker compose up -d telegram-bot
         echo "$MSG_JF_SETUP_OK"
     else
         echo "$MSG_JF_SETUP_FAIL"
     fi
 fi
+
+docker compose up -d telegram-bot
 
 echo ""
 echo "$MSG_DONE"
