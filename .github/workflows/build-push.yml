@@ -37,3 +37,15 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/media-server:latest
             ghcr.io/${{ github.repository_owner }}/media-server:${{ steps.version.outputs.version }}
+
+      - name: Trigger update on server
+        if: ${{ secrets.SERVER_HOST != '' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            TOKEN=$(grep ^WATCHTOWER_TOKEN ~/media-server/.env | cut -d'=' -f2)
+            curl -sf -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/update
