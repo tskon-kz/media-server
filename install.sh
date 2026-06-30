@@ -136,15 +136,31 @@ if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
     done
 
     if [ -n "$TEMP_PASS" ]; then
-        curl -s -c /tmp/qb_sid.txt \
-            -d "username=admin&password=$TEMP_PASS" \
-            "http://localhost:$QB_PORT/api/v2/auth/login" > /dev/null
-        curl -s -b /tmp/qb_sid.txt \
-            -d "json={\"web_ui_password\":\"$QB_PASS\"}" \
-            "http://localhost:$QB_PORT/api/v2/app/setPreferences" > /dev/null
-        rm -f /tmp/qb_sid.txt
-        echo "{\"qb_user\":\"admin\",\"qb_pass\":\"$QB_PASS\"}" > "$INSTALL_DIR/bot-data/creds.json"
-        echo "$MSG_QB_PASS_SET"
+        # Run curl inside the container to hit port 8080 directly.
+        # Connecting from the host via $QB_PORT goes through Docker port mapping,
+        # causing a Host header mismatch with WEBUI_PORT=8080 that silently breaks auth.
+        docker exec \
+            -e _TP="$TEMP_PASS" \
+            -e _NP="$QB_PASS" \
+            qbittorrent sh -c '
+                curl -s -c /tmp/qb_s.txt \
+                    -d "username=admin&password=$_TP" \
+                    "http://localhost:8080/api/v2/auth/login" > /dev/null
+                curl -s -b /tmp/qb_s.txt \
+                    -d "json={\"web_ui_password\":\"$_NP\"}" \
+                    "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
+                rm -f /tmp/qb_s.txt
+            ' 2>/dev/null || true
+        # Verify password change by logging in with new credentials
+        QB_VERIFY=$(docker exec qbittorrent \
+            curl -s -d "username=admin&password=$QB_PASS" \
+            "http://localhost:8080/api/v2/auth/login" 2>/dev/null || echo "")
+        if [ "$QB_VERIFY" = "Ok." ]; then
+            echo "{\"qb_user\":\"admin\",\"qb_pass\":\"$QB_PASS\"}" > "$INSTALL_DIR/bot-data/creds.json"
+            echo "$MSG_QB_PASS_SET"
+        else
+            echo "$MSG_QB_PASS_FAIL"
+        fi
     else
         echo "$MSG_QB_PASS_FAIL"
     fi
