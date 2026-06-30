@@ -1,0 +1,34 @@
+name: Dev Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build and Push"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Trigger update on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            ENV_FILE=~/media-server/.env
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Server not set up yet, skipping update"
+              exit 0
+            fi
+            TOKEN=$(grep ^WATCHTOWER_TOKEN "$ENV_FILE" | cut -d'=' -f2)
+            if [ -z "$TOKEN" ]; then
+              echo "WATCHTOWER_TOKEN not found in .env"
+              exit 1
+            fi
+            curl -sf -X POST -H "Authorization: Bearer $TOKEN" http://localhost:9080/v1/update

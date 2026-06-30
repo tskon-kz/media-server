@@ -88,7 +88,11 @@ Adding a category creates a Jellyfin library. Deleting it removes the library. A
 
 ## CI/CD
 
-To enable automatic deploys on every push to `main`, add these secrets to the repository (**Settings → Secrets and variables → Actions**):
+Two workflows run on push to `main` when `bot/`, `lang/`, or `pyproject.toml` change:
+
+**`build-push.yml`** — builds a Docker image and pushes it to `ghcr.io` with `:latest` and `:<version>` tags. No secrets required beyond the default `GITHUB_TOKEN`.
+
+**`dev-deploy.yml`** — triggers after a successful build and SSHes into the server to call the Watchtower HTTP API. This is for the repo maintainer's own server; forks can ignore or delete this file. Requires these repository secrets:
 
 | Secret | Value |
 |--------|-------|
@@ -97,7 +101,7 @@ To enable automatic deploys on every push to `main`, add these secrets to the re
 | `SERVER_SSH_KEY` | Private SSH key |
 | `SSH_PORT` | SSH port |
 
-On every push: builds a new Docker image → pushes to `ghcr.io` → triggers update on the server via Watchtower. The step is skipped if `SERVER_HOST` is not set.
+Both workflows can also be triggered manually via **Actions → Run workflow**.
 
 ## Moving the media library
 
