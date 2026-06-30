@@ -5,6 +5,11 @@ set -e
 REPO="tskon-kz/media-server"
 RAW="https://raw.githubusercontent.com/$REPO/main"
 INSTALL_DIR="$HOME/media-server"
+LOG_FILE="$INSTALL_DIR/install.log"
+
+mkdir -p "$INSTALL_DIR"
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "=== Install started: $(date '+%Y-%m-%d %H:%M:%S') ==="
 
 echo "1) English"
 echo "2) Русский"
@@ -166,6 +171,13 @@ if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
     JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
 
     if [ -z "$JF_TOKEN" ]; then
+        # Wait for the startup wizard endpoints to become available
+        for i in $(seq 1 20); do
+            WIZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/Startup/User" 2>/dev/null || echo "000")
+            case "$WIZ_STATUS" in 200|404) break ;; esac
+            sleep 3
+        done
+
         curl -s "http://localhost:$JF_PORT/Startup/User" > /dev/null
         curl -s -X POST "http://localhost:$JF_PORT/Startup/Configuration" \
             -H "Content-Type: application/json" \
@@ -181,15 +193,13 @@ if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
             sleep 3
         done
 
-        if [ "$WZ" = "404" ]; then
-            echo "$MSG_JF_ALREADY_SET"
-        else
-            for i in $(seq 1 20); do
-                JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
-                [ -n "$JF_TOKEN" ] && break
-                sleep 3
-            done
-        fi
+        [ "$WZ" = "404" ] && echo "$MSG_JF_ALREADY_SET"
+
+        for i in $(seq 1 20); do
+            JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
+            [ -n "$JF_TOKEN" ] && break
+            sleep 3
+        done
     fi
 
     if [ -n "$JF_TOKEN" ]; then
@@ -225,3 +235,6 @@ echo ""
 echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
+echo ""
+echo "=== Install finished: $(date '+%Y-%m-%d %H:%M:%S') ==="
+echo "Log saved to: $LOG_FILE"
