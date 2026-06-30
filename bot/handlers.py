@@ -86,6 +86,20 @@ async def on_message(update, ctx):
     text  = update.message.text or ""
     state = ctx.user_data.get("state")
 
+    if text.startswith("magnet:"):
+        ctx.user_data.pop("state", None)
+        cats = load_cats()
+        if not cats:
+            try:
+                qb().torrents_add(urls=text, save_path="/media/downloads")
+                await update.message.reply_text(t("added"))
+            except Exception as e:
+                await update.message.reply_text(t("add_error", e=e))
+            return
+        ctx.user_data["pending_magnet"] = text
+        await update.message.reply_text(t("pick_cat"), reply_markup=kb.cats_pick_kb(cats, "addmagnet"))
+        return
+
     if state == "await_new_pass":
         ctx.user_data.pop("state")
         try:
@@ -136,19 +150,7 @@ async def on_message(update, ctx):
         await update.message.reply_text(t("cat_pick_type"), reply_markup=kb.cat_type_kb())
         return
 
-    if text.startswith("magnet:"):
-        cats = load_cats()
-        if not cats:
-            try:
-                qb().torrents_add(urls=text, save_path="/media/downloads")
-                await update.message.reply_text(t("added"))
-            except Exception as e:
-                await update.message.reply_text(t("add_error", e=e))
-            return
-        ctx.user_data["pending_magnet"] = text
-        await update.message.reply_text(t("pick_cat"), reply_markup=kb.cats_pick_kb(cats, "addmagnet"))
-    else:
-        await update.message.reply_text(t("hint"))
+    await update.message.reply_text(t("hint"))
 
 
 @guard
