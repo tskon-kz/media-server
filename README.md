@@ -25,6 +25,7 @@ bash setup.sh
 | Jellyfin admin username / password | Created automatically on first run |
 | Jellyfin server name | Optional, defaults to `Media Server` |
 | Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
+| Media path | Host path to mount as `/media` (default: `./media`). Set to a mounted disk path, e.g. `/mnt/disk2` |
 | Custom ports | Optional — press `n` to skip all and use defaults (Jellyfin: 8096, qBittorrent: 8080) |
 
 ### .env reference
@@ -37,8 +38,10 @@ SERVER_IP=1.2.3.4
 
 # Optional
 PROXY_URL=socks5://user:pass@host:port
-JELLYFIN_PORT=8096              # default
-QB_PORT=8080                    # default
+MEDIA_PATH=./media              # host path mounted as /media in all containers
+MEDIA_BASE=/media               # container-side base for bot category path suggestions
+JELLYFIN_PORT=8096
+QB_PORT=8080
 ```
 
 `JELLYFIN_API_KEY` is added automatically during setup and must not be set manually.

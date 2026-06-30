@@ -16,14 +16,15 @@ SERVER_IP  = os.environ.get("SERVER_IP", "")
 JF_PORT    = os.environ.get("JELLYFIN_PORT", "8096")
 QB_PORT    = os.environ.get("QB_PORT", "8080")
 JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
+MEDIA_BASE = os.environ.get("MEDIA_BASE", "/media")
 LANG_FILE   = "/app/lang.json"
 CREDS_FILE  = "/app/creds.json"
 CATS_FILE   = "/app/categories.json"
 STATES_FILE = "/app/states.json"
 
 DEFAULT_CATS = [
-    {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
-    {"name": "Series", "path": "/media/series", "jf_type": "tvshows"},
+    {"name": "Movies", "path": f"{MEDIA_BASE}/movies", "jf_type": "movies"},
+    {"name": "Series", "path": f"{MEDIA_BASE}/series", "jf_type": "tvshows"},
 ]
 
 QB_USER = os.environ.get("QB_USER", "admin")
@@ -323,7 +324,7 @@ async def on_message(update, ctx):
         ctx.user_data["pending_cat_name"] = text
         ctx.user_data["state"] = "await_cat_path"
         slug = re.sub(r'[^\w\s]', '', text, flags=re.UNICODE).strip().lower().replace(' ', '_')
-        suggested = f"/media/{slug}" if slug else "/media/"
+        suggested = f"{MEDIA_BASE}/{slug}" if slug else f"{MEDIA_BASE}/"
         kb = InlineKeyboardMarkup([[InlineKeyboardButton(suggested, callback_data=f"catpath:{suggested}")]])
         await update.message.reply_text(t("cat_add_path"), reply_markup=kb)
         return
@@ -338,7 +339,7 @@ async def on_message(update, ctx):
         cats = load_cats()
         if not cats:
             try:
-                qb().torrents_add(urls=text, save_path="/media/downloads")
+                qb().torrents_add(urls=text, save_path=f"{MEDIA_BASE}/downloads")
                 await update.message.reply_text(t("added"))
             except Exception as e:
                 await update.message.reply_text(t("add_error", e=e))
@@ -356,7 +357,7 @@ async def on_torrent_file(update, ctx):
     cats = load_cats()
     if not cats:
         try:
-            qb().torrents_add(torrent_files=bytes(file), save_path="/media/downloads")
+            qb().torrents_add(torrent_files=bytes(file), save_path=f"{MEDIA_BASE}/downloads")
             await update.message.reply_text(t("added"))
         except Exception as e:
             await update.message.reply_text(t("add_error", e=e))

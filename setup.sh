@@ -39,9 +39,11 @@ fi
 echo "$MSG_ENTER_VALUES"
 echo ""
 
-printf "%s" "$MSG_ASK_TOKEN";     read -r BOT_TOKEN
-printf "%s" "$MSG_ASK_USER_ID";   read -r ALLOWED_USER
-printf "%s" "$MSG_ASK_SERVER_IP"; read -r SERVER_IP
+printf "%s" "$MSG_ASK_TOKEN";      read -r BOT_TOKEN
+printf "%s" "$MSG_ASK_USER_ID";    read -r ALLOWED_USER
+printf "%s" "$MSG_ASK_SERVER_IP";  read -r SERVER_IP
+printf "%s" "$MSG_ASK_MEDIA_PATH"; read -r MEDIA_PATH_INPUT
+MEDIA_PATH="${MEDIA_PATH_INPUT:-./media}"
 printf "%s" "$MSG_ASK_QB_PASS";   read -r QB_PASS
 printf "%s" "$MSG_ASK_JF_USER";   read -r JF_USER
 printf "%s" "$MSG_ASK_JF_PASS";   read -r JF_PASS
@@ -67,13 +69,21 @@ fi
     [ -n "$PROXY_URL" ] && echo "PROXY_URL=$PROXY_URL"
     [ "$JF_PORT" != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
     [ "$QB_PORT" != "8080" ] && echo "QB_PORT=$QB_PORT"
+    [ "$MEDIA_PATH" != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
 } > "$SCRIPT_DIR/.env"
 
 echo "$MSG_ENV_SAVED"
 
 # Dirs & start
 cd "$SCRIPT_DIR"
-mkdir -p media/movies media/series data/jellyfin/config data/jellyfin/cache data/qbittorrent/config
+if [[ "$MEDIA_PATH" == /* ]]; then
+    _media_abs="$MEDIA_PATH"
+else
+    _media_abs="$SCRIPT_DIR/${MEDIA_PATH#./}"
+fi
+mkdir -p "$_media_abs/movies" "$_media_abs/series" \
+    "$SCRIPT_DIR/data/jellyfin/config" "$SCRIPT_DIR/data/jellyfin/cache" \
+    "$SCRIPT_DIR/data/qbittorrent/config"
 
 echo ""
 echo "$MSG_STARTING"

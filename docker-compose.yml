@@ -8,7 +8,7 @@ services:
     volumes:
       - ./data/jellyfin/config:/config
       - ./data/jellyfin/cache:/cache
-      - ./media:/media
+      - ${MEDIA_PATH:-./media}:/media
     environment:
       - JELLYFIN_PublishedServerUrl=http://${SERVER_IP}:${JELLYFIN_PORT:-8096}
 
@@ -27,7 +27,7 @@ services:
       - "6881:6881/udp"
     volumes:
       - ./data/qbittorrent/config:/config
-      - ./media:/media
+      - ${MEDIA_PATH:-./media}:/media
 
   telegram-bot:
     image: python:3.11-slim
@@ -43,11 +43,12 @@ services:
       - SERVER_IP=${SERVER_IP}
       - JELLYFIN_PORT=${JELLYFIN_PORT:-8096}
       - QB_PORT=${QB_PORT:-8080}
+      - MEDIA_BASE=${MEDIA_BASE:-/media}
       - PYTHONUNBUFFERED=1
     volumes:
       - ./bot:/app
       - ./lang:/app/lang
-      - ./media:/media
+      - ${MEDIA_PATH:-./media}:/media
     working_dir: /app
     command: >
       sh -c "pip install 'python-telegram-bot[job-queue]==21.*' qbittorrent-api -q && python bot.py"

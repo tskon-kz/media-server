@@ -7,6 +7,7 @@ MSG_ENTER_VALUES="Введи настройки (Enter — пропустить 
 MSG_ASK_TOKEN="Telegram Bot Token (@BotFather): "
 MSG_ASK_USER_ID="Твой Telegram ID (@userinfobot): "
 MSG_ASK_SERVER_IP="IP сервера: "
+MSG_ASK_MEDIA_PATH="Путь к папке media на хосте [./media]: "
 MSG_ASK_QB_PASS="Пароль для qBittorrent WebUI (логин будет: admin): "
 MSG_ASK_PROXY="Прокси для Telegram (пусто — не использовать): "
 MSG_ASK_JF_USER="Логин администратора Jellyfin: "
