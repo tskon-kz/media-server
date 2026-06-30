@@ -21,8 +21,8 @@ def guard(func):
     return wrapper
 
 
-async def _edit(query, text, keyboard=None):
-    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
+async def _edit(query, text, keyboard=None, parse_mode="Markdown"):
+    await query.edit_message_text(text, parse_mode=parse_mode, reply_markup=keyboard)
 
 
 async def _show_list(query, edit_mode=False):
@@ -35,7 +35,7 @@ async def _show_list(query, edit_mode=False):
         await _edit(query, t("empty"))
         return
     keyboard = kb.list_edit_kb(torrents) if edit_mode else kb.list_kb()
-    await _edit(query, kb.list_text(torrents), keyboard)
+    await _edit(query, kb.list_text(torrents), keyboard, parse_mode="HTML")
 
 
 # --- Commands ---
@@ -55,7 +55,7 @@ async def cmd_list(update, ctx):
     if not torrents:
         await update.message.reply_text(t("empty"))
         return
-    await update.message.reply_text(kb.list_text(torrents), parse_mode="Markdown", reply_markup=kb.list_kb())
+    await update.message.reply_text(kb.list_text(torrents), parse_mode="HTML", reply_markup=kb.list_kb())
 
 
 @guard

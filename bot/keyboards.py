@@ -1,3 +1,4 @@
+from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from config import SERVER_IP, JF_PORT, QB_PORT, JF_KEY, ICONS
 from store import t, load_cats
@@ -131,6 +132,6 @@ def list_text(torrents):
         icon = ICONS.get(tor.state, "❓")
         pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
         size = f"{tor.size/1024**3:.1f} GB"
-        name = tor.name[:35].replace("*", "\\*").replace("_", "\\_").replace("`", "\\`")
+        name = escape(tor.name[:35])
         lines.append(f"{i}. {icon} {name}{pct} — {size}")
-    return f"*{t('list_title')}* ({len(torrents)})\n\n" + "\n".join(lines)
+    return f"<b>{escape(t('list_title'))}</b> ({len(torrents)})\n\n" + "\n".join(lines)
