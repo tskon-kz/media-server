@@ -75,4 +75,4 @@ jobs:
               echo "WATCHTOWER_TOKEN not found in .env"
               exit 1
             fi
-            curl -sf -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/update
+            curl -sf -X POST -H "Authorization: Bearer $TOKEN" http://localhost:9080/v1/update

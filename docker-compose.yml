@@ -58,6 +58,8 @@ services:
     image: containrrr/watchtower
     container_name: watchtower
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:9080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
