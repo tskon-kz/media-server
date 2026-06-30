@@ -30,7 +30,6 @@ M = {
     "cat_add_btn":   "➕ Add category",
     "cat_add_name":  "Enter category name:",
     "cat_rename_prompt": "Enter new name:",
-    "cat_add_path":  "Enter path or tap the suggestion:",
     "cat_pick_type": "Choose Jellyfin library type:",
     "jf_movies":     "Movies",
     "jf_tvshows":    "TV Shows",

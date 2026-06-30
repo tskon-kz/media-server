@@ -39,7 +39,6 @@ SERVER_IP=1.2.3.4
 # Optional
 PROXY_URL=socks5://user:pass@host:port
 MEDIA_PATH=./media              # host path mounted as /media in all containers
-MEDIA_BASE=/media               # container-side base for bot category path suggestions
 JELLYFIN_PORT=8096
 QB_PORT=8080
 ```
@@ -94,6 +93,14 @@ Add these secrets to the repository: **Settings → Secrets and variables → Ac
 | `SSH_PORT` | SSH port |
 
 Every push to `main` pulls the latest code on the server and restarts the bot container.
+
+## Moving the media library
+
+```bash
+bash migrate-media.sh
+```
+
+Stops containers, copies all media to the new location with rsync (shows progress), updates `MEDIA_PATH` in `.env`, restarts containers. Checks free space before starting. After a successful copy, optionally removes the old folder.
 
 ## Teardown
 

@@ -16,15 +16,14 @@ SERVER_IP  = os.environ.get("SERVER_IP", "")
 JF_PORT    = os.environ.get("JELLYFIN_PORT", "8096")
 QB_PORT    = os.environ.get("QB_PORT", "8080")
 JF_KEY     = os.environ.get("JELLYFIN_API_KEY", "")
-MEDIA_BASE = os.environ.get("MEDIA_BASE", "/media")
 LANG_FILE   = "/app/lang.json"
 CREDS_FILE  = "/app/creds.json"
 CATS_FILE   = "/app/categories.json"
 STATES_FILE = "/app/states.json"
 
 DEFAULT_CATS = [
-    {"name": "Movies", "path": f"{MEDIA_BASE}/movies", "jf_type": "movies"},
-    {"name": "Series", "path": f"{MEDIA_BASE}/series", "jf_type": "tvshows"},
+    {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
+    {"name": "Series", "path": "/media/series", "jf_type": "tvshows"},
 ]
 
 QB_USER = os.environ.get("QB_USER", "admin")
@@ -211,7 +210,7 @@ def jf_users_view(users):
 
 def cats_view(cats):
     type_label = {"movies": t("jf_movies"), "tvshows": t("jf_tvshows"), "music": t("jf_music"), "mixed": t("jf_mixed")}
-    lines = "\n".join(f"• {c['name']} → `{c['path']}`" for c in cats) if cats else t("no_cats")
+    lines = "\n".join(f"• {c['name']} → `{c['path'].removeprefix('/media/')}`" for c in cats) if cats else t("no_cats")
     buttons = [
         [InlineKeyboardButton(f"✏️ {c['name']} · {type_label.get(c.get('jf_type',''), '?')}", callback_data=f"editcat:{i}"),
          InlineKeyboardButton("🗑", callback_data=f"delcat:{i}")]
@@ -321,17 +320,9 @@ async def on_message(update, ctx):
         return
 
     if state == "await_cat_name":
-        ctx.user_data["pending_cat_name"] = text
-        ctx.user_data["state"] = "await_cat_path"
         slug = re.sub(r'[^\w\s]', '', text, flags=re.UNICODE).strip().lower().replace(' ', '_')
-        suggested = f"{MEDIA_BASE}/{slug}" if slug else f"{MEDIA_BASE}/"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(suggested, callback_data=f"catpath:{suggested}")]])
-        await update.message.reply_text(t("cat_add_path"), reply_markup=kb)
-        return
-
-    if state == "await_cat_path":
-        ctx.user_data["pending_cat_path"] = text
-        ctx.user_data.pop("state", None)
+        ctx.user_data["pending_cat_name"] = text
+        ctx.user_data["pending_cat_path"] = f"/media/{slug}" if slug else "/media"
         await update.message.reply_text(t("cat_pick_type"), reply_markup=type_keyboard())
         return
 
@@ -339,7 +330,7 @@ async def on_message(update, ctx):
         cats = load_cats()
         if not cats:
             try:
-                qb().torrents_add(urls=text, save_path=f"{MEDIA_BASE}/downloads")
+                qb().torrents_add(urls=text, save_path="/media/downloads")
                 await update.message.reply_text(t("added"))
             except Exception as e:
                 await update.message.reply_text(t("add_error", e=e))
@@ -357,7 +348,7 @@ async def on_torrent_file(update, ctx):
     cats = load_cats()
     if not cats:
         try:
-            qb().torrents_add(torrent_files=bytes(file), save_path=f"{MEDIA_BASE}/downloads")
+            qb().torrents_add(torrent_files=bytes(file), save_path="/media/downloads")
             await update.message.reply_text(t("added"))
         except Exception as e:
             await update.message.reply_text(t("add_error", e=e))
@@ -488,11 +479,6 @@ async def on_callback(update, ctx):
         params = urllib.parse.urlencode({"name": cat["name"], "refreshLibrary": "true"})
         jf("DELETE", f"/Library/VirtualFolders?{params}")
         await edit(query, *cats_view(cats))
-
-    elif action == "catpath":
-        ctx.user_data["pending_cat_path"] = value
-        ctx.user_data.pop("state", None)
-        await edit(query, t("cat_pick_type"), type_keyboard())
 
     elif action == "cattype":
         name = ctx.user_data.pop("pending_cat_name", "")

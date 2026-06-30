@@ -43,7 +43,6 @@ services:
       - SERVER_IP=${SERVER_IP}
       - JELLYFIN_PORT=${JELLYFIN_PORT:-8096}
       - QB_PORT=${QB_PORT:-8080}
-      - MEDIA_BASE=${MEDIA_BASE:-/media}
       - PYTHONUNBUFFERED=1
     volumes:
       - ./bot:/app
