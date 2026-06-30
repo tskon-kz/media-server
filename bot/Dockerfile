@@ -7,10 +7,10 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN uv pip install --system --no-cache .
 
-COPY bot/bot.py .
+COPY bot/main.py bot/config.py bot/store.py bot/api.py bot/keyboards.py bot/handlers.py ./
 COPY lang/ ./lang/
 
 ARG VERSION=dev
 ENV APP_VERSION=$VERSION
 
-CMD ["python", "bot.py"]
+CMD ["python", "main.py"]
