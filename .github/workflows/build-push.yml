@@ -38,8 +38,19 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/media-server-bot:latest
             ghcr.io/${{ github.repository_owner }}/media-server-bot:${{ steps.version.outputs.version }}
 
+      - name: Check if server is configured
+        id: server_check
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          if [ -n "$HOST" ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Trigger update on server
-        if: ${{ secrets.SERVER_HOST != '' }}
+        if: steps.server_check.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
