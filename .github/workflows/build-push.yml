@@ -35,8 +35,8 @@ jobs:
           push: true
           build-args: VERSION=${{ steps.version.outputs.version }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/media-server:latest
-            ghcr.io/${{ github.repository_owner }}/media-server:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/media-server-bot:latest
+            ghcr.io/${{ github.repository_owner }}/media-server-bot:${{ steps.version.outputs.version }}
 
       - name: Trigger update on server
         if: ${{ secrets.SERVER_HOST != '' }}

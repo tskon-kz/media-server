@@ -30,7 +30,7 @@ services:
       - ${MEDIA_PATH:-./media}:/media
 
   telegram-bot:
-    image: ghcr.io/tskon-kz/media-server:latest
+    image: ghcr.io/tskon-kz/media-server-bot:latest
     container_name: telegram-bot
     restart: unless-stopped
     environment:
