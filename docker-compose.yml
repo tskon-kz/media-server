@@ -42,6 +42,7 @@ services:
     volumes:
       - ./bot-data:/app/data
       - ${MEDIA_PATH:-./media}:/media
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - qbittorrent
       - jellyfin
