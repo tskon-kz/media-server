@@ -8,8 +8,52 @@ INSTALL_DIR="$HOME/media-server"
 LOG_FILE="$INSTALL_DIR/install.log"
 
 mkdir -p "$INSTALL_DIR"
-exec > >(tee -a "$LOG_FILE") 2>&1
-echo "=== Install started: $(date '+%Y-%m-%d %H:%M:%S') ==="
+exec 3>>"$LOG_FILE"
+echo "=== Install started: $(date '+%Y-%m-%d %H:%M:%S') ===" >&3
+
+# ---- helpers ----
+
+_bar() {   # _bar n total  →  [████░░░░░░░░░░░░░░░░]
+    local n=$1 total=$2 width=20 bar=''
+    local filled=$(( n * width / total ))
+    for ((j=0; j<width; j++)); do
+        [ $j -lt $filled ] && bar+='█' || bar+='░'
+    done
+    printf '[%s]' "$bar"
+}
+
+_spin() {  # _spin "label" cmd [args...]
+    local msg="$1"; shift
+    local -a fr=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local i=0
+    printf "  %s %s" "${fr[0]}" "$msg"
+    "$@" >&3 2>&3 &
+    local pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r  %s %s" "${fr[i % ${#fr[@]}]}" "$msg"
+        i=$((i+1))
+        sleep 0.1
+    done
+    if wait "$pid"; then
+        printf "\r  ✓ %s\n" "$msg"
+    else
+        printf "\r  ✗ %s  (log: %s)\n" "$msg" "$LOG_FILE"
+        return 1
+    fi
+}
+
+_pull_progress() {  # pulls images one by one, shows [████░░░] n/total
+    local -a svcs=(jellyfin qbittorrent telegram-bot watchtower)
+    local total=${#svcs[@]}
+    for ((i=0; i<total; i++)); do
+        local svc="${svcs[i]}"
+        printf "\r  %s %d/%d  %s..." "$(_bar "$i" "$total")" "$i" "$total" "$svc"
+        docker compose pull "$svc" >&3 2>&3
+    done
+    printf "\r  %s %d/%d  done\n" "$(_bar "$total" "$total")" "$total" "$total"
+}
+
+# ---- language ----
 
 echo "1) English"
 echo "2) Русский"
@@ -31,9 +75,10 @@ echo ""
 echo "$MSG_TITLE"
 echo ""
 
+# ---- docker check ----
+
 if ! command -v docker &>/dev/null; then
-    echo "$MSG_DOCKER_INSTALL"
-    curl -fsSL https://get.docker.com | sh
+    _spin "$MSG_DOCKER_INSTALL" bash -c 'curl -fsSL https://get.docker.com | sh'
     sudo usermod -aG docker "$USER"
     echo "$MSG_DOCKER_DONE"
     exit 0
@@ -48,21 +93,22 @@ fi
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-echo "$MSG_DOWNLOADING"
-curl -fsSL "$RAW/docker-compose.yml" -o docker-compose.yml
-mkdir -p lang
-curl -fsSL "$RAW/lang/en.sh" -o lang/en.sh
-curl -fsSL "$RAW/lang/ru.sh" -o lang/ru.sh
-curl -fsSL "$RAW/teardown.sh"     -o teardown.sh     && chmod +x teardown.sh
-curl -fsSL "$RAW/migrate-media.sh" -o migrate-media.sh && chmod +x migrate-media.sh
+_spin "$MSG_DOWNLOADING" bash -c "
+    curl -fsSL '$RAW/docker-compose.yml'  -o docker-compose.yml
+    mkdir -p lang
+    curl -fsSL '$RAW/lang/en.sh'          -o lang/en.sh
+    curl -fsSL '$RAW/lang/ru.sh'          -o lang/ru.sh
+    curl -fsSL '$RAW/teardown.sh'         -o teardown.sh     && chmod +x teardown.sh
+    curl -fsSL '$RAW/migrate-media.sh'    -o migrate-media.sh && chmod +x migrate-media.sh
+"
 
 if [ -f "$INSTALL_DIR/.env" ]; then
     printf "%s" "$MSG_ENV_EXISTS"
     read -r OVERWRITE
     if [[ ! "$OVERWRITE" =~ ^[Yy]$ ]]; then
         echo "$MSG_SKIP_ENV"
-        docker compose pull
-        docker compose up -d
+        _pull_progress
+        _spin "$MSG_STARTING" docker compose up -d
         exit 0
     fi
 fi
@@ -122,18 +168,21 @@ mkdir -p "$_media_abs/movies" "$_media_abs/series" \
 sudo chown -R "$USER:$USER" "$INSTALL_DIR" 2>/dev/null || true
 
 echo ""
-echo "$MSG_STARTING"
-docker compose pull
-docker compose up -d qbittorrent jellyfin watchtower
+_pull_progress
+_spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin watchtower
+
+# ---- qBittorrent password setup ----
 
 if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
-    echo "$MSG_QB_WAIT"
     TEMP_PASS=""
+    printf "  %s" "$MSG_QB_WAIT"
     for i in $(seq 1 30); do
         TEMP_PASS=$(docker logs qbittorrent 2>&1 | grep "temporary password" | awk '{print $NF}' | tail -1)
         [ -n "$TEMP_PASS" ] && break
+        printf "."
         sleep 2
     done
+    [ -n "$TEMP_PASS" ] && printf " ✓\n" || printf " ⚠️\n"
 
     if [ -n "$TEMP_PASS" ]; then
         # Run curl inside the container to hit port 8080 directly.
@@ -151,7 +200,6 @@ if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
                     "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
                 rm -f /tmp/qb_s.txt
             ' 2>/dev/null || true
-        # Verify password change by logging in with new credentials
         QB_VERIFY=$(docker exec qbittorrent \
             curl -s -d "username=admin&password=$QB_PASS" \
             "http://localhost:8080/api/v2/auth/login" 2>/dev/null || echo "")
@@ -166,13 +214,17 @@ if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
     fi
 fi
 
+# ---- Jellyfin setup ----
+
 if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
-    echo "$MSG_JF_WAIT"
+    printf "  %s" "$MSG_JF_WAIT"
     for i in $(seq 1 30); do
         STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/System/Info/Public" 2>/dev/null || echo "000")
         [ "$STATUS" = "200" ] && break
+        printf "."
         sleep 3
     done
+    printf "\n"
 
     JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
 
@@ -187,7 +239,6 @@ if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
     JF_TOKEN=$(_jf_auth "$JF_USER" "$JF_PASS")
 
     if [ -z "$JF_TOKEN" ]; then
-        # Wait for the startup wizard endpoints to become available
         for i in $(seq 1 20); do
             WIZ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/Startup/User" 2>/dev/null || echo "000")
             case "$WIZ_STATUS" in 200|404) break ;; esac
@@ -245,12 +296,12 @@ if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
     fi
 fi
 
-docker compose up -d telegram-bot
+_spin "$MSG_STARTING" docker compose up -d telegram-bot
 
 echo ""
 echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
 echo ""
-echo "=== Install finished: $(date '+%Y-%m-%d %H:%M:%S') ==="
-echo "Log saved to: $LOG_FILE"
+echo "=== Install finished: $(date '+%Y-%m-%d %H:%M:%S') ===" >&3
+echo "Log: $LOG_FILE"
