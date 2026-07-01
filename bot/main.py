@@ -3,7 +3,7 @@ from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
     CommandHandler, MessageHandler, filters,
 )
-from config import BOT_TOKEN, PROXY_URL, APP_VERSION
+from config import BOT_TOKEN, APP_VERSION
 import store
 import handlers as h
 
@@ -20,11 +20,11 @@ async def _post_init(app):
 def main():
     store.init()
 
+    proxy_url = store.get_config("proxy_url")
     builder = ApplicationBuilder().token(BOT_TOKEN).post_init(_post_init)
-    if PROXY_URL:
-        builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
+    if proxy_url:
+        builder = builder.proxy(proxy_url).get_updates_proxy(proxy_url)
     app = builder.build()
-    app.bot_data["states"] = store.load_states()
 
     app.add_handler(CommandHandler("start",    h.cmd_start))
     app.add_handler(CommandHandler("list",     h.cmd_list))

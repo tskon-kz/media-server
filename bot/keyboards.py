@@ -1,24 +1,26 @@
 from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from config import SERVER_IP, JF_PORT, QB_PORT, JF_KEY, ICONS
+from config import JF_PORT, QB_PORT, ICONS
+import store
 from store import t, load_cats
 
 
 # --- Keyboards ---
 
 def main_menu_kb():
+    server_ip = store.get_config("server_ip")
+    jf_key    = store.get_config("jellyfin_api_key")
     buttons = [
         [InlineKeyboardButton(t("settings_cats"), callback_data="settings:cats")],
-        [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang"),
-         InlineKeyboardButton(t("settings_pass"), callback_data="settings:pass")],
+        [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang")],
     ]
-    if JF_KEY:
+    if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
     buttons.append([InlineKeyboardButton(t("settings_update"), callback_data="settings:update")])
-    if SERVER_IP:
+    if server_ip:
         buttons.append([
-            InlineKeyboardButton("qBittorrent ↗", url=f"http://{SERVER_IP}:{QB_PORT}"),
-            InlineKeyboardButton("Jellyfin ↗",    url=f"http://{SERVER_IP}:{JF_PORT}"),
+            InlineKeyboardButton("qBittorrent ↗", url=f"http://{server_ip}:{QB_PORT}"),
+            InlineKeyboardButton("Jellyfin ↗",    url=f"http://{server_ip}:{JF_PORT}"),
         ])
     return InlineKeyboardMarkup(buttons)
 

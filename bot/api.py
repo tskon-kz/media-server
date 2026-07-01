@@ -3,8 +3,9 @@ import tomllib
 import urllib.request
 import urllib.parse
 import qbittorrentapi
+import store
 from config import (
-    JF_URL, JF_KEY, QB_HOST,
+    JF_URL, QB_HOST,
     WATCHTOWER_TOKEN, WATCHTOWER_URL,
     REPO_SLUG,
 )
@@ -14,12 +15,13 @@ from store import get_creds
 # --- Jellyfin ---
 
 def jf(method, path, body=None):
-    if not JF_KEY:
+    key = store.get_config("jellyfin_api_key")
+    if not key:
         return None
     req = urllib.request.Request(
         f"{JF_URL}{path}",
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"X-Emby-Token": JF_KEY, "Content-Type": "application/json"},
+        headers={"X-Emby-Token": key, "Content-Type": "application/json"},
         method=method,
     )
     try:

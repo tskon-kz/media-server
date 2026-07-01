@@ -4,11 +4,16 @@ from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
 from config import ALLOWED, DONE_STATES, APP_VERSION
-from store import t, set_lang, set_creds, get_creds, load_cats, save_cats, save_states
+from store import (
+    t, set_lang, load_cats, save_cats,
+    load_states, save_states,
+    get_user_state, set_user_state, clear_user_state,
+    get_pending, set_pending, pop_pending,
+    get_pending_torrent, set_pending_torrent, pop_pending_torrent,
+    has_notified_update, mark_update_notified,
+)
 from api import jf, jf_add_library, jf_remove_library, qb, remote_version, trigger_update
 import keyboards as kb
-
-_update_notified: set[str] = set()
 
 
 def guard(func):
@@ -83,11 +88,12 @@ async def cmd_settings(update, ctx):
 
 @guard
 async def on_message(update, ctx):
+    uid   = update.effective_user.id
     text  = update.message.text or ""
-    state = ctx.user_data.get("state")
+    state = get_user_state(uid)
 
     if text.startswith("magnet:"):
-        ctx.user_data.pop("state", None)
+        clear_user_state(uid)
         cats = load_cats()
         if not cats:
             try:
@@ -96,25 +102,13 @@ async def on_message(update, ctx):
             except Exception as e:
                 await update.message.reply_text(t("add_error", e=e))
             return
-        ctx.user_data["pending_magnet"] = text
+        set_pending(uid, "pending_magnet", text)
         await update.message.reply_text(t("pick_cat"), reply_markup=kb.cats_pick_kb(cats, "addmagnet"))
         return
 
-    if state == "await_new_pass":
-        ctx.user_data.pop("state")
-        try:
-            user, _ = get_creds()
-            qb().app_set_preferences({"web_ui_password": text})
-            set_creds(user, text)
-            await update.message.delete()
-            await update.effective_chat.send_message(t("setpass_ok"))
-        except Exception as e:
-            await update.message.reply_text(t("setpass_error", e=e))
-        return
-
     if state == "await_cat_rename":
-        ctx.user_data.pop("state")
-        idx = ctx.user_data.pop("pending_cat_idx", None)
+        clear_user_state(uid)
+        idx = pop_pending(uid, "pending_cat_idx")
         if idx is not None:
             cats = load_cats()
             if 0 <= idx < len(cats):
@@ -125,15 +119,15 @@ async def on_message(update, ctx):
         return
 
     if state == "await_jf_user_name":
-        ctx.user_data.pop("state")
-        ctx.user_data["pending_jf_user_name"] = text
-        ctx.user_data["state"] = "await_jf_user_pass"
+        clear_user_state(uid)
+        set_pending(uid, "pending_jf_user_name", text)
+        set_user_state(uid, "await_jf_user_pass")
         await update.message.reply_text(t("jf_add_user_pass", name=text), parse_mode="Markdown")
         return
 
     if state == "await_jf_user_pass":
-        ctx.user_data.pop("state")
-        name = ctx.user_data.pop("pending_jf_user_name", "")
+        clear_user_state(uid)
+        name = pop_pending(uid, "pending_jf_user_name", "")
         user = jf("POST", "/Users/New", {"Name": name})
         if isinstance(user, dict) and "Id" in user:
             jf("POST", f"/Users/{user['Id']}/Password", {"NewPw": text})
@@ -145,8 +139,8 @@ async def on_message(update, ctx):
 
     if state == "await_cat_name":
         slug = re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip().lower().replace(" ", "_")
-        ctx.user_data["pending_cat_name"] = text
-        ctx.user_data["pending_cat_path"] = f"/media/{slug}" if slug else "/media"
+        set_pending(uid, "pending_cat_name", text)
+        set_pending(uid, "pending_cat_path", f"/media/{slug}" if slug else "/media")
         await update.message.reply_text(t("cat_pick_type"), reply_markup=kb.cat_type_kb())
         return
 
@@ -155,6 +149,7 @@ async def on_message(update, ctx):
 
 @guard
 async def on_torrent_file(update, ctx):
+    uid  = update.effective_user.id
     file = await (await update.message.document.get_file()).download_as_bytearray()
     cats = load_cats()
     if not cats:
@@ -164,7 +159,7 @@ async def on_torrent_file(update, ctx):
         except Exception as e:
             await update.message.reply_text(t("add_error", e=e))
         return
-    ctx.user_data["pending_torrent"] = bytes(file)
+    set_pending_torrent(uid, bytes(file))
     await update.message.reply_text(t("pick_cat"), reply_markup=kb.cats_pick_kb(cats, "addtorrent"))
 
 
@@ -172,7 +167,8 @@ async def on_torrent_file(update, ctx):
 
 async def on_callback(update, ctx):
     query = update.callback_query
-    if update.effective_user.id not in ALLOWED:
+    uid   = update.effective_user.id
+    if uid not in ALLOWED:
         await query.answer(t("no_access"))
         return
     await query.answer()
@@ -191,9 +187,6 @@ async def on_callback(update, ctx):
                     await _edit(query, *kb.cats_view(load_cats()))
                 case "lang":
                     await _edit(query, t("lang_pick"), kb.lang_kb())
-                case "pass":
-                    ctx.user_data["state"] = "await_new_pass"
-                    await _edit(query, t("setpass_prompt"))
                 case "jf_users":
                     await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
                 case "update":
@@ -220,7 +213,7 @@ async def on_callback(update, ctx):
             await _show_list(query, edit_mode=True)
 
         case "addmagnet":
-            magnet = ctx.user_data.pop("pending_magnet", None)
+            magnet = pop_pending(uid, "pending_magnet")
             if not magnet:
                 await _edit(query, t("add_error", e="expired"))
                 return
@@ -232,7 +225,7 @@ async def on_callback(update, ctx):
                 await _edit(query, t("add_error", e=e))
 
         case "addtorrent":
-            torrent = ctx.user_data.pop("pending_torrent", None)
+            torrent = pop_pending_torrent(uid)
             if not torrent:
                 await _edit(query, t("add_error", e="expired"))
                 return
@@ -260,8 +253,8 @@ async def on_callback(update, ctx):
             await _show_list(query)
 
         case "editcat":
-            ctx.user_data["pending_cat_idx"] = int(value)
-            ctx.user_data["state"] = "await_cat_rename"
+            set_pending(uid, "pending_cat_idx", int(value))
+            set_user_state(uid, "await_cat_rename")
             await _edit(query, t("cat_rename_prompt"))
 
         case "delcat":
@@ -272,8 +265,9 @@ async def on_callback(update, ctx):
             await _edit(query, *kb.cats_view(cats))
 
         case "cattype":
-            name = ctx.user_data.pop("pending_cat_name", "")
-            path = ctx.user_data.pop("pending_cat_path", "")
+            name = pop_pending(uid, "pending_cat_name", "")
+            path = pop_pending(uid, "pending_cat_path", "")
+            clear_user_state(uid)
             if path:
                 os.makedirs(path, exist_ok=True)
                 try:    os.chown(path, 1000, 1000)
@@ -291,18 +285,18 @@ async def on_callback(update, ctx):
                 await query.answer(t("jf_user_error"))
 
         case "jf_adduser":
-            ctx.user_data["state"] = "await_jf_user_name"
+            set_user_state(uid, "await_jf_user_name")
             await _edit(query, t("jf_add_user_name"))
 
         case "addcat":
-            ctx.user_data["state"] = "await_cat_name"
+            set_user_state(uid, "await_cat_name")
             await _edit(query, t("cat_add_name"))
 
 
 # --- Background jobs ---
 
 async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
-    known = ctx.bot_data.setdefault("states", {})
+    known = load_states()
     try:
         torrents = qb().torrents_info()
     except Exception:
@@ -323,8 +317,8 @@ async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
 
 async def job_check_update(ctx: ContextTypes.DEFAULT_TYPE):
     remote = remote_version()
-    if remote and remote != APP_VERSION and remote not in _update_notified:
-        _update_notified.add(remote)
+    if remote and remote != APP_VERSION and not has_notified_update(remote):
+        mark_update_notified(remote)
         for uid in ALLOWED:
             try:
                 await ctx.bot.send_message(uid, t("update_notify", v=remote), parse_mode="Markdown")

@@ -6,6 +6,7 @@ REPO="tskon-kz/media-server"
 RAW="https://raw.githubusercontent.com/$REPO/main"
 INSTALL_DIR="$HOME/media-server"
 LOG_FILE="$INSTALL_DIR/install.log"
+DB_FILE="$INSTALL_DIR/bot-data/media_server.db"
 
 mkdir -p "$INSTALL_DIR"
 exec 3>>"$LOG_FILE"
@@ -51,6 +52,35 @@ _pull_progress() {  # pulls images one by one, shows [████░░░] n/t
         docker compose pull "$svc" >&3 2>&3
     done
     printf "\r  %s %d/%d  done\n" "$(_bar "$total" "$total")" "$total" "$total"
+}
+
+# Write a key=value pair to the bot's SQLite DB.
+# Safe for arbitrary values: passed as sys.argv, not interpolated into Python source.
+_db_set() {  # _db_set key value
+    python3 - "$DB_FILE" "$1" "$2" >&3 2>&3 << 'PYEOF'
+import sqlite3, os, sys
+db_path, key, val = sys.argv[1], sys.argv[2], sys.argv[3]
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
+db = sqlite3.connect(db_path)
+db.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+if val:
+    db.execute("INSERT OR REPLACE INTO config VALUES (?, ?)", (key, val))
+db.commit()
+PYEOF
+}
+
+# Exit 0 if key exists in DB with a non-empty value, exit 1 otherwise.
+_db_has() {  # _db_has key
+    python3 - "$DB_FILE" "$1" >&3 2>&3 << 'PYEOF'
+import sqlite3, os, sys
+db_path, key = sys.argv[1], sys.argv[2]
+if not os.path.exists(db_path):
+    sys.exit(1)
+row = sqlite3.connect(db_path).execute(
+    "SELECT value FROM config WHERE key=? AND value IS NOT NULL AND value != ''", (key,)
+).fetchone()
+sys.exit(0 if row else 1)
+PYEOF
 }
 
 # ---- language ----
@@ -143,16 +173,22 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     || openssl rand -hex 16 2>/dev/null \
     || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' | head -c 32)
 
+# .env — only what docker-compose needs for infrastructure (ports, volumes, auth bootstrap)
 {
     echo "BOT_TOKEN=$BOT_TOKEN"
     echo "ALLOWED_USER=$ALLOWED_USER"
-    echo "SERVER_IP=$SERVER_IP"
     echo "WATCHTOWER_TOKEN=$WATCHTOWER_TOKEN"
-    [ -n "$PROXY_URL" ] && echo "PROXY_URL=$PROXY_URL"
     [ "$JF_PORT" != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
     [ "$QB_PORT" != "8080" ] && echo "QB_PORT=$QB_PORT"
     [ "$MEDIA_PATH" != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
 } > "$INSTALL_DIR/.env"
+
+# Bot config that changes at runtime lives in the DB, not in .env.
+# qb_pass and jellyfin_api_key are written later after successful verification.
+mkdir -p "$INSTALL_DIR/bot-data"
+_db_set "server_ip" "$SERVER_IP"
+_db_set "proxy_url" "$PROXY_URL"
+_db_set "lang"      "$([ "$LANG_CHOICE" = "2" ] && echo "ru" || echo "en")"
 
 echo "$MSG_ENV_SAVED"
 
@@ -173,7 +209,7 @@ _spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin watchtower
 
 # ---- qBittorrent password setup ----
 
-if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
+if ! _db_has "qb_pass"; then
     TEMP_PASS=""
     printf "  %s" "$MSG_QB_WAIT"
     for i in $(seq 1 30); do
@@ -204,7 +240,8 @@ if [ ! -f "$INSTALL_DIR/bot-data/creds.json" ]; then
             curl -s -d "username=admin&password=$QB_PASS" \
             "http://localhost:8080/api/v2/auth/login" 2>/dev/null || echo "")
         if [ "$QB_VERIFY" = "Ok." ]; then
-            echo "{\"qb_user\":\"admin\",\"qb_pass\":\"$QB_PASS\"}" > "$INSTALL_DIR/bot-data/creds.json"
+            _db_set "qb_user" "admin"
+            _db_set "qb_pass" "$QB_PASS"
             echo "$MSG_QB_PASS_SET"
         else
             echo "$MSG_QB_PASS_FAIL"
@@ -216,7 +253,7 @@ fi
 
 # ---- Jellyfin setup ----
 
-if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
+if ! _db_has "jellyfin_api_key"; then
     printf "  %s" "$MSG_JF_WAIT"
     for i in $(seq 1 30); do
         STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/System/Info/Public" 2>/dev/null || echo "000")
@@ -278,7 +315,7 @@ if ! grep -q "JELLYFIN_API_KEY" "$INSTALL_DIR/.env" 2>/dev/null; then
             | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | tail -1 | cut -d'"' -f4)
 
         FINAL_KEY="${JF_API_KEY:-$JF_TOKEN}"
-        echo "JELLYFIN_API_KEY=$FINAL_KEY" >> "$INSTALL_DIR/.env"
+        _db_set "jellyfin_api_key" "$FINAL_KEY"
 
         curl -s -X POST \
             "http://localhost:$JF_PORT/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \

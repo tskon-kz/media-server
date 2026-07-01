@@ -3,10 +3,7 @@ import os
 BOT_TOKEN        = os.environ["BOT_TOKEN"]
 ALLOWED          = frozenset(int(x) for x in os.environ["ALLOWED_USER"].split(","))
 QB_HOST          = os.environ["QB_HOST"]
-PROXY_URL        = os.environ.get("PROXY_URL")
 JF_URL           = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
-JF_KEY           = os.environ.get("JELLYFIN_API_KEY", "")
-SERVER_IP        = os.environ.get("SERVER_IP", "")
 JF_PORT          = os.environ.get("JELLYFIN_PORT", "8096")
 QB_PORT          = os.environ.get("QB_PORT", "8080")
 APP_VERSION      = os.environ.get("APP_VERSION", "dev")

@@ -1,81 +1,208 @@
 import json
 import os
+import sqlite3
 from config import DATA_DIR, DEFAULT_CATS
 from lang import ru, en
 
 _LANGS = {"ru": ru.M, "en": en.M}
-_lang     = "ru"
-_qb_user  = "admin"
-_qb_pass  = "adminadmin"
+_lang = "ru"
 
-LANG_FILE   = f"{DATA_DIR}/lang.json"
-CREDS_FILE  = f"{DATA_DIR}/creds.json"
-CATS_FILE   = f"{DATA_DIR}/categories.json"
-STATES_FILE = f"{DATA_DIR}/states.json"
+DB_PATH = f"{DATA_DIR}/media_server.db"
+_conn: sqlite3.Connection | None = None
 
 
-def t(key, **kw):
+def _create_tables():
+    _conn.executescript("""
+        CREATE TABLE IF NOT EXISTS config (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        );
+        CREATE TABLE IF NOT EXISTS categories (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name    TEXT NOT NULL,
+            path    TEXT NOT NULL,
+            jf_type TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS torrent_states (
+            hash  TEXT PRIMARY KEY,
+            state TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS user_states (
+            user_id         INTEGER PRIMARY KEY,
+            state           TEXT,
+            pending_json    TEXT,
+            pending_torrent BLOB
+        );
+    """)
+    _conn.commit()
+
+
+def init():
+    global _conn, _lang
+    os.makedirs(DATA_DIR, exist_ok=True)
+    _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    _conn.execute("PRAGMA journal_mode=WAL")
+    _create_tables()
+
+    # seed defaults (INSERT OR IGNORE — won't overwrite existing values)
+    _conn.execute("INSERT OR IGNORE INTO config VALUES ('lang', 'ru')")
+    _conn.execute("INSERT OR IGNORE INTO config VALUES ('qb_user', 'admin')")
+    _conn.execute("INSERT OR IGNORE INTO config VALUES ('qb_pass', 'adminadmin')")
+    _conn.commit()
+
+    row = _conn.execute("SELECT value FROM config WHERE key='lang'").fetchone()
+    _lang = row[0] if row else "ru"
+
+
+# ---- generic config ----
+
+def get_config(key: str, default: str = "") -> str:
+    row = _conn.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    return row[0] if row and row[0] is not None else default
+
+
+def set_config(key: str, value: str):
+    _conn.execute("INSERT OR REPLACE INTO config VALUES (?, ?)", (key, value))
+    _conn.commit()
+
+
+# ---- i18n ----
+
+def t(key, **kw) -> str:
     s = _LANGS[_lang][key]
     return s.format(**kw) if kw else s
 
 
-def get_lang():
-    return _lang
-
-
-def set_lang(code):
+def set_lang(code: str):
     global _lang
     _lang = code
-    _write(LANG_FILE, {"lang": code})
+    set_config("lang", code)
 
 
-def get_creds():
-    return _qb_user, _qb_pass
+# ---- qBittorrent credentials ----
+
+def get_creds() -> tuple[str, str]:
+    return get_config("qb_user", "admin"), get_config("qb_pass", "adminadmin")
 
 
-def set_creds(user, password):
-    global _qb_user, _qb_pass
-    _qb_user, _qb_pass = user, password
-    _write(CREDS_FILE, {"qb_user": user, "qb_pass": password})
+# ---- categories ----
+
+def load_cats() -> list[dict]:
+    if not _conn.execute("SELECT 1 FROM config WHERE key='cats_init'").fetchone():
+        return DEFAULT_CATS.copy()
+    rows = _conn.execute("SELECT name, path, jf_type FROM categories ORDER BY id").fetchall()
+    return [{"name": r[0], "path": r[1], "jf_type": r[2]} for r in rows]
 
 
-def load_cats():
-    data = _read(CATS_FILE)
-    return data if data is not None else DEFAULT_CATS.copy()
+def save_cats(cats: list[dict]):
+    _conn.execute("DELETE FROM categories")
+    for c in cats:
+        _conn.execute(
+            "INSERT INTO categories (name, path, jf_type) VALUES (?, ?, ?)",
+            (c["name"], c["path"], c["jf_type"])
+        )
+    _conn.execute("INSERT OR IGNORE INTO config VALUES ('cats_init', '1')")
+    _conn.commit()
 
 
-def save_cats(cats):
-    _write(CATS_FILE, cats)
+# ---- torrent states ----
+
+def load_states() -> dict:
+    return {r[0]: r[1] for r in _conn.execute("SELECT hash, state FROM torrent_states").fetchall()}
 
 
-def load_states():
-    return _read(STATES_FILE) or {}
+def save_states(states: dict):
+    _conn.execute("DELETE FROM torrent_states")
+    _conn.executemany("INSERT INTO torrent_states VALUES (?, ?)", states.items())
+    _conn.commit()
 
 
-def save_states(states):
-    _write(STATES_FILE, states)
+# ---- user conversation state ----
+
+def get_user_state(user_id: int) -> str | None:
+    row = _conn.execute("SELECT state FROM user_states WHERE user_id=?", (user_id,)).fetchone()
+    return row[0] if row else None
 
 
-def init():
-    global _lang, _qb_user, _qb_pass
-    os.makedirs(DATA_DIR, exist_ok=True)
-    lang_data  = _read(LANG_FILE)  or {}
-    creds_data = _read(CREDS_FILE) or {}
-    _lang    = lang_data.get("lang", "ru")
-    _qb_user = creds_data.get("qb_user", _qb_user)
-    _qb_pass = creds_data.get("qb_pass", _qb_pass)
-    if not os.path.exists(CREDS_FILE):
-        set_creds(_qb_user, _qb_pass)
+def set_user_state(user_id: int, state: str):
+    _conn.execute(
+        "INSERT INTO user_states (user_id, state) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET state=excluded.state",
+        (user_id, state)
+    )
+    _conn.commit()
 
 
-def _read(path):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+def clear_user_state(user_id: int):
+    _conn.execute("UPDATE user_states SET state=NULL WHERE user_id=?", (user_id,))
+    _conn.commit()
+
+
+def get_pending(user_id: int, key: str, default=None):
+    row = _conn.execute("SELECT pending_json FROM user_states WHERE user_id=?", (user_id,)).fetchone()
+    if not row or not row[0]:
+        return default
+    return json.loads(row[0]).get(key, default)
+
+
+def set_pending(user_id: int, key: str, value):
+    row = _conn.execute("SELECT pending_json FROM user_states WHERE user_id=?", (user_id,)).fetchone()
+    data = json.loads(row[0]) if row and row[0] else {}
+    data[key] = value
+    _conn.execute(
+        "INSERT INTO user_states (user_id, pending_json) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET pending_json=excluded.pending_json",
+        (user_id, json.dumps(data))
+    )
+    _conn.commit()
+
+
+def pop_pending(user_id: int, key: str, default=None):
+    row = _conn.execute("SELECT pending_json FROM user_states WHERE user_id=?", (user_id,)).fetchone()
+    if not row or not row[0]:
+        return default
+    data = json.loads(row[0])
+    val = data.pop(key, default)
+    _conn.execute(
+        "UPDATE user_states SET pending_json=? WHERE user_id=?",
+        (json.dumps(data) if data else None, user_id)
+    )
+    _conn.commit()
+    return val
+
+
+def get_pending_torrent(user_id: int) -> bytes | None:
+    row = _conn.execute("SELECT pending_torrent FROM user_states WHERE user_id=?", (user_id,)).fetchone()
+    return bytes(row[0]) if row and row[0] else None
+
+
+def set_pending_torrent(user_id: int, data: bytes):
+    _conn.execute(
+        "INSERT INTO user_states (user_id, pending_torrent) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET pending_torrent=excluded.pending_torrent",
+        (user_id, data)
+    )
+    _conn.commit()
+
+
+def pop_pending_torrent(user_id: int) -> bytes | None:
+    row = _conn.execute("SELECT pending_torrent FROM user_states WHERE user_id=?", (user_id,)).fetchone()
+    if not row or not row[0]:
         return None
+    data = bytes(row[0])
+    _conn.execute("UPDATE user_states SET pending_torrent=NULL WHERE user_id=?", (user_id,))
+    _conn.commit()
+    return data
 
 
-def _write(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, ensure_ascii=False)
+# ---- update notifications ----
+
+def has_notified_update(version: str) -> bool:
+    return bool(_conn.execute(
+        "SELECT 1 FROM config WHERE key=?", (f"notified_v{version}",)
+    ).fetchone())
+
+
+def mark_update_notified(version: str):
+    _conn.execute("INSERT OR IGNORE INTO config VALUES (?, '1')", (f"notified_v{version}",))
+    _conn.commit()
