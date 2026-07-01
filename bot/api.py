@@ -1,4 +1,6 @@
 import json
+import socket
+import struct
 import tomllib
 import urllib.request
 import urllib.parse
@@ -48,6 +50,33 @@ def qb():
     client = qbittorrentapi.Client(host=QB_HOST, username=user, password=password)
     client.auth_log_in()
     return client
+
+
+def qb_temp_password() -> str | None:
+    """Read current session temp password from qBittorrent container logs via Docker socket."""
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect("/var/run/docker.sock")
+        req = b"GET /containers/qbittorrent/logs?stdout=1&stderr=1&tail=100 HTTP/1.0\r\nHost: localhost\r\n\r\n"
+        s.sendall(req)
+        raw = b""
+        while chunk := s.recv(4096):
+            raw += chunk
+        s.close()
+        body = raw.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in raw else raw
+        # Docker multiplexed log format: 8-byte header (1 byte stream, 3 zeros, 4-byte big-endian length)
+        lines, i = [], 0
+        while i + 8 <= len(body):
+            size = struct.unpack(">I", body[i+4:i+8])[0]
+            lines.append(body[i+8:i+8+size].decode(errors="ignore"))
+            i += 8 + size
+        for line in reversed("".join(lines).splitlines()):
+            if "temporary password" in line:
+                return line.split()[-1]
+        return None
+    except Exception:
+        return None
 
 
 def qb_set_password(new_pass: str) -> bool:

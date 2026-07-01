@@ -101,11 +101,13 @@ def jf_users_kb(users):
     return InlineKeyboardMarkup(buttons)
 
 
-def qb_settings_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("qb_change_pass_btn"), callback_data="qb:change_pass")],
-        [InlineKeyboardButton(t("back_btn"),            callback_data="settings:menu")],
-    ])
+def qb_settings_kb(is_perm: bool = True):
+    buttons = []
+    if not is_perm:
+        buttons.append([InlineKeyboardButton(t("qb_fetch_temp_btn"), callback_data="qb:fetch_temp")])
+    buttons.append([InlineKeyboardButton(t("qb_change_pass_btn"), callback_data="qb:change_pass")])
+    buttons.append([InlineKeyboardButton(t("back_btn"),            callback_data="settings:menu")])
+    return InlineKeyboardMarkup(buttons)
 
 
 def update_kb(has_update):
@@ -130,7 +132,12 @@ def jf_users_view(users):
 
 def qb_view():
     user, pass_ = store.get_creds()
-    return t("qb_settings_title", user=user, pass_=pass_), qb_settings_kb()
+    is_perm = bool(store.get_config("qb_pass_is_perm"))
+    if is_perm:
+        text = t("qb_settings_title", user=user, pass_=pass_)
+    else:
+        text = t("qb_settings_title_temp", user=user)
+    return text, qb_settings_kb(is_perm)
 
 
 def update_view(local, remote):

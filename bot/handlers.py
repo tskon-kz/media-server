@@ -13,7 +13,7 @@ from store import (
     has_notified_update, mark_update_notified,
     set_config,
 )
-from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, remote_version, trigger_update
+from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, qb_temp_password, remote_version, trigger_update
 import keyboards as kb
 
 
@@ -150,9 +150,10 @@ async def on_message(update, ctx):
         await update.message.delete()
         if qb_set_password(text):
             set_config("qb_pass", text)
-            await update.effective_chat.send_message(t("qb_pass_changed"), reply_markup=kb.qb_settings_kb())
+            set_config("qb_pass_is_perm", "1")
+            await update.effective_chat.send_message(t("qb_pass_changed"), reply_markup=kb.qb_settings_kb(is_perm=True))
         else:
-            await update.effective_chat.send_message(t("qb_pass_error"), reply_markup=kb.qb_settings_kb())
+            await update.effective_chat.send_message(t("qb_pass_error"), reply_markup=kb.qb_settings_kb(is_perm=False))
         return
 
     await update.message.reply_text(t("hint"))
@@ -206,7 +207,15 @@ async def on_callback(update, ctx):
                     await _edit(query, *kb.update_view(APP_VERSION, remote_version()))
 
         case "qb":
-            if value == "change_pass":
+            if value == "fetch_temp":
+                temp = qb_temp_password()
+                if temp:
+                    set_config("qb_pass", temp)
+                    set_config("qb_pass_is_perm", "")
+                    await _edit(query, t("qb_temp_pass", pass_=temp), kb.qb_settings_kb(is_perm=False), parse_mode="Markdown")
+                else:
+                    await _edit(query, t("qb_no_temp_pass"), kb.qb_settings_kb(is_perm=True))
+            elif value == "change_pass":
                 set_user_state(uid, "await_qb_pass")
                 await _edit(query, t("qb_change_pass_prompt"))
 
