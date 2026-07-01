@@ -3,9 +3,10 @@ from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
     CommandHandler, MessageHandler, filters,
 )
-from config import BOT_TOKEN, APP_VERSION
+from config import BOT_TOKEN, APP_VERSION, ALLOWED
 import store
 import handlers as h
+from api import remote_version
 
 
 async def _post_init(app):
@@ -15,6 +16,19 @@ async def _post_init(app):
         BotCommand("scan",     "Сканировать Jellyfin"),
         BotCommand("settings", "Настройки"),
     ])
+
+    if store.get_config("update_pending"):
+        store.set_config("update_pending", "")
+        remote = remote_version()
+        if remote and APP_VERSION == remote:
+            msg = store.t("update_success", v=APP_VERSION)
+        else:
+            msg = store.t("update_failed_ver", v=APP_VERSION)
+        for uid in ALLOWED:
+            try:
+                await app.bot.send_message(uid, msg, parse_mode="Markdown")
+            except Exception:
+                pass
 
 
 def main():

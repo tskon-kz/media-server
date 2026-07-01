@@ -62,6 +62,8 @@ M = {
     "update_btn":       "⬆️ Update now",
     "update_force_btn": "🔄 Force update",
     "update_started":   "🔄 Update started. Bot will restart in ~1 min.",
+    "update_success":   "✅ Bot successfully updated to `{v}`",
+    "update_failed_ver":"❌ Update failed — version unchanged (`{v}`)",
     "update_error":     "❌ Update failed. Try again later.",
     "update_notify":    "🆕 Update `{v}` available! Open Settings → Update",
 }

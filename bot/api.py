@@ -116,11 +116,17 @@ def remote_version():
         return None
 
 
-def trigger_update():
+def trigger_update() -> bool:
+    """Returns True if Watchtower received the request, False if unreachable."""
     req = urllib.request.Request(
         f"{WATCHTOWER_URL}/v1/update",
         method="POST",
         headers={"Authorization": f"Bearer {WATCHTOWER_TOKEN}"},
     )
-    with urllib.request.urlopen(req, timeout=10):
-        pass
+    try:
+        urllib.request.urlopen(req, timeout=10)
+        return True
+    except urllib.error.HTTPError:
+        return True  # got a response — Watchtower received and processed the request
+    except Exception:
+        return False

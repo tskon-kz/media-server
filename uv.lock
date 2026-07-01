@@ -173,7 +173,7 @@ wheels = [
 
 [[package]]
 name = "media-server"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "python-telegram-bot", extra = ["job-queue"] },

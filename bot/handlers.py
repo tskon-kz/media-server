@@ -229,10 +229,10 @@ async def on_callback(update, ctx):
 
         case "update":
             if value == "start":
-                try:
-                    trigger_update()
+                if trigger_update():
+                    set_config("update_pending", "1")
                     await _edit(query, t("update_started"))
-                except Exception:
+                else:
                     await _edit(query, t("update_error"))
 
         case "del":
