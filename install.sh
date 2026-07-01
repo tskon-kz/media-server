@@ -152,11 +152,6 @@ printf "%s" "$MSG_ASK_SERVER_IP";  read -r SERVER_IP
 printf "%s" "$MSG_ASK_MEDIA_PATH"; read -r MEDIA_PATH_INPUT
 MEDIA_PATH="${MEDIA_PATH_INPUT:-./media}"
 while true; do
-    printf "%s" "$MSG_ASK_QB_PASS"; read -rs QB_PASS; echo
-    [ -n "$QB_PASS" ] && break
-    echo "$MSG_QB_PASS_EMPTY"
-done
-while true; do
     printf "%s" "$MSG_ASK_JF_USER"; read -r JF_USER
     [ -n "$JF_USER" ] && break
     echo "$MSG_JF_USER_EMPTY"
@@ -164,7 +159,7 @@ done
 while true; do
     printf "%s" "$MSG_ASK_JF_PASS"; read -rs JF_PASS; echo
     [ -n "$JF_PASS" ] && break
-    echo "$MSG_QB_PASS_EMPTY"
+    echo "$MSG_PASS_EMPTY"
 done
 printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
 printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
@@ -196,7 +191,7 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.
-# qb_pass and jellyfin_api_key are written later after successful verification.
+# jellyfin_api_key and qb_pass are written below after containers start.
 mkdir -p "$INSTALL_DIR/bot-data"
 _db_set "server_ip" "$SERVER_IP"
 _db_set "proxy_url" "$PROXY_URL"
@@ -219,99 +214,25 @@ echo ""
 _pull_progress
 _spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin watchtower
 
-# ---- qBittorrent password setup ----
+# ---- qBittorrent credentials ----
 
 if ! _db_has "qb_pass"; then
     TEMP_PASS=""
     printf "  %s" "$MSG_QB_WAIT"
     for i in $(seq 1 30); do
-        # Strip quotes and \r — some qBittorrent versions log the password as 'abc123'
         TEMP_PASS=$(docker logs qbittorrent 2>&1 | grep "temporary password" | awk '{print $NF}' | tail -1 | tr -d "'\"\r\n")
         [ -n "$TEMP_PASS" ] && break
         printf "."
         sleep 2
     done
-    [ -n "$TEMP_PASS" ] && printf " ✓\n" || printf " ⚠️\n"
-    echo "QB temp pass extracted: '$TEMP_PASS'" >&3
-
     if [ -n "$TEMP_PASS" ]; then
-        # Write password directly to config file — avoids API login entirely.
-        # qBittorrent writes its config on first start; stop it so we can safely modify.
-        QB_CONF="$INSTALL_DIR/data/qbittorrent/config/qBittorrent.conf"
-        docker stop qbittorrent >&3 2>&3
-        python3 - "$QB_CONF" "$QB_PASS" >&3 2>&3 << 'PYEOF'
-import sys, hashlib, base64, os
-
-conf_path, password = sys.argv[1], sys.argv[2]
-salt = os.urandom(16)
-dk = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, 600000)
-pb = '@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(dk).decode() + ')'
-
-lines = []
-if os.path.exists(conf_path):
-    with open(conf_path, 'r', encoding='utf-8', errors='replace') as f:
-        lines = f.readlines()
-
-in_prefs = False
-found_user = found_pass = False
-new_lines = []
-for line in lines:
-    s = line.rstrip('\r\n')
-    if s == '[Preferences]':
-        in_prefs = True
-        new_lines.append(line)
-    elif s.startswith('[') and in_prefs:
-        if not found_user:
-            new_lines.append('WebUI\\Username=admin\n')
-        if not found_pass:
-            new_lines.append('WebUI\\Password_PBKDF2=' + pb + '\n')
-        in_prefs = False
-        new_lines.append(line)
-    elif in_prefs and s.startswith('WebUI\\Username='):
-        new_lines.append('WebUI\\Username=admin\n')
-        found_user = True
-    elif in_prefs and s.startswith('WebUI\\Password_PBKDF2='):
-        new_lines.append('WebUI\\Password_PBKDF2=' + pb + '\n')
-        found_pass = True
-    else:
-        new_lines.append(line)
-
-if in_prefs:
-    if not found_user:
-        new_lines.append('WebUI\\Username=admin\n')
-    if not found_pass:
-        new_lines.append('WebUI\\Password_PBKDF2=' + pb + '\n')
-
-if not any('[Preferences]' in l for l in new_lines):
-    new_lines += ['\n[Preferences]\n', 'WebUI\\Username=admin\n', 'WebUI\\Password_PBKDF2=' + pb + '\n']
-
-with open(conf_path, 'w', encoding='utf-8') as f:
-    f.writelines(new_lines)
-print('QB config patched: ' + conf_path)
-PYEOF
-        docker start qbittorrent >&3 2>&3
-        for i in $(seq 1 20); do
-            QB_READY=$(curl -s -o /dev/null -w "%{http_code}" \
-                "http://localhost:$QB_PORT/" 2>/dev/null || echo "000")
-            [ "$QB_READY" != "000" ] && break
-            sleep 2
-        done
-        echo "QB WebUI after restart: http_code='$QB_READY'" >&3
-        sleep 2
-        QB_VERIFY=$(curl -s \
-            -d "username=admin&password=$QB_PASS" \
-            "http://localhost:$QB_PORT/api/v2/auth/login" 2>/dev/null || echo "")
-        echo "QB verify: '$QB_VERIFY'" >&3
-        if [ "$QB_VERIFY" = "Ok." ]; then
-            _db_set "qb_user" "admin"
-            _db_set "qb_pass" "$QB_PASS"
-            echo "$MSG_QB_PASS_SET"
-        else
-            echo "$MSG_QB_PASS_FAIL"
-        fi
+        printf " ✓\n"
+        _db_set "qb_user" "admin"
+        _db_set "qb_pass" "$TEMP_PASS"
     else
-        echo "$MSG_QB_PASS_FAIL"
+        printf " ⚠️\n"
     fi
+    echo "QB creds saved: pass='$TEMP_PASS'" >&3
 fi
 
 # ---- Jellyfin setup ----

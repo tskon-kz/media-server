@@ -21,7 +21,7 @@ The script starts by asking for the interface language, then installs Docker if 
 | Your Telegram ID | From [@userinfobot](https://t.me/userinfobot). Comma-separated for multiple users |
 | Server IP | External IP for web UI links in the bot |
 | Media path | Host path mounted as `/media` (default: `./media`). Use a mounted disk path, e.g. `/mnt/disk2` |
-| Jellyfin admin username / password | Created automatically on first run |
+| Jellyfin admin username / password | Created on first run |
 | Jellyfin server name | Optional, defaults to `Media Server` |
 | Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
 | Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080) |
@@ -76,7 +76,7 @@ import sqlite3
 db = sqlite3.connect('$DB')
 db.executemany('INSERT OR REPLACE INTO config VALUES (?,?)', [
     ('qb_user',          'admin'),
-    ('qb_pass',          'YOUR_QB_PASSWORD'),
+    ('qb_pass',          'YOUR_QB_WEBUI_PASSWORD'),  # from qBittorrent WebUI → Tools → Options → Web UI
     ('jellyfin_api_key', 'YOUR_JELLYFIN_API_KEY'),
 ])
 db.commit()
