@@ -20,7 +20,9 @@ async def _post_init(app):
     if store.get_config("update_pending"):
         store.set_config("update_pending", "")
         remote = remote_version()
-        if remote is None or APP_VERSION == remote:
+        if remote is None:
+            msg = store.t("update_success_nocheck", v=APP_VERSION)
+        elif APP_VERSION == remote:
             msg = store.t("update_success", v=APP_VERSION)
         else:
             msg = store.t("update_failed_ver", v=APP_VERSION)

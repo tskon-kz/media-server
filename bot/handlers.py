@@ -229,7 +229,12 @@ async def on_callback(update, ctx):
             elif value == "restart":
                 if qb_restart():
                     set_qb_status("unknown")
-                    await query.answer(t("qb_restart_ok"), show_alert=True)
+                    await _edit(query, t("qb_restart_started"), kb.qb_settings_kb())
+                    ctx.job_queue.run_once(
+                        job_qb_restart_check,
+                        when=20,
+                        data={"chat_id": query.message.chat_id},
+                    )
                 else:
                     await query.answer(t("qb_restart_error"), show_alert=True)
 
@@ -335,6 +340,16 @@ async def on_callback(update, ctx):
 
 
 # --- Background jobs ---
+
+async def job_qb_restart_check(ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = ctx.job.data["chat_id"]
+    try:
+        qb().torrents_info()
+        set_qb_status("ok")
+        await ctx.bot.send_message(chat_id, t("qb_restart_done"))
+    except Exception:
+        await ctx.bot.send_message(chat_id, t("qb_restart_timeout"))
+
 
 async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
     if get_qb_status() == "error":
