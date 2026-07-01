@@ -148,12 +148,13 @@ async def on_message(update, ctx):
     if state == "await_qb_pass":
         clear_user_state(uid)
         await update.message.delete()
-        if qb_set_password(text):
+        result = qb_set_password(text)
+        if result is True:
             set_config("qb_pass", text)
             set_config("qb_pass_is_perm", "1")
             await update.effective_chat.send_message(t("qb_pass_changed"), reply_markup=kb.qb_settings_kb(is_perm=True))
         else:
-            await update.effective_chat.send_message(t("qb_pass_error"), reply_markup=kb.qb_settings_kb(is_perm=False))
+            await update.effective_chat.send_message(f"{t('qb_pass_error')}\n`{result}`", parse_mode="Markdown", reply_markup=kb.qb_settings_kb(is_perm=False))
         return
 
     await update.message.reply_text(t("hint"))

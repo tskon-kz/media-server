@@ -80,39 +80,38 @@ def qb_temp_password() -> str | None:
         return None
 
 
-def _qb_login_and_set(current_pass: str, new_pass: str) -> bool:
-    """Login to qBittorrent with current_pass, then set new_pass via setPreferences."""
-    user, _ = get_creds()
-    jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+def qb_set_password(new_pass: str) -> bool | str:
+    """Returns True on success, error string on failure."""
+    user, current_pass = get_creds()
+    # Step 1: login with stored credentials, get SID explicitly
+    login_data = urllib.parse.urlencode({"username": user, "password": current_pass}).encode()
     try:
-        login_data = urllib.parse.urlencode({"username": user, "password": current_pass}).encode()
-        with opener.open(f"{QB_HOST}/api/v2/auth/login", login_data, timeout=5) as r:
-            if r.read().decode().strip() != "Ok.":
-                return False
-    except Exception:
-        return False
+        req = urllib.request.Request(f"{QB_HOST}/api/v2/auth/login", data=login_data)
+        with urllib.request.urlopen(req, timeout=5) as r:
+            resp = r.read().decode().strip()
+            if resp != "Ok.":
+                return f"login failed: {resp!r}"
+            sid = None
+            for part in r.headers.get("Set-Cookie", "").split(";"):
+                if part.strip().startswith("SID="):
+                    sid = part.strip()[4:]
+                    break
+    except Exception as e:
+        return f"login error: {e}"
+    if not sid:
+        return "no SID in login response"
+    # Step 2: setPreferences with explicit SID cookie
+    prefs_data = urllib.parse.urlencode({"json": json.dumps({"web_ui_password": new_pass})}).encode()
     try:
-        prefs_data = urllib.parse.urlencode({"json": json.dumps({"web_ui_password": new_pass})}).encode()
-        opener.open(f"{QB_HOST}/api/v2/app/setPreferences", prefs_data, timeout=5).close()
+        req = urllib.request.Request(
+            f"{QB_HOST}/api/v2/app/setPreferences",
+            data=prefs_data,
+            headers={"Cookie": f"SID={sid}"},
+        )
+        urllib.request.urlopen(req, timeout=5).close()
         return True
-    except Exception:
-        return False
-
-
-def qb_set_password(new_pass: str) -> bool:
-    _, current_pass = get_creds()
-    # Try to change using stored credentials.
-    if _qb_login_and_set(current_pass, new_pass):
-        return True
-    # Stored credentials stale — check if new_pass already works (resync case).
-    user, _ = get_creds()
-    try:
-        client = qbittorrentapi.Client(host=QB_HOST, username=user, password=new_pass)
-        client.auth_log_in()
-        return True
-    except Exception:
-        return False
+    except Exception as e:
+        return f"setPreferences error: {e}"
 
 
 # --- Updates ---
