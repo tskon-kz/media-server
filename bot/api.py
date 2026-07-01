@@ -10,7 +10,7 @@ from config import (
     WATCHTOWER_TOKEN, WATCHTOWER_URL,
     REPO_SLUG,
 )
-from store import get_config, get_creds
+from store import get_config, get_creds, set_config
 
 
 # --- Jellyfin ---
@@ -83,8 +83,16 @@ def qb_set_password(new_pass: str) -> bool | str:
     """Returns True on success, error string on failure."""
     try:
         client = qb()
-    except Exception as e:
-        return f"auth error: {e}"
+    except Exception:
+        # Stored credentials don't work — auto-fetch temp password from Docker logs.
+        temp = qb_temp_password()
+        if not temp:
+            return "auth error: cannot connect and no temp password in logs"
+        set_config("qb_pass", temp)
+        try:
+            client = qb()
+        except Exception as e:
+            return f"auth error after temp fetch: {e}"
     try:
         resp = client._http_session.post(
             f"{QB_HOST}/api/v2/app/setPreferences",
