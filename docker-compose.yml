@@ -17,7 +17,7 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Moscow
-      - WEBUI_PORT=${QB_PORT:-8080}
+      - WEBUI_PORTS=${QB_PORT:-8080}/tcp
     ports:
       - "${QB_PORT:-8080}:${QB_PORT:-8080}"
       - "6881:6881/tcp"
