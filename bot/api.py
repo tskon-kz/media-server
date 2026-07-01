@@ -1,4 +1,3 @@
-import http.cookiejar
 import json
 import socket
 import struct
@@ -82,34 +81,17 @@ def qb_temp_password() -> str | None:
 
 def qb_set_password(new_pass: str) -> bool | str:
     """Returns True on success, error string on failure."""
-    user, current_pass = get_creds()
-    # Step 1: login with stored credentials, get SID explicitly
-    login_data = urllib.parse.urlencode({"username": user, "password": current_pass}).encode()
     try:
-        req = urllib.request.Request(f"{QB_HOST}/api/v2/auth/login", data=login_data)
-        with urllib.request.urlopen(req, timeout=5) as r:
-            resp = r.read().decode().strip()
-            if resp != "Ok.":
-                return f"login failed: {resp!r}"
-            sid = None
-            for part in r.headers.get("Set-Cookie", "").split(";"):
-                if part.strip().startswith("SID="):
-                    sid = part.strip()[4:]
-                    break
+        client = qb()
     except Exception as e:
-        return f"login error: {e}"
-    if not sid:
-        return "no SID in login response"
-    # Step 2: setPreferences with explicit SID cookie
-    prefs_data = urllib.parse.urlencode({"json": json.dumps({"web_ui_password": new_pass})}).encode()
+        return f"auth error: {e}"
     try:
-        req = urllib.request.Request(
+        resp = client._http_session.post(
             f"{QB_HOST}/api/v2/app/setPreferences",
-            data=prefs_data,
-            headers={"Cookie": f"SID={sid}"},
+            data={"json": json.dumps({"web_ui_password": new_pass})},
+            timeout=5,
         )
-        urllib.request.urlopen(req, timeout=5).close()
-        return True
+        return True if resp.ok else f"HTTP {resp.status_code}: {resp.text[:120]}"
     except Exception as e:
         return f"setPreferences error: {e}"
 
