@@ -60,6 +60,7 @@ M = {
     "update_available": "🆕 Update available!\n\nCurrent: `{local}`\nLatest:  `{remote}`",
     "update_check_fail":"⚠️ Could not check for updates\n\nCurrent: `{v}`",
     "update_btn":       "⬆️ Update now",
+    "update_force_btn": "🔄 Force update",
     "update_started":   "🔄 Update started. Bot will restart in ~1 min.",
     "update_error":     "❌ Update failed. Try again later.",
     "update_notify":    "🆕 Update `{v}` available! Open Settings → Update",

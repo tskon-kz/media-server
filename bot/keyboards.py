@@ -113,8 +113,9 @@ def qb_settings_kb(is_perm: bool = True):
 def update_kb(has_update):
     buttons = []
     if has_update:
-        buttons.append([InlineKeyboardButton(t("update_btn"), callback_data="update:start")])
-    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
+        buttons.append([InlineKeyboardButton(t("update_btn"),       callback_data="update:start")])
+    buttons.append([InlineKeyboardButton(t("update_force_btn"),     callback_data="update:start")])
+    buttons.append([InlineKeyboardButton(t("back_btn"),             callback_data="settings:menu")])
     return InlineKeyboardMarkup(buttons)
 
 
