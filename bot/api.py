@@ -1,3 +1,4 @@
+import http.cookiejar
 import json
 import socket
 import struct
@@ -79,16 +80,32 @@ def qb_temp_password() -> str | None:
         return None
 
 
-def qb_set_password(new_pass: str) -> bool:
-    # Try to change via API using currently stored credentials.
+def _qb_login_and_set(current_pass: str, new_pass: str) -> bool:
+    """Login to qBittorrent with current_pass, then set new_pass via setPreferences."""
+    user, _ = get_creds()
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     try:
-        client = qb()
-        client.app_set_preferences(prefs={"web_ui_password": new_pass})
+        login_data = urllib.parse.urlencode({"username": user, "password": current_pass}).encode()
+        with opener.open(f"{QB_HOST}/api/v2/auth/login", login_data, timeout=5) as r:
+            if r.read().decode().strip() != "Ok.":
+                return False
+    except Exception:
+        return False
+    try:
+        prefs_data = urllib.parse.urlencode({"json": json.dumps({"web_ui_password": new_pass})}).encode()
+        opener.open(f"{QB_HOST}/api/v2/app/setPreferences", prefs_data, timeout=5).close()
         return True
     except Exception:
-        pass
-    # Stored credentials are stale (e.g. container restarted with a new temp password).
-    # Verify the supplied password is already correct in qBittorrent, then just resync DB.
+        return False
+
+
+def qb_set_password(new_pass: str) -> bool:
+    _, current_pass = get_creds()
+    # Try to change using stored credentials.
+    if _qb_login_and_set(current_pass, new_pass):
+        return True
+    # Stored credentials stale — check if new_pass already works (resync case).
     user, _ = get_creds()
     try:
         client = qbittorrentapi.Client(host=QB_HOST, username=user, password=new_pass)

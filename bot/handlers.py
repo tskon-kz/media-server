@@ -212,7 +212,10 @@ async def on_callback(update, ctx):
                 if temp:
                     set_config("qb_pass", temp)
                     set_config("qb_pass_is_perm", "")
-                    await _edit(query, t("qb_temp_pass", pass_=temp), kb.qb_settings_kb(is_perm=False), parse_mode="Markdown")
+                    try:
+                        await _edit(query, t("qb_temp_pass", pass_=temp), kb.qb_settings_kb(is_perm=False), parse_mode="Markdown")
+                    except Exception:
+                        await query.answer(temp, show_alert=True)
                 else:
                     await _edit(query, t("qb_no_temp_pass"), kb.qb_settings_kb(is_perm=True))
             elif value == "change_pass":
