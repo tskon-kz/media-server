@@ -13,7 +13,7 @@ from store import (
     has_notified_update, mark_update_notified,
     set_config,
 )
-from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, remote_version, trigger_update
+from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, qb_disable_host_validation, remote_version, trigger_update
 import keyboards as kb
 
 
@@ -209,6 +209,11 @@ async def on_callback(update, ctx):
             if value == "change_pass":
                 set_user_state(uid, "await_qb_pass")
                 await _edit(query, t("qb_change_pass_prompt"))
+            elif value == "allow_hosts":
+                if qb_disable_host_validation():
+                    await _edit(query, t("qb_allow_hosts_ok"), kb.qb_settings_kb())
+                else:
+                    await _edit(query, t("qb_allow_hosts_err"), kb.qb_settings_kb())
 
         case "lang":
             set_lang(value)

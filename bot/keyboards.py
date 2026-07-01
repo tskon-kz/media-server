@@ -103,8 +103,9 @@ def jf_users_kb(users):
 
 def qb_settings_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("qb_change_pass_btn"), callback_data="qb:change_pass")],
-        [InlineKeyboardButton(t("back_btn"),            callback_data="settings:menu")],
+        [InlineKeyboardButton(t("qb_change_pass_btn"),  callback_data="qb:change_pass")],
+        [InlineKeyboardButton(t("qb_allow_hosts_btn"),  callback_data="qb:allow_hosts")],
+        [InlineKeyboardButton(t("back_btn"),             callback_data="settings:menu")],
     ])
 
 

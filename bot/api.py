@@ -59,6 +59,15 @@ def qb_set_password(new_pass: str) -> bool:
         return False
 
 
+def qb_disable_host_validation() -> bool:
+    try:
+        client = qb()
+        client.app_set_preferences(prefs={"web_ui_host_header_validation": False})
+        return True
+    except Exception:
+        return False
+
+
 # --- Updates ---
 
 def remote_version():
