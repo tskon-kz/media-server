@@ -48,10 +48,10 @@ _pull_progress() {  # pulls images one by one, shows [████░░░] n/t
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
-        printf "\r  %s %d/%d  %s..." "$(_bar "$i" "$total")" "$i" "$total" "$svc"
+        printf "\r  %s %d/%d  %s...\033[K" "$(_bar "$i" "$total")" "$i" "$total" "$svc"
         docker compose pull "$svc" >&3 2>&3
     done
-    printf "\r  %s %d/%d  done\n" "$(_bar "$total" "$total")" "$total" "$total"
+    printf "\r  %s %d/%d  done\033[K\n" "$(_bar "$total" "$total")" "$total" "$total"
 }
 
 # Write a key=value pair to the bot's SQLite DB.
@@ -151,9 +151,21 @@ printf "%s" "$MSG_ASK_USER_ID";    read -r ALLOWED_USER
 printf "%s" "$MSG_ASK_SERVER_IP";  read -r SERVER_IP
 printf "%s" "$MSG_ASK_MEDIA_PATH"; read -r MEDIA_PATH_INPUT
 MEDIA_PATH="${MEDIA_PATH_INPUT:-./media}"
-printf "%s" "$MSG_ASK_QB_PASS";   read -rs QB_PASS;   echo
-printf "%s" "$MSG_ASK_JF_USER";   read -r  JF_USER
-printf "%s" "$MSG_ASK_JF_PASS";   read -rs JF_PASS;  echo
+while true; do
+    printf "%s" "$MSG_ASK_QB_PASS"; read -rs QB_PASS; echo
+    [ -n "$QB_PASS" ] && break
+    echo "$MSG_QB_PASS_EMPTY"
+done
+while true; do
+    printf "%s" "$MSG_ASK_JF_USER"; read -r JF_USER
+    [ -n "$JF_USER" ] && break
+    echo "$MSG_JF_USER_EMPTY"
+done
+while true; do
+    printf "%s" "$MSG_ASK_JF_PASS"; read -rs JF_PASS; echo
+    [ -n "$JF_PASS" ] && break
+    echo "$MSG_QB_PASS_EMPTY"
+done
 printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
 printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
 
