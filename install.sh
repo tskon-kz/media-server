@@ -236,10 +236,14 @@ if ! _db_has "qb_pass"; then
             echo "$MSG_PASS_EMPTY"
         done
         QB_COOKIE_FILE=$(mktemp)
-        QB_LOGIN=$(curl -s "http://localhost:$QB_PORT/api/v2/auth/login" \
-            --data-urlencode "username=admin" \
-            --data-urlencode "password=$TEMP_PASS" \
-            -c "$QB_COOKIE_FILE" 2>/dev/null)
+        QB_LOGIN=""
+        for i in $(seq 1 5); do
+            QB_LOGIN=$(curl -s -X POST "http://localhost:$QB_PORT/api/v2/auth/login" \
+                -d "username=admin&password=$TEMP_PASS" \
+                -c "$QB_COOKIE_FILE" 2>/dev/null)
+            [ "$QB_LOGIN" = "Ok." ] && break
+            sleep 2
+        done
         if [ "$QB_LOGIN" = "Ok." ]; then
             QB_JSON=$(python3 -c "import json,sys; print(json.dumps({'web_ui_password':sys.argv[1]}))" "$QB_PASS_INPUT")
             curl -s "http://localhost:$QB_PORT/api/v2/app/setPreferences" \
