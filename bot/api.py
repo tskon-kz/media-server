@@ -51,9 +51,19 @@ def qb():
 
 
 def qb_set_password(new_pass: str) -> bool:
+    # Try to change via API using currently stored credentials.
     try:
         client = qb()
         client.app_set_preferences(prefs={"web_ui_password": new_pass})
+        return True
+    except Exception:
+        pass
+    # Stored credentials are stale (e.g. container restarted with a new temp password).
+    # Verify the supplied password is already correct in qBittorrent, then just resync DB.
+    user, _ = get_creds()
+    try:
+        client = qbittorrentapi.Client(host=QB_HOST, username=user, password=new_pass)
+        client.auth_log_in()
         return True
     except Exception:
         return False
