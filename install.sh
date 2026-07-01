@@ -235,35 +235,32 @@ if ! _db_has "qb_pass"; then
     echo "QB temp pass extracted: '$TEMP_PASS'" >&3
 
     if [ -n "$TEMP_PASS" ]; then
-        # Temp pass appears in logs before the WebUI is ready — wait for it to start listening.
-        # Run curl inside the container to avoid Docker port-mapping Host header mismatch.
-        sleep 5
-        LOGIN_RESP=""
+        # Temp pass appears in logs before the WebUI is ready — wait for it.
+        # Run inside container (always port 8080) to avoid Host header mismatch when QB_PORT
+        # is customized. Use -si to get response headers; parse SID instead of writing a
+        # cookie file (which /tmp may not allow for the docker exec user).
+        sleep 3
+        LOGIN_RESP="" QB_SID=""
         for attempt in 1 2 3; do
-            LOGIN_RESP=$(docker exec \
-                -e _TP="$TEMP_PASS" \
-                qbittorrent sh -c '
-                    curl -s -c /tmp/qb_s.txt \
-                        -d "username=admin&password=$_TP" \
-                        "http://localhost:8080/api/v2/auth/login"
-                ' 2>&3 || echo "")
-            echo "QB login attempt $attempt: '$LOGIN_RESP'" >&3
-            [ "$LOGIN_RESP" = "Ok." ] && break
+            LOGIN_OUT=$(docker exec -e _TP="$TEMP_PASS" qbittorrent sh -c '
+                curl -si -d "username=admin&password=$_TP" "http://localhost:8080/api/v2/auth/login"
+            ' 2>&3) || true
+            LOGIN_RESP=$(printf '%s' "$LOGIN_OUT" | tr -d '\r' | tail -1)
+            QB_SID=$(printf '%s' "$LOGIN_OUT" | tr -d '\r' | grep -i "set-cookie" | grep -o "SID=[^;]*" | head -1 | sed 's/SID=//')
+            echo "QB login attempt $attempt: resp='$LOGIN_RESP' sid='$QB_SID'" >&3
+            [ "$LOGIN_RESP" = "Ok." ] && [ -n "$QB_SID" ] && break
             [ "$attempt" -lt 3 ] && sleep 5
         done
-        if [ "$LOGIN_RESP" = "Ok." ]; then
-            docker exec \
-                -e _NP="$QB_PASS" \
-                qbittorrent sh -c '
-                    curl -s -b /tmp/qb_s.txt \
-                        -d "json={\"web_ui_password\":\"$_NP\"}" \
-                        "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
-                    rm -f /tmp/qb_s.txt
-                ' 2>&3 || true
-            QB_VERIFY=$(docker exec qbittorrent \
-                curl -s -d "username=admin&password=$QB_PASS" \
-                "http://localhost:8080/api/v2/auth/login" 2>&3 || echo "")
-            echo "QB verify with new pass: '$QB_VERIFY'" >&3
+        if [ "$LOGIN_RESP" = "Ok." ] && [ -n "$QB_SID" ]; then
+            docker exec -e _NP="$QB_PASS" -e _SID="$QB_SID" qbittorrent sh -c '
+                curl -s -H "Cookie: SID=$_SID" \
+                    -d "json={\"web_ui_password\":\"$_NP\"}" \
+                    "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
+            ' 2>&3 || true
+            QB_VERIFY=$(docker exec -e _VP="$QB_PASS" qbittorrent sh -c '
+                curl -s -d "username=admin&password=$_VP" "http://localhost:8080/api/v2/auth/login"
+            ' 2>&3 || echo "")
+            echo "QB verify: '$QB_VERIFY'" >&3
             if [ "$QB_VERIFY" = "Ok." ]; then
                 _db_set "qb_user" "admin"
                 _db_set "qb_pass" "$QB_PASS"
