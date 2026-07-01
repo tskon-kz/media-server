@@ -230,30 +230,6 @@ if ! _db_has "qb_pass"; then
         _db_set "qb_user" "admin"
         _db_set "qb_pass" "$TEMP_PASS"
 
-        while true; do
-            printf "%s" "$MSG_ASK_QB_PASS"; read -rs QB_PASS_INPUT; echo
-            [ -n "$QB_PASS_INPUT" ] && break
-            echo "$MSG_PASS_EMPTY"
-        done
-        QB_COOKIE_FILE=$(mktemp)
-        QB_LOGIN=""
-        for i in $(seq 1 5); do
-            QB_LOGIN=$(curl -s -X POST "http://localhost:$QB_PORT/api/v2/auth/login" \
-                -d "username=admin&password=$TEMP_PASS" \
-                -c "$QB_COOKIE_FILE" 2>/dev/null)
-            [ "$QB_LOGIN" = "Ok." ] && break
-            sleep 2
-        done
-        if [ "$QB_LOGIN" = "Ok." ]; then
-            QB_JSON=$(python3 -c "import json,sys; print(json.dumps({'web_ui_password':sys.argv[1]}))" "$QB_PASS_INPUT")
-            curl -s "http://localhost:$QB_PORT/api/v2/app/setPreferences" \
-                -b "$QB_COOKIE_FILE" -d "json=$QB_JSON" > /dev/null
-            _db_set "qb_pass" "$QB_PASS_INPUT"
-            echo "$MSG_QB_PASS_SET"
-        else
-            echo "$MSG_QB_PASS_FAIL$TEMP_PASS"
-        fi
-        rm -f "$QB_COOKIE_FILE"
     else
         printf " ⚠️\n"
     fi
