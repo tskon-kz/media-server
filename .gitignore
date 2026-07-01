@@ -7,3 +7,4 @@ bot-data/
 __pycache__/
 *.pyc
 context/
+CLAUDE.md
