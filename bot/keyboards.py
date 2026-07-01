@@ -20,8 +20,8 @@ def main_menu_kb():
     buttons.append([InlineKeyboardButton(t("settings_update"), callback_data="settings:update")])
     if server_ip:
         buttons.append([
-            InlineKeyboardButton("qBittorrent ↗", url=f"http://{server_ip}:{QB_PORT}"),
-            InlineKeyboardButton("Jellyfin ↗",    url=f"http://{server_ip}:{JF_PORT}"),
+            InlineKeyboardButton("qBittorrent", url=f"http://{server_ip}:{QB_PORT}"),
+            InlineKeyboardButton("Jellyfin",    url=f"http://{server_ip}:{JF_PORT}"),
         ])
     return InlineKeyboardMarkup(buttons)
 
