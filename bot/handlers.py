@@ -15,7 +15,7 @@ from store import (
     set_config,
 )
 import qbittorrentapi
-from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, qb_temp_password, remote_version, trigger_update
+from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, trigger_update
 import keyboards as kb
 
 
@@ -226,6 +226,12 @@ async def on_callback(update, ctx):
             elif value == "change_pass":
                 set_user_state(uid, "await_qb_pass")
                 await _edit(query, t("qb_change_pass_prompt"))
+            elif value == "restart":
+                if qb_restart():
+                    set_qb_status("unknown")
+                    await query.answer(t("qb_restart_ok"), show_alert=True)
+                else:
+                    await query.answer(t("qb_restart_error"), show_alert=True)
 
         case "lang":
             set_lang(value)

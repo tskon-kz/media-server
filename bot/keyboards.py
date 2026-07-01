@@ -108,6 +108,7 @@ def qb_settings_kb(is_perm: bool = True, has_auth_error: bool = False):
     if not is_perm:
         buttons.append([InlineKeyboardButton(t("qb_fetch_temp_btn"), callback_data="qb:fetch_temp")])
     buttons.append([InlineKeyboardButton(t("qb_change_pass_btn"), callback_data="qb:change_pass")])
+    buttons.append([InlineKeyboardButton(t("qb_restart_btn"),     callback_data="qb:restart")])
     buttons.append([InlineKeyboardButton(t("back_btn"),            callback_data="settings:menu")])
     return InlineKeyboardMarkup(buttons)
 

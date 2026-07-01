@@ -79,6 +79,24 @@ def qb_temp_password() -> str | None:
         return None
 
 
+def qb_restart() -> bool:
+    """Send POST /containers/qbittorrent/restart to Docker socket. Returns True on success."""
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(10)
+        s.connect("/var/run/docker.sock")
+        s.sendall(b"POST /containers/qbittorrent/restart HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n")
+        resp = b""
+        while chunk := s.recv(4096):
+            resp += chunk
+        s.close()
+        status_line = resp.split(b"\r\n", 1)[0]
+        code = int(status_line.split()[1])
+        return code in (204, 200)
+    except Exception:
+        return False
+
+
 def qb_set_password(new_pass: str) -> bool | str:
     """Returns True on success, error string on failure."""
     try:
