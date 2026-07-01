@@ -21,29 +21,69 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/i
 | Твой Telegram ID | От [@userinfobot](https://t.me/userinfobot). Через запятую для нескольких пользователей |
 | IP сервера | Внешний IP для ссылок в боте |
 | Путь к media | Хостовый путь, монтируемый как `/media` (дефолт: `./media`). Укажи путь к диску, например `/mnt/disk2` |
-| Пароль qBittorrent | Пароль WebUI (логин: `admin`) |
-| Логин / пароль Jellyfin | Создаётся автоматически при первом запуске |
+| Логин / пароль Jellyfin | Создаётся при первом запуске |
 | Название сервера Jellyfin | Необязательно, по умолчанию `Media Server` |
 | Прокси для Telegram | Необязательно, например `socks5://user:pass@host:port` |
 | Кастомные порты | Необязательно — нажми `n` чтобы использовать дефолты (Jellyfin: 8096, qBittorrent: 8080) |
 
-### Переменные .env
+### Ручная установка
 
-```dotenv
-# Обязательные
-BOT_TOKEN=...
-ALLOWED_USER=123456789          # Telegram ID через запятую
-SERVER_IP=1.2.3.4
-WATCHTOWER_TOKEN=...            # генерируется автоматически при установке
+Если не хочешь использовать установщик:
 
-# Необязательные
-PROXY_URL=socks5://user:pass@host:port
-MEDIA_PATH=./media              # хостовый путь, монтируется как /media во всех контейнерах
-JELLYFIN_PORT=8096
-QB_PORT=8080
+```bash
+git clone https://github.com/tskon-kz/media-server ~/media-server
+cd ~/media-server
+cp /dev/null .env
 ```
 
-`JELLYFIN_API_KEY` добавляется автоматически во время установки.
+Добавь в `.env`:
+
+```dotenv
+BOT_TOKEN=...          # от @BotFather
+ALLOWED_USER=123456789 # от @userinfobot; через запятую для нескольких пользователей
+WATCHTOWER_TOKEN=...   # любая случайная строка, например: openssl rand -hex 16
+
+# Необязательно — раскомментируй чтобы переопределить дефолты
+# JELLYFIN_PORT=8096
+# QB_PORT=8080
+# MEDIA_PATH=./media
+```
+
+Затем заполни БД значениями, которые установщик собирает интерактивно:
+
+```bash
+DB=bot-data/media_server.db
+mkdir -p bot-data
+python3 -c "
+import sqlite3, sys
+db = sqlite3.connect('$DB')
+db.execute('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)')
+db.executemany('INSERT OR REPLACE INTO config VALUES (?,?)', [
+    ('server_ip',  'IP_СЕРВЕРА'),
+    ('lang',       'ru'),
+    ('proxy_url',  ''),           # необязательно: socks5://user:pass@host:port
+])
+db.commit()
+"
+docker compose up -d
+```
+
+После запуска контейнеров настрой qBittorrent и Jellyfin через их WebUI, затем сохрани credentials:
+
+```bash
+python3 -c "
+import sqlite3
+db = sqlite3.connect('$DB')
+db.executemany('INSERT OR REPLACE INTO config VALUES (?,?)', [
+    ('qb_user',          'admin'),
+    ('qb_pass',          'ПАРОЛЬ_QB_WEBUI'),  # Tools → Options → Web UI
+    ('jellyfin_api_key', 'JELLYFIN_API_KEY'),
+])
+db.commit()
+"
+```
+
+Jellyfin API key: Dashboard → API Keys → +.
 
 ## Работа с ботом
 
@@ -71,14 +111,13 @@ QB_PORT=8080
 |--------|-------------------|
 | Категории | Добавить, переименовать, удалить. Каждая категория — папка и библиотека в Jellyfin |
 | Язык | Переключить между русским и английским |
-| Пароль qBittorrent | Сменить пароль WebUI |
 | Пользователи Jellyfin | Добавить и удалить аккаунты Jellyfin |
 | Обновление | Проверить и применить обновление в один тап |
 | Быстрые ссылки | Открыть qBittorrent / Jellyfin прямо из меню |
 
 ### Обновления
 
-Бот проверяет новую версию каждые 6 часов и присылает уведомление. Чтобы обновить вручную: `/settings` → **Обновление** → **Обновить**. Бот перезапустится автоматически примерно через 1 минуту.
+Бот проверяет новую версию при запуске и каждые 6 часов, присылает уведомление. Чтобы обновить вручную: `/settings` → **Обновление** → **Обновить**. Бот перезапустится автоматически примерно через 1 минуту.
 
 ### Категории
 
