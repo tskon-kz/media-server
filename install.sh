@@ -235,50 +235,77 @@ if ! _db_has "qb_pass"; then
     echo "QB temp pass extracted: '$TEMP_PASS'" >&3
 
     if [ -n "$TEMP_PASS" ]; then
-        # Temp pass appears in logs before the WebUI is ready — poll until it responds.
-        # Use host curl (always available, proven to work for JF setup).
-        # For custom QB_PORT the Docker mapping is host:QB_PORT→container:8080, so Host header
-        # would mismatch qBittorrent's expected port; override it explicitly in that case.
-        QB_API="http://localhost:$QB_PORT/api/v2"
-        QB_H=()
-        [ "$QB_PORT" != "8080" ] && QB_H=(-H "Host: localhost:8080")
+        # Write password directly to config file — avoids API login entirely.
+        # qBittorrent writes its config on first start; stop it so we can safely modify.
+        QB_CONF="$INSTALL_DIR/data/qbittorrent/config/qBittorrent.conf"
+        docker stop qbittorrent >&3 2>&3
+        python3 - "$QB_CONF" "$QB_PASS" >&3 2>&3 << 'PYEOF'
+import sys, hashlib, base64, os
 
+conf_path, password = sys.argv[1], sys.argv[2]
+salt = os.urandom(16)
+dk = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, 600000)
+pb = '@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(dk).decode() + ')'
+
+lines = []
+if os.path.exists(conf_path):
+    with open(conf_path, 'r', encoding='utf-8', errors='replace') as f:
+        lines = f.readlines()
+
+in_prefs = False
+found_user = found_pass = False
+new_lines = []
+for line in lines:
+    s = line.rstrip('\r\n')
+    if s == '[Preferences]':
+        in_prefs = True
+        new_lines.append(line)
+    elif s.startswith('[') and in_prefs:
+        if not found_user:
+            new_lines.append('WebUI\\Username=admin\n')
+        if not found_pass:
+            new_lines.append('WebUI\\Password_PBKDF2=' + pb + '\n')
+        in_prefs = False
+        new_lines.append(line)
+    elif in_prefs and s.startswith('WebUI\\Username='):
+        new_lines.append('WebUI\\Username=admin\n')
+        found_user = True
+    elif in_prefs and s.startswith('WebUI\\Password_PBKDF2='):
+        new_lines.append('WebUI\\Password_PBKDF2=' + pb + '\n')
+        found_pass = True
+    else:
+        new_lines.append(line)
+
+if in_prefs:
+    if not found_user:
+        new_lines.append('WebUI\\Username=admin\n')
+    if not found_pass:
+        new_lines.append('WebUI\\Password_PBKDF2=' + pb + '\n')
+
+if not any('[Preferences]' in l for l in new_lines):
+    new_lines += ['\n[Preferences]\n', 'WebUI\\Username=admin\n', 'WebUI\\Password_PBKDF2=' + pb + '\n']
+
+with open(conf_path, 'w', encoding='utf-8') as f:
+    f.writelines(new_lines)
+print('QB config patched: ' + conf_path)
+PYEOF
+        docker start qbittorrent >&3 2>&3
         for i in $(seq 1 20); do
-            QB_READY=$(curl -s -o /dev/null -w "%{http_code}" "${QB_H[@]}" \
+            QB_READY=$(curl -s -o /dev/null -w "%{http_code}" \
                 "http://localhost:$QB_PORT/" 2>/dev/null || echo "000")
             [ "$QB_READY" != "000" ] && break
             sleep 2
         done
-        echo "QB WebUI ready: http_code='$QB_READY'" >&3
-
-        LOGIN_RESP="" QB_SID=""
-        for attempt in 1 2 3; do
-            LOGIN_OUT=$(curl -si "${QB_H[@]}" \
-                -d "username=admin&password=$TEMP_PASS" \
-                "$QB_API/auth/login" 2>&3) || true
-            # Body is the first non-empty line after the blank header separator
-            LOGIN_RESP=$(printf '%s\n' "$LOGIN_OUT" | tr -d '\r' | awk 'p && /[^[:space:]]/{print;exit} /^[[:space:]]*$/{p=1}')
-            QB_SID=$(printf '%s\n' "$LOGIN_OUT" | tr -d '\r' | grep -i '^set-cookie:' | grep -o 'SID=[^;]*' | head -1 | cut -d= -f2)
-            echo "QB login attempt $attempt: resp='$LOGIN_RESP' sid='$QB_SID'" >&3
-            [ "$LOGIN_RESP" = "Ok." ] && [ -n "$QB_SID" ] && break
-            [ "$attempt" -lt 3 ] && sleep 3
-        done
-        if [ "$LOGIN_RESP" = "Ok." ] && [ -n "$QB_SID" ]; then
-            curl -s "${QB_H[@]}" \
-                -H "Cookie: SID=$QB_SID" \
-                -d "json={\"web_ui_password\":\"$QB_PASS\"}" \
-                "$QB_API/app/setPreferences" >&3 2>&3 || true
-            QB_VERIFY=$(curl -s "${QB_H[@]}" \
-                -d "username=admin&password=$QB_PASS" \
-                "$QB_API/auth/login" 2>&3 || echo "")
-            echo "QB verify: '$QB_VERIFY'" >&3
-            if [ "$QB_VERIFY" = "Ok." ]; then
-                _db_set "qb_user" "admin"
-                _db_set "qb_pass" "$QB_PASS"
-                echo "$MSG_QB_PASS_SET"
-            else
-                echo "$MSG_QB_PASS_FAIL"
-            fi
+        echo "QB WebUI after restart: http_code='$QB_READY'" >&3
+        sleep 2
+        QB_VERIFY=$(curl -s \
+            -d "username=admin&password=$QB_PASS" \
+            "http://localhost:$QB_PORT/api/v2/auth/login" 2>/dev/null || echo "")
+        echo "QB verify: '$QB_VERIFY'" >&3
+        if [ "$QB_VERIFY" = "Ok." ]; then
+            _db_set "qb_user" "admin"
+            _db_set "qb_pass" "$QB_PASS"
+            echo "$MSG_QB_PASS_SET"
         else
             echo "$MSG_QB_PASS_FAIL"
         fi

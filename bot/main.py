@@ -35,7 +35,8 @@ def main():
     app.add_handler(MessageHandler(filters.Document.FileExtension("torrent"), h.on_torrent_file))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, h.on_message))
     app.job_queue.run_repeating(h.job_check_done,   interval=30,     first=10)
-    app.job_queue.run_repeating(h.job_check_update, interval=6*3600, first=300)
+    app.job_queue.run_once(h.job_check_update, when=30)
+    app.job_queue.run_repeating(h.job_check_update, interval=6*3600, first=6*3600)
 
     print(f"Bot started (v{APP_VERSION})")
     app.run_polling()
