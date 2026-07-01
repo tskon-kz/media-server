@@ -85,6 +85,15 @@ def get_creds() -> tuple[str, str]:
     return get_config("qb_user", "admin"), get_config("qb_pass", "adminadmin")
 
 
+def get_qb_status() -> str:
+    """Returns 'unknown', 'ok', or 'error'."""
+    return get_config("qb_conn_status", "unknown")
+
+
+def set_qb_status(status: str):
+    set_config("qb_conn_status", status)
+
+
 # ---- categories ----
 
 def load_cats() -> list[dict]:

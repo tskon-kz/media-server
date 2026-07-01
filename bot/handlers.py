@@ -11,8 +11,10 @@ from store import (
     get_pending, set_pending, pop_pending,
     get_pending_torrent, set_pending_torrent, pop_pending_torrent,
     has_notified_update, mark_update_notified,
+    get_qb_status, set_qb_status,
     set_config,
 )
+import qbittorrentapi
 from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, qb_temp_password, remote_version, trigger_update
 import keyboards as kb
 
@@ -152,6 +154,7 @@ async def on_message(update, ctx):
         if result is True:
             set_config("qb_pass", text)
             set_config("qb_pass_is_perm", "1")
+            set_qb_status("unknown")
             await update.effective_chat.send_message(t("qb_pass_changed"), reply_markup=kb.qb_settings_kb(is_perm=True))
         else:
             await update.effective_chat.send_message(f"{t('qb_pass_error')}\n`{result}`", parse_mode="Markdown", reply_markup=kb.qb_settings_kb(is_perm=False))
@@ -213,6 +216,7 @@ async def on_callback(update, ctx):
                 if temp:
                     set_config("qb_pass", temp)
                     set_config("qb_pass_is_perm", "")
+                    set_qb_status("unknown")
                     try:
                         await _edit(query, t("qb_temp_pass", pass_=temp), kb.qb_settings_kb(is_perm=False), parse_mode="Markdown")
                     except Exception:
@@ -327,11 +331,17 @@ async def on_callback(update, ctx):
 # --- Background jobs ---
 
 async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
+    if get_qb_status() == "error":
+        return
     known = load_states()
     try:
         torrents = qb().torrents_info()
+    except qbittorrentapi.LoginFailed:
+        set_qb_status("error")
+        return
     except Exception:
         return
+    set_qb_status("ok")
     active = {tor.hash for tor in torrents}
     for tor in torrents:
         prev = known.get(tor.hash)
