@@ -235,17 +235,22 @@ if ! _db_has "qb_pass"; then
     echo "QB temp pass extracted: '$TEMP_PASS'" >&3
 
     if [ -n "$TEMP_PASS" ]; then
-        # Run curl inside the container to hit port 8080 directly.
-        # Connecting from the host via $QB_PORT goes through Docker port mapping,
-        # causing a Host header mismatch with WEBUI_PORT=8080 that silently breaks auth.
-        LOGIN_RESP=$(docker exec \
-            -e _TP="$TEMP_PASS" \
-            qbittorrent sh -c '
-                curl -s -c /tmp/qb_s.txt \
-                    -d "username=admin&password=$_TP" \
-                    "http://localhost:8080/api/v2/auth/login"
-            ' 2>/dev/null || echo "")
-        echo "QB login with temp pass: '$LOGIN_RESP'" >&3
+        # Temp pass appears in logs before the WebUI is ready — wait for it to start listening.
+        # Run curl inside the container to avoid Docker port-mapping Host header mismatch.
+        sleep 5
+        LOGIN_RESP=""
+        for attempt in 1 2 3; do
+            LOGIN_RESP=$(docker exec \
+                -e _TP="$TEMP_PASS" \
+                qbittorrent sh -c '
+                    curl -s -c /tmp/qb_s.txt \
+                        -d "username=admin&password=$_TP" \
+                        "http://localhost:8080/api/v2/auth/login"
+                ' 2>&3 || echo "")
+            echo "QB login attempt $attempt: '$LOGIN_RESP'" >&3
+            [ "$LOGIN_RESP" = "Ok." ] && break
+            [ "$attempt" -lt 3 ] && sleep 5
+        done
         if [ "$LOGIN_RESP" = "Ok." ]; then
             docker exec \
                 -e _NP="$QB_PASS" \
@@ -254,10 +259,10 @@ if ! _db_has "qb_pass"; then
                         -d "json={\"web_ui_password\":\"$_NP\"}" \
                         "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
                     rm -f /tmp/qb_s.txt
-                ' 2>/dev/null || true
+                ' 2>&3 || true
             QB_VERIFY=$(docker exec qbittorrent \
                 curl -s -d "username=admin&password=$QB_PASS" \
-                "http://localhost:8080/api/v2/auth/login" 2>/dev/null || echo "")
+                "http://localhost:8080/api/v2/auth/login" 2>&3 || echo "")
             echo "QB verify with new pass: '$QB_VERIFY'" >&3
             if [ "$QB_VERIFY" = "Ok." ]; then
                 _db_set "qb_user" "admin"
