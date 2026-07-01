@@ -50,6 +50,15 @@ def qb():
     return client
 
 
+def qb_set_password(new_pass: str) -> bool:
+    try:
+        client = qb()
+        client.app_set_preferences(prefs={"web_ui_password": new_pass})
+        return True
+    except Exception:
+        return False
+
+
 # --- Updates ---
 
 def remote_version():

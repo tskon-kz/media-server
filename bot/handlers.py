@@ -11,8 +11,9 @@ from store import (
     get_pending, set_pending, pop_pending,
     get_pending_torrent, set_pending_torrent, pop_pending_torrent,
     has_notified_update, mark_update_notified,
+    set_config,
 )
-from api import jf, jf_add_library, jf_remove_library, qb, remote_version, trigger_update
+from api import jf, jf_add_library, jf_remove_library, qb, qb_set_password, remote_version, trigger_update
 import keyboards as kb
 
 
@@ -144,6 +145,16 @@ async def on_message(update, ctx):
         await update.message.reply_text(t("cat_pick_type"), reply_markup=kb.cat_type_kb())
         return
 
+    if state == "await_qb_pass":
+        clear_user_state(uid)
+        await update.message.delete()
+        if qb_set_password(text):
+            set_config("qb_pass", text)
+            await update.effective_chat.send_message(t("qb_pass_changed"), reply_markup=kb.qb_settings_kb())
+        else:
+            await update.effective_chat.send_message(t("qb_pass_error"), reply_markup=kb.qb_settings_kb())
+        return
+
     await update.message.reply_text(t("hint"))
 
 
@@ -187,10 +198,17 @@ async def on_callback(update, ctx):
                     await _edit(query, *kb.cats_view(load_cats()))
                 case "lang":
                     await _edit(query, t("lang_pick"), kb.lang_kb())
+                case "qb":
+                    await _edit(query, *kb.qb_view())
                 case "jf_users":
                     await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
                 case "update":
                     await _edit(query, *kb.update_view(APP_VERSION, remote_version()))
+
+        case "qb":
+            if value == "change_pass":
+                set_user_state(uid, "await_qb_pass")
+                await _edit(query, t("qb_change_pass_prompt"))
 
         case "lang":
             set_lang(value)

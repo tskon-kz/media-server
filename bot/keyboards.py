@@ -13,6 +13,7 @@ def main_menu_kb():
     buttons = [
         [InlineKeyboardButton(t("settings_cats"), callback_data="settings:cats")],
         [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang")],
+        [InlineKeyboardButton(t("settings_qb"),   callback_data="settings:qb")],
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
@@ -100,6 +101,13 @@ def jf_users_kb(users):
     return InlineKeyboardMarkup(buttons)
 
 
+def qb_settings_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("qb_change_pass_btn"), callback_data="qb:change_pass")],
+        [InlineKeyboardButton(t("back_btn"),            callback_data="settings:menu")],
+    ])
+
+
 def update_kb(has_update):
     buttons = []
     if has_update:
@@ -118,6 +126,11 @@ def cats_view(cats):
 def jf_users_view(users):
     body = "\n".join(f"• {u['Name']}" for u in users) if users else t("jf_no_users")
     return f"{t('jf_users_title')}\n\n{body}", jf_users_kb(users)
+
+
+def qb_view():
+    user, pass_ = store.get_creds()
+    return t("qb_settings_title", user=user, pass_=pass_), qb_settings_kb()
 
 
 def update_view(local, remote):
