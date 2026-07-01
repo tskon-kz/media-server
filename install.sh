@@ -225,36 +225,47 @@ if ! _db_has "qb_pass"; then
     TEMP_PASS=""
     printf "  %s" "$MSG_QB_WAIT"
     for i in $(seq 1 30); do
-        TEMP_PASS=$(docker logs qbittorrent 2>&1 | grep "temporary password" | awk '{print $NF}' | tail -1)
+        # Strip quotes and \r — some qBittorrent versions log the password as 'abc123'
+        TEMP_PASS=$(docker logs qbittorrent 2>&1 | grep "temporary password" | awk '{print $NF}' | tail -1 | tr -d "'\"\r\n")
         [ -n "$TEMP_PASS" ] && break
         printf "."
         sleep 2
     done
     [ -n "$TEMP_PASS" ] && printf " ✓\n" || printf " ⚠️\n"
+    echo "QB temp pass extracted: '$TEMP_PASS'" >&3
 
     if [ -n "$TEMP_PASS" ]; then
         # Run curl inside the container to hit port 8080 directly.
         # Connecting from the host via $QB_PORT goes through Docker port mapping,
         # causing a Host header mismatch with WEBUI_PORT=8080 that silently breaks auth.
-        docker exec \
+        LOGIN_RESP=$(docker exec \
             -e _TP="$TEMP_PASS" \
-            -e _NP="$QB_PASS" \
             qbittorrent sh -c '
                 curl -s -c /tmp/qb_s.txt \
                     -d "username=admin&password=$_TP" \
-                    "http://localhost:8080/api/v2/auth/login" > /dev/null
-                curl -s -b /tmp/qb_s.txt \
-                    -d "json={\"web_ui_password\":\"$_NP\"}" \
-                    "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
-                rm -f /tmp/qb_s.txt
-            ' 2>/dev/null || true
-        QB_VERIFY=$(docker exec qbittorrent \
-            curl -s -d "username=admin&password=$QB_PASS" \
-            "http://localhost:8080/api/v2/auth/login" 2>/dev/null || echo "")
-        if [ "$QB_VERIFY" = "Ok." ]; then
-            _db_set "qb_user" "admin"
-            _db_set "qb_pass" "$QB_PASS"
-            echo "$MSG_QB_PASS_SET"
+                    "http://localhost:8080/api/v2/auth/login"
+            ' 2>/dev/null || echo "")
+        echo "QB login with temp pass: '$LOGIN_RESP'" >&3
+        if [ "$LOGIN_RESP" = "Ok." ]; then
+            docker exec \
+                -e _NP="$QB_PASS" \
+                qbittorrent sh -c '
+                    curl -s -b /tmp/qb_s.txt \
+                        -d "json={\"web_ui_password\":\"$_NP\"}" \
+                        "http://localhost:8080/api/v2/app/setPreferences" > /dev/null
+                    rm -f /tmp/qb_s.txt
+                ' 2>/dev/null || true
+            QB_VERIFY=$(docker exec qbittorrent \
+                curl -s -d "username=admin&password=$QB_PASS" \
+                "http://localhost:8080/api/v2/auth/login" 2>/dev/null || echo "")
+            echo "QB verify with new pass: '$QB_VERIFY'" >&3
+            if [ "$QB_VERIFY" = "Ok." ]; then
+                _db_set "qb_user" "admin"
+                _db_set "qb_pass" "$QB_PASS"
+                echo "$MSG_QB_PASS_SET"
+            else
+                echo "$MSG_QB_PASS_FAIL"
+            fi
         else
             echo "$MSG_QB_PASS_FAIL"
         fi
