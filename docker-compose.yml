@@ -9,9 +9,6 @@ services:
       - ./data/jellyfin/config:/config
       - ./data/jellyfin/cache:/cache
       - ${MEDIA_PATH:-./media}:/media
-    environment:
-      - JELLYFIN_PublishedServerUrl=http://${SERVER_IP}:${JELLYFIN_PORT:-8096}
-
   qbittorrent:
     image: ghcr.io/hotio/qbittorrent:latest
     container_name: qbittorrent

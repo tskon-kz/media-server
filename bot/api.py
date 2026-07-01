@@ -3,19 +3,18 @@ import tomllib
 import urllib.request
 import urllib.parse
 import qbittorrentapi
-import store
 from config import (
     JF_URL, QB_HOST,
     WATCHTOWER_TOKEN, WATCHTOWER_URL,
     REPO_SLUG,
 )
-from store import get_creds
+from store import get_config, get_creds
 
 
 # --- Jellyfin ---
 
 def jf(method, path, body=None):
-    key = store.get_config("jellyfin_api_key")
+    key = get_config("jellyfin_api_key")
     if not key:
         return None
     req = urllib.request.Request(
