@@ -7,7 +7,8 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN uv pip install --system --no-cache .
 
-COPY bot/main.py bot/config.py bot/store.py bot/api.py bot/keyboards.py bot/handlers.py bot/parser.py ./
+COPY bot/main.py bot/config.py bot/store.py bot/api.py bot/keyboards.py bot/parser.py ./
+COPY bot/handlers/ ./handlers/
 COPY lang/ ./lang/
 
 ARG VERSION=dev
