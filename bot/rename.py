@@ -19,7 +19,12 @@ MEDIA_EXTENSIONS = {
 }
 
 
-def parse_filename(filename: str, jf_type: str) -> dict | None:
+def _tor_fallback_title(tor) -> str | None:
+    t = guessit(tor.name).get("title")
+    return str(t) if t else None
+
+
+def parse_filename(filename: str, jf_type: str, fallback_title: str | None = None) -> dict | None:
     stem = os.path.splitext(filename)[0]
     guess = guessit(filename)
 
@@ -30,9 +35,14 @@ def parse_filename(filename: str, jf_type: str) -> dict | None:
         if isinstance(episode, list):
             episode = episode[0]
 
-        # fallback: bare number at end, below 480 to avoid resolution/year false positives
+        # filename starts with SxEx → guessit used the episode title as show title
+        if re.match(r'^s\d{1,2}e\d{1,3}', stem, re.IGNORECASE):
+            title = fallback_title
+
+        # fallback: bare number, strip trailing [tag]/(tag) blocks first
         if title and (season is None or episode is None):
-            m = re.search(r'[\s_.-](\d{1,3})$', stem)
+            clean_stem = re.sub(r'(\s*[\[(][^\]\)]*[\]\)])+$', '', stem).rstrip()
+            m = re.search(r'[\s_.-](\d{1,3})$', clean_stem)
             if m:
                 n = int(m.group(1))
                 if n < 480:
@@ -156,9 +166,10 @@ def count_parseable_files(tor, cats: list[dict]) -> tuple[int, int]:
     if not cat or cat["jf_type"] not in ("tvshows", "movies"):
         return 0, 0
     content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
+    fallback_title = _tor_fallback_title(tor)
     parseable = unparseable = 0
     for src_path in get_video_files(content_path):
-        if parse_filename(os.path.basename(src_path), cat["jf_type"]):
+        if parse_filename(os.path.basename(src_path), cat["jf_type"], fallback_title):
             parseable += 1
         else:
             unparseable += 1
@@ -179,11 +190,12 @@ def process_torrent_rename(tor, cats: list[dict]) -> tuple[int, list[int], list[
         return 0, [], []
 
     content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
+    fallback_title = _tor_fallback_title(tor)
     linked, pending_ids, errors = 0, [], []
 
     for src_path in get_video_files(content_path):
         filename = os.path.basename(src_path)
-        parsed = parse_filename(filename, cat["jf_type"])
+        parsed = parse_filename(filename, cat["jf_type"], fallback_title)
         if parsed:
             dst_path = build_target_path(cat, parsed, filename)
             try:
@@ -254,11 +266,12 @@ def delete_torrent_links(tor, cats: list[dict]):
     incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
     dirs_to_delete: set[str] = set()
 
+    fallback_title = _tor_fallback_title(tor)
     for src_path in get_video_files(content_path):
         filename = os.path.basename(src_path)
         # pretty: collect parent dir of each linked file (e.g. Show/Season 01)
         if cat["jf_type"] in ("tvshows", "movies"):
-            parsed = parse_filename(filename, cat["jf_type"])
+            parsed = parse_filename(filename, cat["jf_type"], fallback_title)
             if parsed:
                 d = os.path.dirname(build_target_path(cat, parsed, filename))
                 if d != cat["path"]:
