@@ -10,8 +10,18 @@ PAGE_SIZE = 10
 
 _SEASON_RE = re.compile(r'[Сс]езон\s*(\d+)|[Ss]eason\s*(\d+)|[Ss](\d{1,2})(?=[\s.\-_]|$)')
 
+_short_name_cache: dict[str, str] = {}
+
 
 def short_name(name: str) -> str:
+    if name in _short_name_cache:
+        return _short_name_cache[name]
+    result = _compute_short_name(name)
+    _short_name_cache[name] = result
+    return result
+
+
+def _compute_short_name(name: str) -> str:
     if " / " in name:
         title = re.sub(r'^\[.+?\]\s*', '', name.split(" / ")[0]).strip()
         m = _SEASON_RE.search(name)
@@ -38,6 +48,7 @@ def short_name(name: str) -> str:
 def main_menu_kb():
     server_ip = store.get_config("server_ip")
     jf_key    = store.get_config("jellyfin_api_key")
+    rename_mode = store.get_config("rename_mode", "flat")
     buttons = [
         [InlineKeyboardButton(t("settings_cats"), callback_data="settings:cats")],
         [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang")],
@@ -45,6 +56,8 @@ def main_menu_kb():
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
+    mode_key = "enable_pretty_mode_btn" if rename_mode == "flat" else "enable_flat_mode_btn"
+    buttons.append([InlineKeyboardButton(t(mode_key), callback_data="toggle_rename_mode")])
     buttons.append([InlineKeyboardButton(t("settings_update"),     callback_data="settings:update")])
     buttons.append([InlineKeyboardButton(t("settings_media_mgmt"), callback_data="settings:media")])
     if server_ip:
@@ -93,17 +106,24 @@ def torrent_action_kb(tor_hash, has_move=False, has_reparse=False):
     return InlineKeyboardMarkup(buttons)
 
 
+def del_torrent_confirm_kb(tor_hash: str):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("del_confirm_btn"), callback_data=f"del_confirm:{tor_hash}")],
+        [InlineKeyboardButton(t("back_btn"),         callback_data=f"tor_action:{tor_hash}")],
+    ])
+
+
 def move_cats_kb(torrent_hash):
     cats    = load_cats()
-    buttons = [[InlineKeyboardButton(c["name"], callback_data=f"moveto:{torrent_hash}:{i}")] for i, c in enumerate(cats)]
+    buttons = [[InlineKeyboardButton(c["name"], callback_data=f"moveto:{torrent_hash}:{c['id']}")] for c in cats]
     buttons.append([InlineKeyboardButton(t("back_btn"), callback_data=f"tor_action:{torrent_hash}")])
     return InlineKeyboardMarkup(buttons)
 
 
 def cats_pick_kb(cats, action):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(c["name"], callback_data=f"{action}:{i}")]
-        for i, c in enumerate(cats)
+        [InlineKeyboardButton(c["name"], callback_data=f"{action}:{c['id']}")]
+        for c in cats
     ])
 
 
@@ -113,15 +133,22 @@ def cats_menu_kb(cats):
         "music":  t("jf_music"),  "mixed":   t("jf_mixed"),
     }
     buttons = [
-        [InlineKeyboardButton(f"✏️ {c['name']} · {type_label.get(c.get('jf_type', ''), '?')}", callback_data=f"editcat:{i}"),
-         InlineKeyboardButton("🗑", callback_data=f"delcat:{i}")]
-        for i, c in enumerate(cats)
+        [InlineKeyboardButton(f"✏️ {c['name']} · {type_label.get(c.get('jf_type', ''), '?')}", callback_data=f"editcat:{c['id']}"),
+         InlineKeyboardButton("🗑", callback_data=f"delcat:{c['id']}")]
+        for c in cats
     ]
     buttons += [
         [InlineKeyboardButton(t("cat_add_btn"), callback_data="addcat")],
         [InlineKeyboardButton(t("back_btn"),    callback_data="settings:menu")],
     ]
     return InlineKeyboardMarkup(buttons)
+
+
+def delcat_confirm_kb(cat_id: int):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("delcat_confirm_btn"), callback_data=f"delcat_confirm:{cat_id}")],
+        [InlineKeyboardButton(t("back_btn"),            callback_data="settings:cats")],
+    ])
 
 
 def cat_type_kb():
@@ -159,13 +186,6 @@ def update_kb(has_update):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t(label), callback_data="update:start")],
         [InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")],
-    ])
-
-
-def rename_reset_confirm_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("rename_reset_confirm_btn"), callback_data="rename_reset:confirm")],
-        [InlineKeyboardButton(t("back_btn"),                  callback_data="settings:menu")],
     ])
 
 
@@ -237,9 +257,9 @@ def qb_view():
     status_text = t(f"qb_conn_{qb_status}")
     has_auth_error = qb_status == "error"
     if is_perm:
-        text = t("qb_settings_title", user=user, pass_=pass_, status=status_text)
+        text = t("qb_settings_title", user=escape(user), pass_=escape(pass_), status=status_text)
     else:
-        text = t("qb_settings_title_temp", user=user, status=status_text)
+        text = t("qb_settings_title_temp", user=escape(user), status=status_text)
     return text, qb_settings_kb(is_perm, has_auth_error)
 
 

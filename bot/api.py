@@ -45,11 +45,27 @@ def jf_remove_library(name):
 
 # --- qBittorrent ---
 
-def qb():
+_qb_client: qbittorrentapi.Client | None = None
+
+
+def qb() -> qbittorrentapi.Client:
+    global _qb_client
+    if _qb_client is None:
+        _qb_client = _qb_login()
+    return _qb_client
+
+
+def _qb_login() -> qbittorrentapi.Client:
     user, password = get_creds()
     client = qbittorrentapi.Client(host=QB_HOST, username=user, password=password)
     client.auth_log_in()
     return client
+
+
+def invalidate_qb():
+    """Call after credential changes or auth failures to force re-login on next use."""
+    global _qb_client
+    _qb_client = None
 
 
 def qb_temp_password() -> str | None:
@@ -102,11 +118,11 @@ def qb_set_password(new_pass: str) -> bool | str:
     try:
         client = qb()
     except Exception:
-        # Stored credentials don't work — auto-fetch temp password from Docker logs.
         temp = qb_temp_password()
         if not temp:
             return "auth error: cannot connect and no temp password in logs"
         set_config("qb_pass", temp)
+        invalidate_qb()
         try:
             client = qb()
         except Exception as e:

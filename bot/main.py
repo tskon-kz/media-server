@@ -1,5 +1,11 @@
+import logging
 import os
 from telegram import BotCommand
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
 from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
     CommandHandler, MessageHandler, filters,

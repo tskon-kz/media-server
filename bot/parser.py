@@ -6,6 +6,7 @@ import shutil
 
 from guessit import guessit
 from config import INCOMING_DIR
+from store import add_rename_job, delete_rename_jobs_by_hash, delete_all_rename_jobs
 
 log = logging.getLogger(__name__)
 
@@ -179,8 +180,6 @@ def count_parseable_files(tor, cats: list[dict]) -> tuple[int, int]:
 def process_torrent_rename(tor, cats: list[dict]) -> tuple[int, list[int], list[str]]:
     """Create pretty hardlinks for parseable files, queue the rest as pending_manual.
     Returns (linked_count, pending_job_ids, xdev_errors)."""
-    from store import add_rename_job
-
     cat = _find_cat(tor, cats)
     if not cat:
         log.debug("Torrent %s: no matching category", tor.hash)
@@ -254,8 +253,6 @@ def create_flat_hardlinks(tor, cats: list[dict]) -> list[str]:
 
 def delete_torrent_links(tor, cats: list[dict]):
     """Delete all content directories created for a torrent."""
-    from store import delete_rename_jobs_by_hash
-
     cat = _find_cat(tor, cats)
     if not cat:
         delete_rename_jobs_by_hash(tor.hash)
@@ -298,8 +295,6 @@ def delete_torrent_links(tor, cats: list[dict]):
 
 def delete_all_cat_contents(cats: list[dict]):
     """Delete all contents of every category directory."""
-    from store import delete_all_rename_jobs
-
     for cat in cats:
         cat_path = cat["path"]
         if not os.path.isdir(cat_path):

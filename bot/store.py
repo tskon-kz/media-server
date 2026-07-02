@@ -45,7 +45,7 @@ def _create_tables():
 
 
 def _migrate():
-    """Drop old rename_jobs schema (had dst_path/status) and recreate."""
+    # Drop old rename_jobs schema (had dst_path/status) and recreate.
     try:
         _conn.execute("SELECT dst_path FROM rename_jobs LIMIT 1")
         _conn.execute("DROP TABLE rename_jobs")
@@ -71,11 +71,20 @@ def init():
     _create_tables()
     _migrate()
 
-    # seed defaults (INSERT OR IGNORE — won't overwrite existing values)
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('lang', 'ru')")
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('qb_user', 'admin')")
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('qb_pass', 'adminadmin')")
     _conn.commit()
+
+    # Persist default categories to DB if never explicitly configured.
+    if not _conn.execute("SELECT 1 FROM config WHERE key='cats_init'").fetchone():
+        for c in DEFAULT_CATS:
+            _conn.execute(
+                "INSERT OR IGNORE INTO categories (name, path, jf_type) VALUES (?, ?, ?)",
+                (c["name"], c["path"], c["jf_type"]),
+            )
+        _conn.execute("INSERT OR IGNORE INTO config VALUES ('cats_init', '1')")
+        _conn.commit()
 
     row = _conn.execute("SELECT value FROM config WHERE key='lang'").fetchone()
     _lang = row[0] if row else "ru"
@@ -113,7 +122,6 @@ def get_creds() -> tuple[str, str]:
 
 
 def get_qb_status() -> str:
-    """Returns 'unknown', 'ok', or 'error'."""
     return get_config("qb_conn_status", "unknown")
 
 
@@ -124,19 +132,29 @@ def set_qb_status(status: str):
 # ---- categories ----
 
 def load_cats() -> list[dict]:
-    if not _conn.execute("SELECT 1 FROM config WHERE key='cats_init'").fetchone():
-        return DEFAULT_CATS.copy()
-    rows = _conn.execute("SELECT name, path, jf_type FROM categories ORDER BY id").fetchall()
-    return [{"name": r[0], "path": r[1], "jf_type": r[2]} for r in rows]
+    rows = _conn.execute("SELECT id, name, path, jf_type FROM categories ORDER BY id").fetchall()
+    return [{"id": r[0], "name": r[1], "path": r[2], "jf_type": r[3]} for r in rows]
 
 
 def save_cats(cats: list[dict]):
-    _conn.execute("DELETE FROM categories")
+    existing_ids = {r[0] for r in _conn.execute("SELECT id FROM categories").fetchall()}
+    new_ids = {c["id"] for c in cats if "id" in c}
+
+    for cid in existing_ids - new_ids:
+        _conn.execute("DELETE FROM categories WHERE id=?", (cid,))
+
     for c in cats:
-        _conn.execute(
-            "INSERT INTO categories (name, path, jf_type) VALUES (?, ?, ?)",
-            (c["name"], c["path"], c["jf_type"])
-        )
+        if "id" in c:
+            _conn.execute(
+                "UPDATE categories SET name=?, path=?, jf_type=? WHERE id=?",
+                (c["name"], c["path"], c["jf_type"], c["id"]),
+            )
+        else:
+            _conn.execute(
+                "INSERT INTO categories (name, path, jf_type) VALUES (?, ?, ?)",
+                (c["name"], c["path"], c["jf_type"]),
+            )
+
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('cats_init', '1')")
     _conn.commit()
 
@@ -148,8 +166,17 @@ def load_states() -> dict:
 
 
 def save_states(states: dict):
-    _conn.execute("DELETE FROM torrent_states")
-    _conn.executemany("INSERT INTO torrent_states VALUES (?, ?)", states.items())
+    if states:
+        _conn.executemany(
+            "INSERT OR REPLACE INTO torrent_states VALUES (?, ?)", states.items()
+        )
+        placeholders = ",".join("?" * len(states))
+        _conn.execute(
+            f"DELETE FROM torrent_states WHERE hash NOT IN ({placeholders})",
+            list(states.keys()),
+        )
+    else:
+        _conn.execute("DELETE FROM torrent_states")
     _conn.commit()
 
 
@@ -164,7 +191,7 @@ def set_user_state(user_id: int, state: str):
     _conn.execute(
         "INSERT INTO user_states (user_id, state) VALUES (?, ?) "
         "ON CONFLICT(user_id) DO UPDATE SET state=excluded.state",
-        (user_id, state)
+        (user_id, state),
     )
     _conn.commit()
 
@@ -188,7 +215,7 @@ def set_pending(user_id: int, key: str, value):
     _conn.execute(
         "INSERT INTO user_states (user_id, pending_json) VALUES (?, ?) "
         "ON CONFLICT(user_id) DO UPDATE SET pending_json=excluded.pending_json",
-        (user_id, json.dumps(data))
+        (user_id, json.dumps(data)),
     )
     _conn.commit()
 
@@ -201,7 +228,7 @@ def pop_pending(user_id: int, key: str, default=None):
     val = data.pop(key, default)
     _conn.execute(
         "UPDATE user_states SET pending_json=? WHERE user_id=?",
-        (json.dumps(data) if data else None, user_id)
+        (json.dumps(data) if data else None, user_id),
     )
     _conn.commit()
     return val
@@ -216,7 +243,7 @@ def set_pending_torrent(user_id: int, data: bytes):
     _conn.execute(
         "INSERT INTO user_states (user_id, pending_torrent) VALUES (?, ?) "
         "ON CONFLICT(user_id) DO UPDATE SET pending_torrent=excluded.pending_torrent",
-        (user_id, data)
+        (user_id, data),
     )
     _conn.commit()
 
@@ -231,7 +258,7 @@ def pop_pending_torrent(user_id: int) -> bytes | None:
     return data
 
 
-# ---- rename jobs (pending manual input only) ----
+# ---- rename jobs ----
 
 def _row_to_job(row) -> dict:
     return {
@@ -252,7 +279,7 @@ def add_rename_job(torrent_hash: str, src_path: str, cat_path: str, jf_type: str
 def get_rename_job(job_id: int) -> dict | None:
     row = _conn.execute(
         "SELECT id, torrent_hash, src_path, cat_path, jf_type FROM rename_jobs WHERE id=?",
-        (job_id,)
+        (job_id,),
     ).fetchone()
     return _row_to_job(row) if row else None
 
@@ -260,7 +287,7 @@ def get_rename_job(job_id: int) -> dict | None:
 def get_rename_jobs_by_hash(torrent_hash: str) -> list[dict]:
     rows = _conn.execute(
         "SELECT id, torrent_hash, src_path, cat_path, jf_type FROM rename_jobs WHERE torrent_hash=?",
-        (torrent_hash,)
+        (torrent_hash,),
     ).fetchall()
     return [_row_to_job(r) for r in rows]
 
