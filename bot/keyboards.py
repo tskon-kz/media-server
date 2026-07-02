@@ -195,6 +195,16 @@ def del_links_confirm_kb():
     ])
 
 
+def rename_torrent_summary_kb(tor_hash: str, linked: int, pending: int):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("rename_tor_keep_flat_btn"), callback_data=f"rename_tor:keep_flat:{tor_hash}")],
+        [
+            InlineKeyboardButton(t("rename_tor_manual_btn"), callback_data=f"rename_tor:manual:{tor_hash}"),
+            InlineKeyboardButton(t("rename_tor_skip_btn"),   callback_data=f"rename_tor:skip:{tor_hash}"),
+        ],
+    ])
+
+
 def rename_manual_kb(job_id: int, pending_total: int = 1):
     rows = [[
         InlineKeyboardButton(t("rename_manual_btn"),    callback_data=f"rename:manual:{job_id}"),

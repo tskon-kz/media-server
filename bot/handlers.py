@@ -70,19 +70,16 @@ async def _run_pretty_parse(query, ctx, tor):
     linked, pending_ids, errors = process_torrent_rename(tor, cats)
     for _ in errors:
         await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
-    for job_id in pending_ids:
-        job = get_rename_job(job_id)
-        if job:
-            await ctx.bot.send_message(
-                query.message.chat_id,
-                t("rename_failed_parse", filename=os.path.basename(job["src_path"])),
-                parse_mode="Markdown",
-                reply_markup=kb.rename_manual_kb(job_id, len(pending_ids)),
-            )
     if not linked and not pending_ids and not errors:
         await _edit(query, t("reparse_no_cat"))
+    elif not pending_ids:
+        await _edit(query, t("reparse_result", linked=linked, pending=0))
     else:
-        await _edit(query, t("reparse_result", linked=linked, pending=len(pending_ids)))
+        await _edit(
+            query,
+            t("reparse_result", linked=linked, pending=len(pending_ids)),
+            kb.rename_torrent_summary_kb(tor.hash, linked, len(pending_ids)),
+        )
 
 
 async def _show_torrent_actions(query, tor_hash):
@@ -595,15 +592,6 @@ async def on_callback(update, ctx):
                     all_errors.extend(errs)
                 for _ in all_errors:
                     await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
-                for job_id in all_pending:
-                    job = get_rename_job(job_id)
-                    if job:
-                        await ctx.bot.send_message(
-                            query.message.chat_id,
-                            t("rename_failed_parse", filename=os.path.basename(job["src_path"])),
-                            parse_mode="Markdown",
-                            reply_markup=kb.rename_manual_kb(job_id, len(all_pending)),
-                        )
                 await _edit(query, t("media_pretty_done", linked=all_linked, pending=len(all_pending)))
             elif sub == "flat":
                 try:
@@ -672,6 +660,39 @@ async def on_callback(update, ctx):
                 set_pending(uid, "pending_rename_id", job["id"])
                 await _edit(query, t(key, filename=filename), parse_mode="Markdown")
 
+        case "rename_tor":
+            sub, _, tor_hash = value.partition(":")
+            if sub == "keep_flat":
+                try:
+                    torrents = qb().torrents_info(torrent_hashes=tor_hash)
+                except Exception as e:
+                    await _edit(query, t("qb_error", e=e))
+                    return
+                cats = load_cats()
+                if torrents:
+                    delete_torrent_links(torrents[0], cats)
+                    create_flat_hardlinks(torrents[0], cats)
+                delete_rename_jobs_by_hash(tor_hash)
+                await _edit(query, t("rename_tor_kept_flat"))
+            elif sub == "manual":
+                pending = get_rename_jobs_by_hash(tor_hash)
+                if not pending:
+                    await _edit(query, t("rename_tor_kept_flat"))
+                    return
+                await _edit(query, t("rename_tor_sending_manual", n=len(pending)))
+                for job in pending:
+                    await ctx.bot.send_message(
+                        query.message.chat_id,
+                        t("rename_failed_parse", filename=os.path.basename(job["src_path"])),
+                        parse_mode="Markdown",
+                        reply_markup=kb.rename_manual_kb(job["id"], len(pending)),
+                    )
+            elif sub == "skip":
+                pending = get_rename_jobs_by_hash(tor_hash)
+                for job in pending:
+                    delete_rename_job(job["id"])
+                await _edit(query, t("rename_tor_skipped", n=len(pending)))
+
         case "jf_deluser":
             if jf("DELETE", f"/Users/{value}") is not None:
                 await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
@@ -717,23 +738,12 @@ async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
         prev = known.get(tor.hash)
         if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
             for uid in ALLOWED:
-                await ctx.bot.send_message(uid, t("download_done", name=tor.name))
+                await ctx.bot.send_message(uid, t("download_done", name=kb.short_name(tor.name)))
             jf("POST", "/Library/Refresh")
-            _, pending_ids, errors = process_torrent_rename(tor, cats)
+            errors = create_flat_hardlinks(tor, cats)
             for _ in errors:
                 for uid in ALLOWED:
                     await ctx.bot.send_message(uid, t("rename_xdev"))
-            for job_id in pending_ids:
-                job = get_rename_job(job_id)
-                if job:
-                    filename = os.path.basename(job["src_path"])
-                    for uid in ALLOWED:
-                        await ctx.bot.send_message(
-                            uid,
-                            t("rename_failed_parse", filename=filename),
-                            parse_mode="Markdown",
-                            reply_markup=kb.rename_manual_kb(job_id, len(pending_ids)),
-                        )
         known[tor.hash] = tor.state
     for h in list(known):
         if h not in active:

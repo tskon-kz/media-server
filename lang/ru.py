@@ -112,4 +112,10 @@ M = {
     "unlink_nothing":           "Нет активных ссылок для этого торрента",
     "reparse_result":           "🔗 Готово: привязано {linked}, ожидают ручного ввода {pending}",
     "reparse_no_cat":           "⚠️ Категория не найдена или не поддерживает переименование",
+    "rename_tor_keep_flat_btn":    "📁 Оставить как есть",
+    "rename_tor_manual_btn":       "✏️ Указать вручную",
+    "rename_tor_skip_btn":         "⏭ Пропустить",
+    "rename_tor_kept_flat":        "✅ Структура оставлена без изменений",
+    "rename_tor_sending_manual":   "✏️ Укажи названия для {n} файлов:",
+    "rename_tor_skipped":          "⏭ Пропущено нераспознанных: {n}",
 }

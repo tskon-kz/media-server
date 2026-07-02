@@ -150,6 +150,21 @@ def _try_unlink(path: str, stop_at: str):
             log.warning("Could not remove %s: %s", path, e)
 
 
+def count_parseable_files(tor, cats: list[dict]) -> tuple[int, int]:
+    """Returns (parseable, unparseable) counts without creating any links."""
+    cat = _find_cat(tor, cats)
+    if not cat or cat["jf_type"] not in ("tvshows", "movies"):
+        return 0, 0
+    content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
+    parseable = unparseable = 0
+    for src_path in get_video_files(content_path):
+        if parse_filename(os.path.basename(src_path), cat["jf_type"]):
+            parseable += 1
+        else:
+            unparseable += 1
+    return parseable, unparseable
+
+
 def process_torrent_rename(tor, cats: list[dict]) -> tuple[int, list[int], list[str]]:
     """Create pretty hardlinks for parseable files, queue the rest as pending_manual.
     Returns (linked_count, pending_job_ids, xdev_errors)."""

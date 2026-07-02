@@ -112,4 +112,10 @@ M = {
     "unlink_nothing":           "No active links for this torrent",
     "reparse_result":           "🔗 Done: {linked} linked, {pending} need manual input",
     "reparse_no_cat":           "⚠️ Category not found or does not support renaming",
+    "rename_tor_keep_flat_btn":    "📁 Keep as-is",
+    "rename_tor_manual_btn":       "✏️ Specify manually",
+    "rename_tor_skip_btn":         "⏭ Skip",
+    "rename_tor_kept_flat":        "✅ Original structure kept",
+    "rename_tor_sending_manual":   "✏️ Enter names for {n} files:",
+    "rename_tor_skipped":          "⏭ Skipped {n} unrecognized files",
 }

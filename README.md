@@ -103,7 +103,7 @@ Send a **magnet link** or a **.torrent file** — the bot will ask which categor
 ### `/list`
 
 - Status icons: ⬇️ downloading, ✅ done, ⏸ paused, 🌱 seeding, ❌ error
-- **Edit mode** — per-torrent buttons: 🗑 delete with files, 📁 move to category
+- **Edit mode** — per-torrent buttons: 🗑 delete with files, 📁 move to category, 🔄 re-parse filenames
 
 ### `/settings`
 
@@ -114,6 +114,20 @@ Send a **magnet link** or a **.torrent file** — the bot will ask which categor
 | Jellyfin users | Add and delete Jellyfin accounts |
 | Update | Check for updates and apply with one tap |
 | Quick links | Open qBittorrent / Jellyfin web UI directly from the menu |
+
+### Automatic media renaming
+
+When a torrent finishes downloading, the bot creates **hardlinks** at Jellyfin-standard paths so the media server can identify them correctly without touching the original files (qBittorrent keeps seeding normally).
+
+- **TV shows** → `Series Name/Season 01/Series Name - S01E04.mkv`
+- **Movies** → `Movie Title (2023)/Movie Title (2023).mkv`
+
+Filenames are parsed with [guessit](https://guessit.readthedocs.io). If a file can't be parsed automatically, the bot sends a message with options:
+- **Enter manually** — type `S01E04` (or `Title (Year)` for movies) to create the hardlink
+- **Keep as-is** — create a flat hardlink without renaming
+- **Skip** — leave the file in place, don't create a hardlink
+
+When a torrent is deleted via the bot, all its hardlinks are removed automatically.
 
 ### Updates
 
