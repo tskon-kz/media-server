@@ -125,6 +125,14 @@ def update_kb(has_update):
     return InlineKeyboardMarkup(buttons)
 
 
+def reparse_menu_kb(tor_hash: str):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("reparse_do_btn"), callback_data=f"reparse_do:{tor_hash}"),
+         InlineKeyboardButton(t("unlink_btn"),     callback_data=f"unlink:{tor_hash}")],
+        [InlineKeyboardButton(t("back_btn"),        callback_data="list:edit")],
+    ])
+
+
 def rename_manual_kb(job_id: int):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t("rename_manual_btn"), callback_data=f"rename:manual:{job_id}"),

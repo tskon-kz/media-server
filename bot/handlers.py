@@ -306,7 +306,7 @@ async def on_callback(update, ctx):
                 return
             cat = load_cats()[int(value)]
             try:
-                qb().torrents_add(urls=magnet, save_path=cat["path"])
+                qb().torrents_add(urls=magnet, save_path=os.path.join(cat["path"], ".incoming"))
                 await _edit(query, t("added"))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
@@ -318,7 +318,7 @@ async def on_callback(update, ctx):
                 return
             cat = load_cats()[int(value)]
             try:
-                qb().torrents_add(torrent_files=torrent, save_path=cat["path"])
+                qb().torrents_add(torrent_files=torrent, save_path=os.path.join(cat["path"], ".incoming"))
                 await _edit(query, t("added"))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
@@ -333,7 +333,7 @@ async def on_callback(update, ctx):
             tor_hash, _, cat_idx = value.partition(":")
             cat = load_cats()[int(cat_idx)]
             try:
-                qb().torrents_set_location(torrent_hashes=tor_hash, location=cat["path"])
+                qb().torrents_set_location(torrent_hashes=tor_hash, location=os.path.join(cat["path"], ".incoming"))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
                 return
@@ -356,9 +356,11 @@ async def on_callback(update, ctx):
             path = pop_pending(uid, "pending_cat_path", "")
             clear_user_state(uid)
             if path:
-                os.makedirs(path, exist_ok=True)
-                try:    os.chown(path, 1000, 1000)
-                except: os.chmod(path, 0o777)
+                incoming = os.path.join(path, ".incoming")
+                for d in (path, incoming):
+                    os.makedirs(d, exist_ok=True)
+                    try:    os.chown(d, 1000, 1000)
+                    except: os.chmod(d, 0o777)
             cats = load_cats()
             cats.append({"name": name, "path": path, "jf_type": value})
             save_cats(cats)
@@ -366,6 +368,9 @@ async def on_callback(update, ctx):
             await _edit(query, *kb.cats_view(cats))
 
         case "reparse":
+            await _edit(query, t("reparse_menu"), kb.reparse_menu_kb(value))
+
+        case "reparse_do":
             try:
                 torrents = qb().torrents_info(torrent_hashes=value)
             except Exception as e:
@@ -376,10 +381,6 @@ async def on_callback(update, ctx):
                 return
             tor = torrents[0]
             cats = load_cats()
-            cat = next((c for c in cats if tor.save_path.rstrip("/") == c["path"].rstrip("/")), None)
-            if not cat or cat["jf_type"] not in ("tvshows", "movies"):
-                await _edit(query, t("reparse_no_cat"))
-                return
             delete_torrent_hardlinks(value)
             pending_ids, errors = process_torrent_rename(tor, cats)
             for _ in errors:
@@ -395,7 +396,19 @@ async def on_callback(update, ctx):
                         reply_markup=kb.rename_manual_kb(job_id),
                     )
             linked = sum(1 for j in get_rename_jobs_by_hash(value) if j["status"] == "linked")
-            await _edit(query, t("reparse_result", linked=linked, pending=len(pending_ids)))
+            if not linked and not pending_ids and not errors:
+                await _edit(query, t("reparse_no_cat"))
+            else:
+                await _edit(query, t("reparse_result", linked=linked, pending=len(pending_ids)))
+
+        case "unlink":
+            jobs = get_rename_jobs_by_hash(value)
+            linked = [j for j in jobs if j["status"] == "linked"]
+            if not linked:
+                await query.answer(t("unlink_nothing"), show_alert=True)
+                return
+            delete_torrent_hardlinks(value)
+            await _edit(query, t("unlink_done"))
 
         case "rename":
             sub, _, job_id_str = value.partition(":")

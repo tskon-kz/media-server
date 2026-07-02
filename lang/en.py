@@ -86,6 +86,11 @@ M = {
     "rename_done":              "✅ File linked:\n`{dst}`",
     "rename_error":             "❌ Rename error: {e}",
     "rename_xdev":              "❌ Hardlink error: download directory and media library are on different partitions.",
+    "reparse_menu":             "🔗 What to do with the hardlinks?",
+    "reparse_do_btn":           "🔄 Reparse",
+    "unlink_btn":               "🔓 Remove links",
+    "unlink_done":              "🔓 Links removed, originals intact",
+    "unlink_nothing":           "No active links for this torrent",
     "reparse_result":           "🔗 Done: {linked} linked, {pending} need manual input",
     "reparse_no_cat":           "⚠️ Category not found or does not support renaming",
 }

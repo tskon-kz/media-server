@@ -129,8 +129,12 @@ def process_torrent_rename(tor, cats: list[dict]) -> tuple[list[int], list[str]]
     """
     from store import add_rename_job
 
+    save_path = tor.save_path.rstrip("/")
     cat = next(
-        (c for c in cats if tor.save_path.rstrip("/") == c["path"].rstrip("/")),
+        (c for c in cats if save_path in (
+            c["path"].rstrip("/"),
+            os.path.join(c["path"], ".incoming").rstrip("/"),
+        )),
         None,
     )
     if not cat:
