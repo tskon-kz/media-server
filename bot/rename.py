@@ -2,6 +2,7 @@ import errno
 import logging
 import os
 import re
+import shutil
 
 from guessit import guessit
 from config import INCOMING_DIR
@@ -225,7 +226,7 @@ def create_flat_hardlinks(tor, cats: list[dict]) -> list[str]:
 
 
 def delete_torrent_links(tor, cats: list[dict]):
-    """Delete all hardlinks for a torrent by computing expected pretty and flat paths."""
+    """Delete all content directories created for a torrent."""
     from store import delete_rename_jobs_by_hash
 
     cat = _find_cat(tor, cats)
@@ -236,39 +237,53 @@ def delete_torrent_links(tor, cats: list[dict]):
     save_path = tor.save_path.rstrip("/")
     content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
     incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
+    dirs_to_delete: set[str] = set()
 
     for src_path in get_video_files(content_path):
         filename = os.path.basename(src_path)
-        # pretty path
+        # pretty: collect parent dir of each linked file (e.g. Show/Season 01)
         if cat["jf_type"] in ("tvshows", "movies"):
             parsed = parse_filename(filename, cat["jf_type"])
             if parsed:
-                _try_unlink(build_target_path(cat, parsed, filename), cat["path"])
-        # flat path
+                d = os.path.dirname(build_target_path(cat, parsed, filename))
+                if d != cat["path"]:
+                    dirs_to_delete.add(d)
+        # flat: collect top-level subdir under cat path
         base = incoming_cat if src_path.startswith(incoming_cat + os.sep) else cat["path"]
-        _try_unlink(os.path.join(cat["path"], os.path.relpath(src_path, base)), cat["path"])
+        rel_parts = os.path.relpath(src_path, base).split(os.sep)
+        if len(rel_parts) > 1:
+            dirs_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
+
+    # delete deepest dirs first so parents are cleaned up correctly
+    for d in sorted(dirs_to_delete, key=lambda p: p.count(os.sep), reverse=True):
+        if os.path.isdir(d):
+            shutil.rmtree(d, ignore_errors=True)
+            log.info("Removed: %s", d)
+        # remove now-empty parent dirs up to cat root
+        parent = os.path.dirname(d)
+        while parent != cat["path"] and os.path.isdir(parent) and not os.listdir(parent):
+            os.rmdir(parent)
+            parent = os.path.dirname(parent)
 
     delete_rename_jobs_by_hash(tor.hash)
 
 
 def delete_all_cat_contents(cats: list[dict]):
-    """Delete all video files from all category directories."""
+    """Delete all contents of every category directory."""
     from store import delete_all_rename_jobs
 
     for cat in cats:
         cat_path = cat["path"]
         if not os.path.isdir(cat_path):
             continue
-        for root, _, files in os.walk(cat_path, topdown=False):
-            for fname in files:
-                if os.path.splitext(fname)[1].lower() in MEDIA_EXTENSIONS:
-                    try:
-                        os.unlink(os.path.join(root, fname))
-                    except OSError as e:
-                        log.warning("Could not delete %s: %s", fname, e)
-            if root != cat_path:
-                try:
-                    os.rmdir(root)
-                except OSError:
-                    pass
+        for item in os.listdir(cat_path):
+            item_path = os.path.join(cat_path, item)
+            try:
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.unlink(item_path)
+                log.info("Removed: %s", item_path)
+            except OSError as e:
+                log.warning("Could not remove %s: %s", item_path, e)
     delete_all_rename_jobs()

@@ -96,7 +96,7 @@ M = {
     "structure_menu_title":     "🗂 *Управление структурой*",
     "parse_pretty_btn":         "🎬 Распарсить красиво",
     "flat_btn":                 "📁 Оригинальная структура",
-    "del_links_btn":            "🗑 Удалить хардлинки",
+    "del_links_btn":            "🗑 Удалить хардлинки (с директориями)",
     "del_links_confirm":        "⚠️ После удаления Jellyfin не увидит ни одного файла. Продолжить?",
     "del_links_confirm_btn":    "✅ Да, удалить",
     "media_pretty_done":        "✅ Готово: привязано {linked}, ожидают ввода {pending}",

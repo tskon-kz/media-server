@@ -96,7 +96,7 @@ M = {
     "structure_menu_title":     "🗂 *Manage Structure*",
     "parse_pretty_btn":         "🎬 Parse with pretty names",
     "flat_btn":                 "📁 Original structure",
-    "del_links_btn":            "🗑 Delete hardlinks",
+    "del_links_btn":            "🗑 Delete hardlinks (with dirs)",
     "del_links_confirm":        "⚠️ After deletion Jellyfin will see nothing. Continue?",
     "del_links_confirm_btn":    "✅ Yes, delete",
     "media_pretty_done":        "✅ Done: {linked} linked, {pending} need manual input",
