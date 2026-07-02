@@ -86,4 +86,6 @@ M = {
     "rename_done":              "✅ File linked:\n`{dst}`",
     "rename_error":             "❌ Rename error: {e}",
     "rename_xdev":              "❌ Hardlink error: download directory and media library are on different partitions.",
+    "reparse_result":           "🔗 Done: {linked} linked, {pending} need manual input",
+    "reparse_no_cat":           "⚠️ Category not found or does not support renaming",
 }

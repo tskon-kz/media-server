@@ -19,6 +19,7 @@ from store import (
 import qbittorrentapi
 from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, trigger_update
 from rename import process_torrent_rename, delete_torrent_hardlinks, parse_manual_input, build_target_path, create_hardlink
+from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
 import keyboards as kb
 
 
@@ -363,6 +364,38 @@ async def on_callback(update, ctx):
             save_cats(cats)
             jf_add_library(name, path, value)
             await _edit(query, *kb.cats_view(cats))
+
+        case "reparse":
+            try:
+                torrents = qb().torrents_info(torrent_hashes=value)
+            except Exception as e:
+                await _edit(query, t("qb_error", e=e))
+                return
+            if not torrents:
+                await query.answer("Not found")
+                return
+            tor = torrents[0]
+            cats = load_cats()
+            cat = next((c for c in cats if tor.save_path.rstrip("/") == c["path"].rstrip("/")), None)
+            if not cat or cat["jf_type"] not in ("tvshows", "movies"):
+                await _edit(query, t("reparse_no_cat"))
+                return
+            delete_torrent_hardlinks(value)
+            pending_ids, errors = process_torrent_rename(tor, cats)
+            for _ in errors:
+                await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
+            for job_id in pending_ids:
+                job = get_rename_job(job_id)
+                if job:
+                    filename = os.path.basename(job["src_path"])
+                    await ctx.bot.send_message(
+                        query.message.chat_id,
+                        t("rename_failed_parse", filename=filename),
+                        parse_mode="Markdown",
+                        reply_markup=kb.rename_manual_kb(job_id),
+                    )
+            linked = sum(1 for j in get_rename_jobs_by_hash(value) if j["status"] == "linked")
+            await _edit(query, t("reparse_result", linked=linked, pending=len(pending_ids)))
 
         case "rename":
             sub, _, job_id_str = value.partition(":")

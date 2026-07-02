@@ -42,11 +42,14 @@ def list_kb():
 
 def list_edit_kb(torrents):
     cats    = load_cats()
+    renameable = {c["path"] for c in cats if c["jf_type"] in ("tvshows", "movies")}
     buttons = []
     for i, tor in enumerate(torrents):
         row = [InlineKeyboardButton(f"🗑 {i+1}", callback_data=f"del:{tor.hash}")]
         if cats:
             row.append(InlineKeyboardButton(f"📁 {i+1}", callback_data=f"move:{tor.hash}"))
+        if tor.save_path.rstrip("/") in {p.rstrip("/") for p in renameable}:
+            row.append(InlineKeyboardButton(f"🔗 {i+1}", callback_data=f"reparse:{tor.hash}"))
         buttons.append(row)
     buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="list:view")])
     return InlineKeyboardMarkup(buttons)
