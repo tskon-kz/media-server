@@ -155,12 +155,11 @@ def qb_settings_kb(is_perm: bool = True, has_auth_error: bool = False):
 
 
 def update_kb(has_update):
-    buttons = []
-    if has_update:
-        buttons.append([InlineKeyboardButton(t("update_btn"),       callback_data="update:start")])
-    buttons.append([InlineKeyboardButton(t("update_force_btn"),     callback_data="update:start")])
-    buttons.append([InlineKeyboardButton(t("back_btn"),             callback_data="settings:menu")])
-    return InlineKeyboardMarkup(buttons)
+    label = "update_btn" if has_update else "update_force_btn"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t(label), callback_data="update:start")],
+        [InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")],
+    ])
 
 
 def rename_reset_confirm_kb():
