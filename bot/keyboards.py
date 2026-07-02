@@ -45,8 +45,8 @@ def main_menu_kb():
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
-    buttons.append([InlineKeyboardButton(t("settings_update"),       callback_data="settings:update")])
-    buttons.append([InlineKeyboardButton(t("settings_rename_reset"), callback_data="rename_reset:")])
+    buttons.append([InlineKeyboardButton(t("settings_update"),     callback_data="settings:update")])
+    buttons.append([InlineKeyboardButton(t("settings_media_mgmt"), callback_data="settings:media")])
     if server_ip:
         buttons.append([
             InlineKeyboardButton("qBittorrent", url=f"http://{server_ip}:{QB_PORT}"),
@@ -86,7 +86,7 @@ def torrent_action_kb(tor_hash, has_move=False, has_reparse=False):
     if has_move:
         row2.append(InlineKeyboardButton(t("move_btn"), callback_data=f"move:{tor_hash}"))
     if has_reparse:
-        row2.append(InlineKeyboardButton(t("links_btn"), callback_data=f"reparse:{tor_hash}"))
+        row2.append(InlineKeyboardButton(t("manage_structure_btn"), callback_data=f"structure:{tor_hash}"))
     if row2:
         buttons.append(row2)
     buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="list:view")])
@@ -170,21 +170,42 @@ def rename_reset_confirm_kb():
     ])
 
 
-def reparse_menu_kb(tor_hash: str):
+def structure_menu_kb(tor_hash: str):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("reparse_do_btn"), callback_data=f"reparse_do:{tor_hash}"),
-         InlineKeyboardButton(t("unlink_btn"),     callback_data=f"unlink:{tor_hash}")],
-        [InlineKeyboardButton(t("back_btn"),        callback_data=f"tor_action:{tor_hash}")],
+        [InlineKeyboardButton(t("parse_pretty_btn"), callback_data=f"struct_pretty:{tor_hash}")],
+        [InlineKeyboardButton(t("flat_btn"),         callback_data=f"struct_flat:{tor_hash}")],
+        [InlineKeyboardButton(t("del_links_btn"),    callback_data=f"struct_del:{tor_hash}")],
+        [InlineKeyboardButton(t("back_btn"),         callback_data=f"tor_action:{tor_hash}")],
+    ])
+
+
+def global_structure_menu_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("parse_pretty_btn"), callback_data="media:pretty")],
+        [InlineKeyboardButton(t("flat_btn"),         callback_data="media:flat")],
+        [InlineKeyboardButton(t("del_links_btn"),    callback_data="media:del")],
+        [InlineKeyboardButton(t("back_btn"),         callback_data="settings:menu")],
+    ])
+
+
+def del_links_confirm_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("del_links_confirm_btn"), callback_data="media:del_confirm")],
+        [InlineKeyboardButton(t("back_btn"),               callback_data="settings:media")],
     ])
 
 
 def rename_manual_kb(job_id: int, pending_total: int = 1):
     rows = [[
-        InlineKeyboardButton(t("rename_manual_btn"), callback_data=f"rename:manual:{job_id}"),
-        InlineKeyboardButton(t("rename_skip_btn"),   callback_data=f"rename:skip:{job_id}"),
+        InlineKeyboardButton(t("rename_manual_btn"),    callback_data=f"rename:manual:{job_id}"),
+        InlineKeyboardButton(t("rename_keep_flat_btn"), callback_data=f"rename:flat:{job_id}"),
+        InlineKeyboardButton(t("rename_skip_btn"),      callback_data=f"rename:skip:{job_id}"),
     ]]
     if pending_total > 1:
-        rows.append([InlineKeyboardButton(t("rename_skipall_btn"), callback_data="rename:skipall:")])
+        rows.append([
+            InlineKeyboardButton(t("rename_flatall_btn"), callback_data="rename:flatall:"),
+            InlineKeyboardButton(t("rename_skipall_btn"), callback_data="rename:skipall:"),
+        ])
     return InlineKeyboardMarkup(rows)
 
 

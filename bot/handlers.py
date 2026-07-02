@@ -15,11 +15,12 @@ from store import (
     has_notified_update, mark_update_notified,
     get_qb_status, set_qb_status,
     set_config,
-    get_rename_job, update_rename_job,
+    get_rename_job,
+    get_rename_jobs_by_hash, get_pending_rename_jobs, delete_rename_job,
 )
 import qbittorrentapi
 from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, trigger_update
-from rename import process_torrent_rename, delete_torrent_hardlinks, delete_all_hardlinks, parse_manual_input, build_target_path, create_hardlink
+from rename import process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job, delete_torrent_links, delete_all_cat_contents, parse_manual_input, build_target_path, create_hardlink
 from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
 import keyboards as kb
 
@@ -61,6 +62,27 @@ async def _show_list(query, page=0):
         await _edit(query, t("empty"))
         return
     await _edit(query, kb.list_text(torrents, page), kb.list_kb(page, len(torrents)), parse_mode="HTML")
+
+
+async def _run_pretty_parse(query, ctx, tor):
+    cats = load_cats()
+    delete_torrent_links(tor, cats)
+    linked, pending_ids, errors = process_torrent_rename(tor, cats)
+    for _ in errors:
+        await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
+    for job_id in pending_ids:
+        job = get_rename_job(job_id)
+        if job:
+            await ctx.bot.send_message(
+                query.message.chat_id,
+                t("rename_failed_parse", filename=os.path.basename(job["src_path"])),
+                parse_mode="Markdown",
+                reply_markup=kb.rename_manual_kb(job_id, len(pending_ids)),
+            )
+    if not linked and not pending_ids and not errors:
+        await _edit(query, t("reparse_no_cat"))
+    else:
+        await _edit(query, t("reparse_result", linked=linked, pending=len(pending_ids)))
 
 
 async def _show_torrent_actions(query, tor_hash):
@@ -275,13 +297,12 @@ async def on_message(update, ctx):
         dst_path = build_target_path({"path": job["cat_path"], "jf_type": jf_type}, parsed, filename)
         try:
             create_hardlink(job["src_path"], dst_path)
-            update_rename_job(job["id"], "linked", dst_path)
+            delete_rename_job(job["id"])
             await update.message.reply_text(t("rename_done", dst=dst_path), parse_mode="Markdown")
         except OSError as e:
             if e.errno == errno.EXDEV:
                 await update.message.reply_text(t("rename_xdev"))
             else:
-                update_rename_job(job["id"], "pending_manual")
                 await update.message.reply_text(t("rename_error", e=e))
         return
 
@@ -356,6 +377,8 @@ async def on_callback(update, ctx):
                     await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
                 case "update":
                     await _edit(query, *kb.update_view(APP_VERSION, remote_version()))
+                case "media":
+                    await _edit(query, t("media_mgmt_title"), kb.global_structure_menu_kb())
 
         case "qb":
             if value == "fetch_temp":
@@ -402,11 +425,13 @@ async def on_callback(update, ctx):
 
         case "del":
             try:
+                torrents = qb().torrents_info(torrent_hashes=value)
+                if torrents:
+                    delete_torrent_links(torrents[0], load_cats())
                 qb().torrents_delete(delete_files=True, torrent_hashes=value)
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
                 return
-            delete_torrent_hardlinks(value)
             await _show_list(query, 0)
 
         case "addmagnet":
@@ -477,10 +502,26 @@ async def on_callback(update, ctx):
             jf_add_library(name, path, value)
             await _edit(query, *kb.cats_view(cats))
 
-        case "reparse":
-            await _edit(query, t("reparse_menu"), kb.reparse_menu_kb(value))
+        case "structure":
+            await _edit(query, t("structure_menu_title"), kb.structure_menu_kb(value))
 
-        case "reparse_do":
+        case "reparse" | "reparse_do":
+            # legacy callbacks — redirect to new structure menu / pretty parse
+            if action == "reparse":
+                await _edit(query, t("structure_menu_title"), kb.structure_menu_kb(value))
+                return
+            tor_hash = value
+            try:
+                torrents = qb().torrents_info(torrent_hashes=tor_hash)
+            except Exception as e:
+                await _edit(query, t("qb_error", e=e))
+                return
+            if not torrents:
+                await query.answer("Not found")
+                return
+            await _run_pretty_parse(query, ctx, torrents[0])
+
+        case "struct_pretty":
             try:
                 torrents = qb().torrents_info(torrent_hashes=value)
             except Exception as e:
@@ -489,58 +530,140 @@ async def on_callback(update, ctx):
             if not torrents:
                 await query.answer("Not found")
                 return
-            tor = torrents[0]
-            cats = load_cats()
-            delete_torrent_hardlinks(value)
-            pending_ids, errors = process_torrent_rename(tor, cats)
-            for _ in errors:
-                await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
-            for job_id in pending_ids:
-                job = get_rename_job(job_id)
-                if job:
-                    filename = os.path.basename(job["src_path"])
-                    await ctx.bot.send_message(
-                        query.message.chat_id,
-                        t("rename_failed_parse", filename=filename),
-                        parse_mode="Markdown",
-                        reply_markup=kb.rename_manual_kb(job_id, len(pending_ids)),
-                    )
-            linked = sum(1 for j in get_rename_jobs_by_hash(value) if j["status"] == "linked")
-            if not linked and not pending_ids and not errors:
-                await _edit(query, t("reparse_no_cat"))
-            else:
-                await _edit(query, t("reparse_result", linked=linked, pending=len(pending_ids)))
+            await _run_pretty_parse(query, ctx, torrents[0])
 
-        case "unlink":
-            jobs = get_rename_jobs_by_hash(value)
-            if not jobs:
+        case "struct_flat":
+            try:
+                torrents = qb().torrents_info(torrent_hashes=value)
+            except Exception as e:
+                await _edit(query, t("qb_error", e=e))
+                return
+            if not torrents:
                 await query.answer(t("unlink_nothing"), show_alert=True)
                 return
-            delete_torrent_hardlinks(value)
-            await _edit(query, t("unlink_done"))
+            cats = load_cats()
+            delete_torrent_links(torrents[0], cats)
+            errors = create_flat_hardlinks(torrents[0], cats)
+            if errors and "cross-device" in errors[0].lower():
+                await _edit(query, t("rename_xdev"))
+            else:
+                await _edit(query, t("unlink_done"))
+
+        case "struct_del":
+            try:
+                torrents = qb().torrents_info(torrent_hashes=value)
+            except Exception as e:
+                await _edit(query, t("qb_error", e=e))
+                return
+            if torrents:
+                delete_torrent_links(torrents[0], load_cats())
+            await _edit(query, t("media_del_done"))
+
+        case "unlink":
+            # legacy — same as struct_flat
+            try:
+                torrents = qb().torrents_info(torrent_hashes=value)
+            except Exception as e:
+                await _edit(query, t("qb_error", e=e))
+                return
+            if not torrents:
+                await query.answer(t("unlink_nothing"), show_alert=True)
+                return
+            cats = load_cats()
+            delete_torrent_links(torrents[0], cats)
+            errors = create_flat_hardlinks(torrents[0], cats)
+            if errors and "cross-device" in errors[0].lower():
+                await _edit(query, t("rename_xdev"))
+            else:
+                await _edit(query, t("unlink_done"))
+
+        case "media":
+            sub = value
+            cats = load_cats()
+            if sub == "pretty":
+                try:
+                    torrents = qb().torrents_info()
+                except Exception as e:
+                    await _edit(query, t("qb_error", e=e))
+                    return
+                delete_all_cat_contents(cats)
+                all_linked, all_pending, all_errors = 0, [], []
+                for tor in torrents:
+                    linked, pids, errs = process_torrent_rename(tor, cats)
+                    all_linked += linked
+                    all_pending.extend(pids)
+                    all_errors.extend(errs)
+                for _ in all_errors:
+                    await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
+                for job_id in all_pending:
+                    job = get_rename_job(job_id)
+                    if job:
+                        await ctx.bot.send_message(
+                            query.message.chat_id,
+                            t("rename_failed_parse", filename=os.path.basename(job["src_path"])),
+                            parse_mode="Markdown",
+                            reply_markup=kb.rename_manual_kb(job_id, len(all_pending)),
+                        )
+                await _edit(query, t("media_pretty_done", linked=all_linked, pending=len(all_pending)))
+            elif sub == "flat":
+                try:
+                    torrents = qb().torrents_info()
+                except Exception as e:
+                    await _edit(query, t("qb_error", e=e))
+                    return
+                delete_all_cat_contents(cats)
+                errors = []
+                for tor in torrents:
+                    errors.extend(create_flat_hardlinks(tor, cats))
+                if errors and "cross-device" in errors[0].lower():
+                    await _edit(query, t("rename_xdev"))
+                else:
+                    await _edit(query, t("media_flat_done"))
+            elif sub == "del":
+                await _edit(query, t("del_links_confirm"), kb.del_links_confirm_kb())
+            elif sub == "del_confirm":
+                delete_all_cat_contents(cats)
+                await _edit(query, t("media_del_done"))
 
         case "rename_reset":
             if value == "confirm":
-                delete_all_hardlinks()
-                await _edit(query, t("rename_reset_done"))
+                delete_all_cat_contents(load_cats())
+                await _edit(query, t("media_del_done"))
             else:
-                await _edit(query, t("rename_reset_confirm"), kb.rename_reset_confirm_kb())
+                await _edit(query, t("del_links_confirm"), kb.del_links_confirm_kb())
 
         case "rename":
             sub, _, job_id_str = value.partition(":")
             if sub == "skipall":
                 pending = get_pending_rename_jobs()
                 for j in pending:
-                    update_rename_job(j["id"], "skipped")
+                    delete_rename_job(j["id"])
                 await _edit(query, t("rename_skipall_done", n=len(pending)))
+                return
+            if sub == "flatall":
+                pending = get_pending_rename_jobs()
+                n = 0
+                for j in pending:
+                    dst = create_flat_hardlink_for_job(j)
+                    delete_rename_job(j["id"])
+                    if dst:
+                        n += 1
+                await _edit(query, t("rename_flatall_done", n=n))
                 return
             job = get_rename_job(int(job_id_str))
             if not job:
                 await query.answer("Not found")
                 return
             if sub == "skip":
-                update_rename_job(job["id"], "skipped")
+                delete_rename_job(job["id"])
                 await _edit(query, t("rename_skipped"))
+            elif sub == "flat":
+                dst = create_flat_hardlink_for_job(job)
+                delete_rename_job(job["id"])
+                if dst:
+                    await _edit(query, t("rename_done", dst=dst), parse_mode="Markdown")
+                else:
+                    await _edit(query, t("rename_xdev"))
             elif sub == "manual":
                 jf_type = job["jf_type"]
                 filename = os.path.basename(job["src_path"])
@@ -596,8 +719,8 @@ async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
             for uid in ALLOWED:
                 await ctx.bot.send_message(uid, t("download_done", name=tor.name))
             jf("POST", "/Library/Refresh")
-            pending_ids, errors = process_torrent_rename(tor, cats)
-            for err in errors:
+            _, pending_ids, errors = process_torrent_rename(tor, cats)
+            for _ in errors:
                 for uid in ALLOWED:
                     await ctx.bot.send_message(uid, t("rename_xdev"))
             for job_id in pending_ids:

@@ -122,84 +122,146 @@ def get_video_files(path: str) -> list[str]:
     return sorted(files)
 
 
-def process_torrent_rename(tor, cats: list[dict]) -> tuple[list[int], list[str]]:
-    """
-    Called after a torrent completes. Creates hardlinks for parseable files,
-    queues pending_manual records for the rest.
-    Returns (pending_manual_job_ids, error_messages).
-    """
-    from store import add_rename_job
-
+def _find_cat(tor, cats: list[dict]) -> dict | None:
     save_path = tor.save_path.rstrip("/")
-    cat = next(
+    return next(
         (c for c in cats if save_path in (
             c["path"].rstrip("/"),
             os.path.join(INCOMING_DIR, os.path.basename(c["path"])).rstrip("/"),
         )),
         None,
     )
-    if not cat:
-        log.debug("Torrent %s: save_path=%s matches no category, skipping rename", tor.hash, tor.save_path)
-        return [], []
 
+
+def _try_unlink(path: str, stop_at: str):
+    if os.path.exists(path):
+        try:
+            os.unlink(path)
+            _cleanup_empty_dirs(path, stop_at)
+        except OSError as e:
+            log.warning("Could not remove %s: %s", path, e)
+
+
+def process_torrent_rename(tor, cats: list[dict]) -> tuple[int, list[int], list[str]]:
+    """Create pretty hardlinks for parseable files, queue the rest as pending_manual.
+    Returns (linked_count, pending_job_ids, xdev_errors)."""
+    from store import add_rename_job
+
+    cat = _find_cat(tor, cats)
+    if not cat:
+        log.debug("Torrent %s: no matching category", tor.hash)
+        return 0, [], []
     if cat["jf_type"] not in ("tvshows", "movies"):
         log.debug("Torrent %s: jf_type=%s not supported for rename", tor.hash, cat["jf_type"])
-        return [], []
+        return 0, [], []
 
     content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
-    video_files = get_video_files(content_path)
+    linked, pending_ids, errors = 0, [], []
 
-    pending_ids: list[int] = []
-    errors: list[str] = []
-
-    for src_path in video_files:
+    for src_path in get_video_files(content_path):
         filename = os.path.basename(src_path)
         parsed = parse_filename(filename, cat["jf_type"])
-
         if parsed:
             dst_path = build_target_path(cat, parsed, filename)
             try:
                 create_hardlink(src_path, dst_path)
-                add_rename_job(tor.hash, src_path, cat["path"], cat["jf_type"], "linked", dst_path)
+                linked += 1
                 log.info("Hardlinked: %s -> %s", src_path, dst_path)
             except OSError as e:
                 if e.errno == errno.EXDEV:
-                    msg = f"Cross-device hardlink: {src_path} — download dir and media library must be on the same partition."
-                    log.error(msg)
-                    errors.append(msg)
+                    errors.append(str(e))
+                    log.error("Cross-device: %s", src_path)
                 else:
-                    log.error("Hardlink failed %s -> %s: %s", src_path, dst_path, e)
-                    job_id = add_rename_job(tor.hash, src_path, cat["path"], cat["jf_type"], "pending_manual")
-                    pending_ids.append(job_id)
+                    log.error("Hardlink failed: %s", e)
+                    pending_ids.append(add_rename_job(tor.hash, src_path, cat["path"], cat["jf_type"]))
         else:
-            job_id = add_rename_job(tor.hash, src_path, cat["path"], cat["jf_type"], "pending_manual")
-            pending_ids.append(job_id)
-            log.info("Cannot parse %s, queued as pending_manual (job %d)", filename, job_id)
+            pending_ids.append(add_rename_job(tor.hash, src_path, cat["path"], cat["jf_type"]))
+            log.info("Cannot parse %s, queued pending_manual", filename)
 
-    return pending_ids, errors
+    return linked, pending_ids, errors
 
 
-def delete_all_hardlinks():
-    from store import get_all_rename_jobs, delete_all_rename_jobs
+def create_flat_hardlink_for_job(job: dict) -> str | None:
+    """Flat hardlink for one pending job. Returns dst_path on success, None on error."""
+    incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(job["cat_path"]))
+    base = incoming_cat if job["src_path"].startswith(incoming_cat + os.sep) else job["cat_path"]
+    dst_path = os.path.join(job["cat_path"], os.path.relpath(job["src_path"], base))
+    try:
+        create_hardlink(job["src_path"], dst_path)
+        log.info("Flat hardlink for job %d: %s -> %s", job["id"], job["src_path"], dst_path)
+        return dst_path
+    except OSError as e:
+        log.error("Flat hardlink for job %d failed: %s", job["id"], e)
+        return None
 
-    for job in get_all_rename_jobs():
-        if job["status"] == "linked" and job["dst_path"] and os.path.exists(job["dst_path"]):
-            try:
-                os.unlink(job["dst_path"])
-                _cleanup_empty_dirs(job["dst_path"], job["cat_path"])
-            except OSError as e:
-                log.warning("Could not remove hardlink %s: %s", job["dst_path"], e)
+
+def create_flat_hardlinks(tor, cats: list[dict]) -> list[str]:
+    """Flat hardlinks preserving the torrent's original file structure. Returns errors."""
+    cat = _find_cat(tor, cats)
+    if not cat:
+        return []
+
+    save_path = tor.save_path.rstrip("/")
+    content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
+    errors = []
+
+    for src_path in get_video_files(content_path):
+        dst_path = os.path.join(cat["path"], os.path.relpath(src_path, save_path))
+        try:
+            create_hardlink(src_path, dst_path)
+            log.info("Flat hardlink: %s -> %s", src_path, dst_path)
+        except OSError as e:
+            log.error("Flat hardlink failed %s: %s", src_path, e)
+            errors.append(str(e))
+
+    return errors
+
+
+def delete_torrent_links(tor, cats: list[dict]):
+    """Delete all hardlinks for a torrent by computing expected pretty and flat paths."""
+    from store import delete_rename_jobs_by_hash
+
+    cat = _find_cat(tor, cats)
+    if not cat:
+        delete_rename_jobs_by_hash(tor.hash)
+        return
+
+    save_path = tor.save_path.rstrip("/")
+    content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
+    incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
+
+    for src_path in get_video_files(content_path):
+        filename = os.path.basename(src_path)
+        # pretty path
+        if cat["jf_type"] in ("tvshows", "movies"):
+            parsed = parse_filename(filename, cat["jf_type"])
+            if parsed:
+                _try_unlink(build_target_path(cat, parsed, filename), cat["path"])
+        # flat path
+        base = incoming_cat if src_path.startswith(incoming_cat + os.sep) else cat["path"]
+        _try_unlink(os.path.join(cat["path"], os.path.relpath(src_path, base)), cat["path"])
+
+    delete_rename_jobs_by_hash(tor.hash)
+
+
+def delete_all_cat_contents(cats: list[dict]):
+    """Delete all video files from all category directories."""
+    from store import delete_all_rename_jobs
+
+    for cat in cats:
+        cat_path = cat["path"]
+        if not os.path.isdir(cat_path):
+            continue
+        for root, _, files in os.walk(cat_path, topdown=False):
+            for fname in files:
+                if os.path.splitext(fname)[1].lower() in VIDEO_EXTENSIONS:
+                    try:
+                        os.unlink(os.path.join(root, fname))
+                    except OSError as e:
+                        log.warning("Could not delete %s: %s", fname, e)
+            if root != cat_path:
+                try:
+                    os.rmdir(root)
+                except OSError:
+                    pass
     delete_all_rename_jobs()
-
-
-def delete_torrent_hardlinks(torrent_hash: str):
-    from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
-
-    for job in get_rename_jobs_by_hash(torrent_hash):
-        if job["status"] == "linked" and job["dst_path"] and os.path.exists(job["dst_path"]):
-            try:
-                os.unlink(job["dst_path"])
-                _cleanup_empty_dirs(job["dst_path"], job["cat_path"])
-            except OSError as e:
-                log.warning("Could not remove hardlink %s: %s", job["dst_path"], e)
-    delete_rename_jobs_by_hash(torrent_hash)

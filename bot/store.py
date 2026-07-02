@@ -37,13 +37,30 @@ def _create_tables():
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             torrent_hash TEXT NOT NULL,
             src_path     TEXT NOT NULL,
-            dst_path     TEXT,
             cat_path     TEXT NOT NULL,
-            jf_type      TEXT NOT NULL,
-            status       TEXT NOT NULL
+            jf_type      TEXT NOT NULL
         );
     """)
     _conn.commit()
+
+
+def _migrate():
+    """Drop old rename_jobs schema (had dst_path/status) and recreate."""
+    try:
+        _conn.execute("SELECT dst_path FROM rename_jobs LIMIT 1")
+        _conn.execute("DROP TABLE rename_jobs")
+        _conn.execute("""
+            CREATE TABLE rename_jobs (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                torrent_hash TEXT NOT NULL,
+                src_path     TEXT NOT NULL,
+                cat_path     TEXT NOT NULL,
+                jf_type      TEXT NOT NULL
+            )
+        """)
+        _conn.commit()
+    except Exception:
+        pass
 
 
 def init():
@@ -52,6 +69,7 @@ def init():
     _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     _conn.execute("PRAGMA journal_mode=WAL")
     _create_tables()
+    _migrate()
 
     # seed defaults (INSERT OR IGNORE — won't overwrite existing values)
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('lang', 'ru')")
@@ -213,21 +231,19 @@ def pop_pending_torrent(user_id: int) -> bytes | None:
     return data
 
 
-# ---- rename jobs ----
+# ---- rename jobs (pending manual input only) ----
 
 def _row_to_job(row) -> dict:
     return {
         "id": row[0], "torrent_hash": row[1], "src_path": row[2],
-        "dst_path": row[3], "cat_path": row[4], "jf_type": row[5], "status": row[6],
+        "cat_path": row[3], "jf_type": row[4],
     }
 
 
-def add_rename_job(torrent_hash: str, src_path: str, cat_path: str, jf_type: str,
-                   status: str, dst_path: str | None = None) -> int:
+def add_rename_job(torrent_hash: str, src_path: str, cat_path: str, jf_type: str) -> int:
     cur = _conn.execute(
-        "INSERT INTO rename_jobs (torrent_hash, src_path, dst_path, cat_path, jf_type, status) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (torrent_hash, src_path, dst_path, cat_path, jf_type, status),
+        "INSERT INTO rename_jobs (torrent_hash, src_path, cat_path, jf_type) VALUES (?, ?, ?, ?)",
+        (torrent_hash, src_path, cat_path, jf_type),
     )
     _conn.commit()
     return cur.lastrowid
@@ -235,46 +251,35 @@ def add_rename_job(torrent_hash: str, src_path: str, cat_path: str, jf_type: str
 
 def get_rename_job(job_id: int) -> dict | None:
     row = _conn.execute(
-        "SELECT id, torrent_hash, src_path, dst_path, cat_path, jf_type, status "
-        "FROM rename_jobs WHERE id=?", (job_id,)
+        "SELECT id, torrent_hash, src_path, cat_path, jf_type FROM rename_jobs WHERE id=?",
+        (job_id,)
     ).fetchone()
     return _row_to_job(row) if row else None
 
 
 def get_rename_jobs_by_hash(torrent_hash: str) -> list[dict]:
     rows = _conn.execute(
-        "SELECT id, torrent_hash, src_path, dst_path, cat_path, jf_type, status "
-        "FROM rename_jobs WHERE torrent_hash=?", (torrent_hash,)
+        "SELECT id, torrent_hash, src_path, cat_path, jf_type FROM rename_jobs WHERE torrent_hash=?",
+        (torrent_hash,)
     ).fetchall()
     return [_row_to_job(r) for r in rows]
 
 
 def get_pending_rename_jobs() -> list[dict]:
     rows = _conn.execute(
-        "SELECT id, torrent_hash, src_path, dst_path, cat_path, jf_type, status "
-        "FROM rename_jobs WHERE status='pending_manual'"
+        "SELECT id, torrent_hash, src_path, cat_path, jf_type FROM rename_jobs"
     ).fetchall()
     return [_row_to_job(r) for r in rows]
 
 
-def update_rename_job(job_id: int, status: str, dst_path: str | None = None):
-    _conn.execute(
-        "UPDATE rename_jobs SET status=?, dst_path=? WHERE id=?",
-        (status, dst_path, job_id),
-    )
+def delete_rename_job(job_id: int):
+    _conn.execute("DELETE FROM rename_jobs WHERE id=?", (job_id,))
     _conn.commit()
 
 
 def delete_rename_jobs_by_hash(torrent_hash: str):
     _conn.execute("DELETE FROM rename_jobs WHERE torrent_hash=?", (torrent_hash,))
     _conn.commit()
-
-
-def get_all_rename_jobs() -> list[dict]:
-    rows = _conn.execute(
-        "SELECT id, torrent_hash, src_path, dst_path, cat_path, jf_type, status FROM rename_jobs"
-    ).fetchall()
-    return [_row_to_job(r) for r in rows]
 
 
 def delete_all_rename_jobs():
