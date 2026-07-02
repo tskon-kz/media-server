@@ -7,11 +7,12 @@ from html import escape
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import ALLOWED, ICONS
+from config import ALLOWED, ICONS, INCOMING_DIR
 import store
 from store import t, load_cats
 import keyboards as kb
-from api import qb
+from api import qb, trigger_update
+from parser import process_torrent_rename, delete_torrent_links
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +77,6 @@ async def _show_torrent_actions(query, tor_hash):
 
 async def _run_pretty_parse(query, ctx, tor):
     cats = load_cats()
-    from parser import process_torrent_rename, delete_torrent_links
     delete_torrent_links(tor, cats)
     linked, pending_ids, errors = process_torrent_rename(tor, cats)
     for _ in errors:
@@ -94,7 +94,6 @@ async def _run_pretty_parse(query, ctx, tor):
 
 
 async def _do_trigger_update(message):
-    from api import trigger_update
     ok = await asyncio.to_thread(trigger_update)
     if not ok:
         store.set_config("update_pending", "")
@@ -105,12 +104,10 @@ async def _do_trigger_update(message):
 
 
 def _dl_path(cat: dict) -> str:
-    from config import INCOMING_DIR
     return os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
 
 
 def _is_renameable(tor, cats: list) -> bool:
-    from config import INCOMING_DIR
     renameable = set()
     for c in cats:
         if c["jf_type"] in ("tvshows", "movies"):

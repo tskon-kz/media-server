@@ -1,4 +1,5 @@
 import re
+from functools import lru_cache
 from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from guessit import guessit
@@ -10,18 +11,9 @@ PAGE_SIZE = 10
 
 _SEASON_RE = re.compile(r'[Сс]езон\s*(\d+)|[Ss]eason\s*(\d+)|[Ss](\d{1,2})(?=[\s.\-_]|$)')
 
-_short_name_cache: dict[str, str] = {}
 
-
+@lru_cache(maxsize=512)
 def short_name(name: str) -> str:
-    if name in _short_name_cache:
-        return _short_name_cache[name]
-    result = _compute_short_name(name)
-    _short_name_cache[name] = result
-    return result
-
-
-def _compute_short_name(name: str) -> str:
     if " / " in name:
         title = re.sub(r'^\[.+?\]\s*', '', name.split(" / ")[0]).strip()
         m = _SEASON_RE.search(name)
@@ -56,7 +48,7 @@ def main_menu_kb():
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
-    mode_key = "enable_pretty_mode_btn" if rename_mode == "flat" else "enable_flat_mode_btn"
+    mode_key = "rename_mode_flat_btn" if rename_mode == "flat" else "rename_mode_pretty_btn"
     buttons.append([InlineKeyboardButton(t(mode_key), callback_data="toggle_rename_mode")])
     buttons.append([InlineKeyboardButton(t("settings_update"),     callback_data="settings:update")])
     buttons.append([InlineKeyboardButton(t("settings_media_mgmt"), callback_data="settings:media")])

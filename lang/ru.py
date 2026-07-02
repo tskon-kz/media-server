@@ -116,8 +116,8 @@ M = {
     "rename_tor_kept_flat":        "✅ Структура оставлена без изменений",
     "rename_tor_sending_manual":   "✏️ Укажи названия для {n} файлов:",
     "rename_tor_skipped":          "⏭ Пропущено нераспознанных: {n}",
-    "enable_pretty_mode_btn":   "🎬 Включить умную структуру",
-    "enable_flat_mode_btn":     "📁 Включить оригинальную структуру",
+    "rename_mode_flat_btn":     "📁 Авто-структура: оригинальная ✓",
+    "rename_mode_pretty_btn":   "🎬 Авто-структура: умная ✓",
     "rename_mode_set_pretty":   "✅ При загрузке: умная структура (имена файлов будут распарсены)",
     "rename_mode_set_flat":     "✅ При загрузке: оригинальная структура",
 }

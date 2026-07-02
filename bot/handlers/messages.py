@@ -8,7 +8,7 @@ from store import (
     t, load_cats, save_cats,
     get_user_state, set_user_state, clear_user_state,
     get_pending, set_pending, pop_pending,
-    get_pending_torrent, set_pending_torrent, pop_pending_torrent,
+    set_pending_torrent, pop_pending_torrent,
     get_rename_job, delete_rename_job,
     set_config, set_qb_status,
 )

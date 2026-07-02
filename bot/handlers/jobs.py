@@ -1,6 +1,6 @@
 import qbittorrentapi
 
-from config import ALLOWED, DONE_STATES, APP_VERSION
+from config import ALLOWED, DONE_STATES
 from store import (
     t, load_cats, load_states, save_states,
     get_config, set_qb_status, get_qb_status,
@@ -26,15 +26,13 @@ async def job_check_done(ctx):
     if get_qb_status() == "error":
         return
     known = load_states()
-    prev_status = get_qb_status()
     try:
         torrents = qb().torrents_info()
     except qbittorrentapi.LoginFailed:
         invalidate_qb()
         set_qb_status("error")
-        if prev_status != "error":
-            log.error("qBittorrent auth failed")
-            await _notify_admins(ctx.bot, t("qb_auth_error_notify"))
+        log.error("qBittorrent auth failed")
+        await _notify_admins(ctx.bot, t("qb_auth_error_notify"))
         return
     except Exception:
         return

@@ -2,8 +2,6 @@ import asyncio
 import os
 from html import escape
 
-import qbittorrentapi
-
 from config import ALLOWED, APP_VERSION
 from store import (
     t, set_lang, load_cats, save_cats,
@@ -104,8 +102,7 @@ async def on_callback(update, ctx):
                     except Exception:
                         await query.answer(temp, show_alert=True)
                 else:
-                    txt, kb_val = kb.qb_view()
-                    await _edit(query, t("qb_no_temp_pass"), kb_val, parse_mode="HTML")
+                    await _edit(query, t("qb_no_temp_pass"), kb.qb_settings_kb(is_perm=True))
             elif value == "change_pass":
                 set_user_state(uid, "await_qb_pass")
                 await _edit(query, t("qb_change_pass_prompt"))
@@ -245,7 +242,7 @@ async def on_callback(update, ctx):
             path = pop_pending(uid, "pending_cat_path", "")
             clear_user_state(uid)
             if path:
-                dl = os.path.join("/media/.downloads", os.path.basename(path))
+                dl = _dl_path({"path": path})
                 for d in (path, dl):
                     os.makedirs(d, exist_ok=True)
                     try:    os.chown(d, 1000, 1000)
