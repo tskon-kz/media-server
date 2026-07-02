@@ -4,6 +4,7 @@ import os
 import re
 
 from guessit import guessit
+from config import INCOMING_DIR
 
 log = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ def process_torrent_rename(tor, cats: list[dict]) -> tuple[list[int], list[str]]
     cat = next(
         (c for c in cats if save_path in (
             c["path"].rstrip("/"),
-            os.path.join(c["path"], ".incoming").rstrip("/"),
+            os.path.join(INCOMING_DIR, os.path.basename(c["path"])).rstrip("/"),
         )),
         None,
     )

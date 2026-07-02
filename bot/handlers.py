@@ -4,7 +4,7 @@ import re
 from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
-from config import ALLOWED, DONE_STATES, APP_VERSION
+from config import ALLOWED, DONE_STATES, APP_VERSION, INCOMING_DIR
 from store import (
     t, set_lang, load_cats, save_cats,
     load_states, save_states,
@@ -21,6 +21,10 @@ from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_pa
 from rename import process_torrent_rename, delete_torrent_hardlinks, delete_all_hardlinks, parse_manual_input, build_target_path, create_hardlink
 from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
 import keyboards as kb
+
+
+def _dl_path(cat: dict) -> str:
+    return os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
 
 
 def guard(func):
@@ -306,7 +310,7 @@ async def on_callback(update, ctx):
                 return
             cat = load_cats()[int(value)]
             try:
-                qb().torrents_add(urls=magnet, save_path=os.path.join(cat["path"], ".incoming"))
+                qb().torrents_add(urls=magnet, save_path=_dl_path(cat))
                 await _edit(query, t("added"))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
@@ -318,7 +322,7 @@ async def on_callback(update, ctx):
                 return
             cat = load_cats()[int(value)]
             try:
-                qb().torrents_add(torrent_files=torrent, save_path=os.path.join(cat["path"], ".incoming"))
+                qb().torrents_add(torrent_files=torrent, save_path=_dl_path(cat))
                 await _edit(query, t("added"))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
@@ -333,7 +337,7 @@ async def on_callback(update, ctx):
             tor_hash, _, cat_idx = value.partition(":")
             cat = load_cats()[int(cat_idx)]
             try:
-                qb().torrents_set_location(torrent_hashes=tor_hash, location=os.path.join(cat["path"], ".incoming"))
+                qb().torrents_set_location(torrent_hashes=tor_hash, location=_dl_path(cat))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
                 return
@@ -356,8 +360,8 @@ async def on_callback(update, ctx):
             path = pop_pending(uid, "pending_cat_path", "")
             clear_user_state(uid)
             if path:
-                incoming = os.path.join(path, ".incoming")
-                for d in (path, incoming):
+                dl = os.path.join(INCOMING_DIR, os.path.basename(path))
+                for d in (path, dl):
                     os.makedirs(d, exist_ok=True)
                     try:    os.chown(d, 1000, 1000)
                     except: os.chmod(d, 0o777)

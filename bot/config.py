@@ -10,6 +10,7 @@ APP_VERSION      = os.environ.get("APP_VERSION", "dev")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_TOKEN", "")
 
 DATA_DIR       = "/app/data"
+INCOMING_DIR   = "/media/.downloads"
 WATCHTOWER_URL = "http://watchtower:8080"
 REPO_SLUG      = "tskon-kz/media-server"
 
