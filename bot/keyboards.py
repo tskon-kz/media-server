@@ -1,10 +1,36 @@
+import re
 from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from guessit import guessit
 from config import JF_PORT, QB_PORT, ICONS
 import store
 from store import t, load_cats
 
 PAGE_SIZE = 10
+
+_SEASON_RE = re.compile(r'[Сс]езон\s*(\d+)|[Ss]eason\s*(\d+)|[Ss](\d{1,2})(?=[\s.\-_]|$)')
+
+
+def short_name(name: str) -> str:
+    if " / " in name:
+        title = re.sub(r'^\[.+?\]\s*', '', name.split(" / ")[0]).strip()
+        m = _SEASON_RE.search(name)
+        if m:
+            s = int(next(g for g in m.groups() if g is not None))
+            return f"{title[:25]} S{s:02d}"
+        return title
+
+    guess = guessit(name)
+    title = str(guess.get("title", "")).strip()
+    if not title:
+        return name
+    season = guess.get("season")
+    if season is not None:
+        return f"{title} S{int(season):02d}"
+    year = guess.get("year")
+    if year:
+        return f"{title} ({year})"
+    return title
 
 
 # --- Keyboards ---
@@ -203,6 +229,6 @@ def list_text(torrents, page=0):
         icon = ICONS.get(tor.state, "❓")
         pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
         size = f"{tor.size/1024**3:.1f} GB"
-        name = escape(tor.name[:35])
+        name = escape(short_name(tor.name))
         lines.append(f"{i}. {icon} {name}{pct} — {size}")
     return f"<b>{escape(t('list_title'))}</b> ({len(torrents)})\n\n" + "\n".join(lines)
