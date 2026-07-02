@@ -28,6 +28,15 @@ def _dl_path(cat: dict) -> str:
     return os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
 
 
+def _is_renameable(tor, cats: list) -> bool:
+    renameable = set()
+    for c in cats:
+        if c["jf_type"] in ("tvshows", "movies"):
+            renameable.add(c["path"].rstrip("/"))
+            renameable.add(_dl_path(c).rstrip("/"))
+    return tor.save_path.rstrip("/") in renameable
+
+
 def guard(func):
     @wraps(func)
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -65,9 +74,8 @@ async def _show_torrent_actions(query, tor_hash):
         return
     tor = torrents[0]
     cats = load_cats()
-    renameable = {c["path"] for c in cats if c["jf_type"] in ("tvshows", "movies")}
     has_move = bool(cats)
-    has_reparse = tor.save_path.rstrip("/") in {p.rstrip("/") for p in renameable}
+    has_reparse = _is_renameable(tor, cats)
     icon = ICONS.get(tor.state, "❓")
     pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
     size = f"{tor.size/1024**3:.1f} GB"
@@ -212,9 +220,8 @@ async def on_message(update, ctx):
         idx = int(text) - 1
         tor = torrents[idx]
         cats = load_cats()
-        renameable = {c["path"] for c in cats if c["jf_type"] in ("tvshows", "movies")}
         has_move = bool(cats)
-        has_reparse = tor.save_path.rstrip("/") in {p.rstrip("/") for p in renameable}
+        has_reparse = _is_renameable(tor, cats)
         icon = ICONS.get(tor.state, "❓")
         pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
         size = f"{tor.size/1024**3:.1f} GB"
@@ -314,20 +321,21 @@ async def on_callback(update, ctx):
             pass
 
         case "list":
-            if value == "manage":
+            if value.startswith("manage:"):
+                page = int(value[7:])
                 try:
                     torrents = qb().torrents_info()
                 except Exception as e:
                     await _edit(query, t("qb_error", e=e))
                     return
-                n = len(torrents)
-                if not n:
+                if not torrents:
                     await _edit(query, t("empty"))
                     return
                 set_user_state(uid, "await_torrent_select")
                 set_pending(uid, "pending_list_chat_id", query.message.chat_id)
                 set_pending(uid, "pending_list_msg_id", query.message.message_id)
-                await _edit(query, t("list_select_prompt", n=n))
+                prompt = kb.list_text(torrents, page) + f"\n\n{t('list_select_prompt', n=len(torrents))}"
+                await _edit(query, prompt, parse_mode="HTML")
             elif value.startswith("page:"):
                 page = int(value[5:])
                 await _show_list(query, page)

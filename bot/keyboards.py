@@ -74,7 +74,7 @@ def list_kb(page=0, total=0):
             nav_row.append(InlineKeyboardButton("→", callback_data=f"list:page:{page+1}"))
         buttons.append(nav_row)
     buttons.append([
-        InlineKeyboardButton(t("list_manage_btn"),  callback_data="list:manage"),
+        InlineKeyboardButton(t("list_manage_btn"),  callback_data=f"list:manage:{page}"),
         InlineKeyboardButton(t("list_refresh_btn"), callback_data="list:view"),
     ])
     return InlineKeyboardMarkup(buttons)
