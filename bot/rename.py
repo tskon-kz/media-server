@@ -8,7 +8,14 @@ from config import INCOMING_DIR
 
 log = logging.getLogger(__name__)
 
-VIDEO_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.wmv', '.m4v', '.ts', '.m2ts', '.flv', '.webm'}
+MEDIA_EXTENSIONS = {
+    # video
+    '.mkv', '.mp4', '.avi', '.mov', '.wmv', '.m4v', '.ts', '.m2ts', '.flv', '.webm',
+    # subtitles
+    '.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt', '.sup', '.smi',
+    # external audio tracks
+    '.mka', '.ac3', '.dts', '.eac3', '.truehd',
+}
 
 
 def parse_filename(filename: str, jf_type: str) -> dict | None:
@@ -113,11 +120,11 @@ def _cleanup_empty_dirs(path: str, stop_at: str):
 
 def get_video_files(path: str) -> list[str]:
     if os.path.isfile(path):
-        return [path] if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS else []
+        return [path] if os.path.splitext(path)[1].lower() in MEDIA_EXTENSIONS else []
     files = []
     for root, _, names in os.walk(path):
         for name in names:
-            if os.path.splitext(name)[1].lower() in VIDEO_EXTENSIONS:
+            if os.path.splitext(name)[1].lower() in MEDIA_EXTENSIONS:
                 files.append(os.path.join(root, name))
     return sorted(files)
 
@@ -254,7 +261,7 @@ def delete_all_cat_contents(cats: list[dict]):
             continue
         for root, _, files in os.walk(cat_path, topdown=False):
             for fname in files:
-                if os.path.splitext(fname)[1].lower() in VIDEO_EXTENSIONS:
+                if os.path.splitext(fname)[1].lower() in MEDIA_EXTENSIONS:
                     try:
                         os.unlink(os.path.join(root, fname))
                     except OSError as e:
