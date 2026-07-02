@@ -2,9 +2,10 @@ import errno
 import os
 import re
 from functools import wraps
+from html import escape
 from telegram import Update
 from telegram.ext import ContextTypes
-from config import ALLOWED, DONE_STATES, APP_VERSION, INCOMING_DIR
+from config import ALLOWED, DONE_STATES, APP_VERSION, INCOMING_DIR, ICONS
 from store import (
     t, set_lang, load_cats, save_cats,
     load_states, save_states,
@@ -41,7 +42,7 @@ async def _edit(query, text, keyboard=None, parse_mode="Markdown"):
     await query.edit_message_text(text, parse_mode=parse_mode, reply_markup=keyboard)
 
 
-async def _show_list(query, edit_mode=False):
+async def _show_list(query, page=0):
     try:
         torrents = qb().torrents_info()
     except Exception as e:
@@ -50,8 +51,32 @@ async def _show_list(query, edit_mode=False):
     if not torrents:
         await _edit(query, t("empty"))
         return
-    keyboard = kb.list_edit_kb(torrents) if edit_mode else kb.list_kb()
-    await _edit(query, kb.list_text(torrents), keyboard, parse_mode="HTML")
+    await _edit(query, kb.list_text(torrents, page), kb.list_kb(page, len(torrents)), parse_mode="HTML")
+
+
+async def _show_torrent_actions(query, tor_hash):
+    try:
+        torrents = qb().torrents_info(torrent_hashes=tor_hash)
+    except Exception as e:
+        await _edit(query, t("qb_error", e=e))
+        return
+    if not torrents:
+        await _show_list(query, 0)
+        return
+    tor = torrents[0]
+    cats = load_cats()
+    renameable = {c["path"] for c in cats if c["jf_type"] in ("tvshows", "movies")}
+    has_move = bool(cats)
+    has_reparse = tor.save_path.rstrip("/") in {p.rstrip("/") for p in renameable}
+    icon = ICONS.get(tor.state, "❓")
+    pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
+    size = f"{tor.size/1024**3:.1f} GB"
+    await _edit(
+        query,
+        f"{icon} <b>{escape(tor.name)}</b>{pct} — {size}",
+        kb.torrent_action_kb(tor.hash, has_move, has_reparse),
+        parse_mode="HTML",
+    )
 
 
 # --- Commands ---
@@ -71,7 +96,7 @@ async def cmd_list(update, ctx):
     if not torrents:
         await update.message.reply_text(t("empty"))
         return
-    await update.message.reply_text(kb.list_text(torrents), parse_mode="HTML", reply_markup=kb.list_kb())
+    await update.message.reply_text(kb.list_text(torrents, 0), parse_mode="HTML", reply_markup=kb.list_kb(0, len(torrents)))
 
 
 @guard
@@ -168,6 +193,55 @@ async def on_message(update, ctx):
             await update.effective_chat.send_message(f"{t('qb_pass_error')}\n`{result}`", parse_mode="Markdown", reply_markup=kb.qb_settings_kb(is_perm=False))
         return
 
+    if state == "await_torrent_select":
+        chat_id = pop_pending(uid, "pending_list_chat_id")
+        msg_id  = pop_pending(uid, "pending_list_msg_id")
+        try:
+            torrents = qb().torrents_info()
+        except Exception as e:
+            clear_user_state(uid)
+            await update.message.reply_text(t("qb_error", e=e))
+            return
+        n = len(torrents)
+        if not text.isdigit() or not (1 <= int(text) <= n):
+            set_user_state(uid, "await_torrent_select")
+            set_pending(uid, "pending_list_chat_id", chat_id)
+            set_pending(uid, "pending_list_msg_id", msg_id)
+            await update.message.reply_text(t("list_select_invalid", n=n))
+            return
+        idx = int(text) - 1
+        tor = torrents[idx]
+        cats = load_cats()
+        renameable = {c["path"] for c in cats if c["jf_type"] in ("tvshows", "movies")}
+        has_move = bool(cats)
+        has_reparse = tor.save_path.rstrip("/") in {p.rstrip("/") for p in renameable}
+        icon = ICONS.get(tor.state, "❓")
+        pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
+        size = f"{tor.size/1024**3:.1f} GB"
+        text_out = f"{icon} <b>{escape(tor.name)}</b>{pct} — {size}"
+        clear_user_state(uid)
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        if chat_id and msg_id:
+            try:
+                await ctx.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=msg_id,
+                    text=text_out,
+                    parse_mode="HTML",
+                    reply_markup=kb.torrent_action_kb(tor.hash, has_move, has_reparse),
+                )
+                return
+            except Exception:
+                pass
+        await update.effective_chat.send_message(
+            text_out, parse_mode="HTML",
+            reply_markup=kb.torrent_action_kb(tor.hash, has_move, has_reparse),
+        )
+        return
+
     if state == "await_episode_manual":
         job_id = pop_pending(uid, "pending_rename_id")
         if job_id is None:
@@ -236,8 +310,29 @@ async def on_callback(update, ctx):
     action, _, value = query.data.partition(":")
 
     match action:
+        case "noop":
+            pass
+
         case "list":
-            await _show_list(query, edit_mode=(value == "edit"))
+            if value == "manage":
+                try:
+                    torrents = qb().torrents_info()
+                except Exception as e:
+                    await _edit(query, t("qb_error", e=e))
+                    return
+                n = len(torrents)
+                if not n:
+                    await _edit(query, t("empty"))
+                    return
+                set_user_state(uid, "await_torrent_select")
+                set_pending(uid, "pending_list_chat_id", query.message.chat_id)
+                set_pending(uid, "pending_list_msg_id", query.message.message_id)
+                await _edit(query, t("list_select_prompt", n=n))
+            elif value.startswith("page:"):
+                page = int(value[5:])
+                await _show_list(query, page)
+            else:
+                await _show_list(query, 0)
 
         case "settings":
             match value:
@@ -294,6 +389,9 @@ async def on_callback(update, ctx):
                 else:
                     await _edit(query, t("update_error"))
 
+        case "tor_action":
+            await _show_torrent_actions(query, value)
+
         case "del":
             try:
                 qb().torrents_delete(delete_files=True, torrent_hashes=value)
@@ -301,7 +399,7 @@ async def on_callback(update, ctx):
                 await _edit(query, t("add_error", e=e))
                 return
             delete_torrent_hardlinks(value)
-            await _show_list(query, edit_mode=True)
+            await _show_list(query, 0)
 
         case "addmagnet":
             magnet = pop_pending(uid, "pending_magnet")
@@ -341,7 +439,7 @@ async def on_callback(update, ctx):
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
                 return
-            await _show_list(query)
+            await _show_list(query, 0)
 
         case "editcat":
             set_pending(uid, "pending_cat_idx", int(value))

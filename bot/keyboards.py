@@ -4,6 +4,8 @@ from config import JF_PORT, QB_PORT, ICONS
 import store
 from store import t, load_cats
 
+PAGE_SIZE = 10
+
 
 # --- Keyboards ---
 
@@ -34,24 +36,33 @@ def lang_kb():
     ]])
 
 
-def list_kb():
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton(t("list_edit_btn"),    callback_data="list:edit"),
-        InlineKeyboardButton(t("list_refresh_btn"), callback_data="list:view"),
-    ]])
-
-
-def list_edit_kb(torrents):
-    cats    = load_cats()
-    renameable = {c["path"] for c in cats if c["jf_type"] in ("tvshows", "movies")}
+def list_kb(page=0, total=0):
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     buttons = []
-    for i, tor in enumerate(torrents):
-        row = [InlineKeyboardButton(f"🗑 {i+1}", callback_data=f"del:{tor.hash}")]
-        if cats:
-            row.append(InlineKeyboardButton(f"📁 {i+1}", callback_data=f"move:{tor.hash}"))
-        if tor.save_path.rstrip("/") in {p.rstrip("/") for p in renameable}:
-            row.append(InlineKeyboardButton(f"🔗 {i+1}", callback_data=f"reparse:{tor.hash}"))
-        buttons.append(row)
+    if total_pages > 1:
+        nav_row = []
+        if page > 0:
+            nav_row.append(InlineKeyboardButton("←", callback_data=f"list:page:{page-1}"))
+        nav_row.append(InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="noop:"))
+        if page < total_pages - 1:
+            nav_row.append(InlineKeyboardButton("→", callback_data=f"list:page:{page+1}"))
+        buttons.append(nav_row)
+    buttons.append([
+        InlineKeyboardButton(t("list_manage_btn"),  callback_data="list:manage"),
+        InlineKeyboardButton(t("list_refresh_btn"), callback_data="list:view"),
+    ])
+    return InlineKeyboardMarkup(buttons)
+
+
+def torrent_action_kb(tor_hash, has_move=False, has_reparse=False):
+    buttons = [[InlineKeyboardButton(t("del_btn"), callback_data=f"del:{tor_hash}")]]
+    row2 = []
+    if has_move:
+        row2.append(InlineKeyboardButton(t("move_btn"), callback_data=f"move:{tor_hash}"))
+    if has_reparse:
+        row2.append(InlineKeyboardButton(t("links_btn"), callback_data=f"reparse:{tor_hash}"))
+    if row2:
+        buttons.append(row2)
     buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="list:view")])
     return InlineKeyboardMarkup(buttons)
 
@@ -59,7 +70,7 @@ def list_edit_kb(torrents):
 def move_cats_kb(torrent_hash):
     cats    = load_cats()
     buttons = [[InlineKeyboardButton(c["name"], callback_data=f"moveto:{torrent_hash}:{i}")] for i, c in enumerate(cats)]
-    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="list:edit")])
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data=f"tor_action:{torrent_hash}")])
     return InlineKeyboardMarkup(buttons)
 
 
@@ -137,7 +148,7 @@ def reparse_menu_kb(tor_hash: str):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t("reparse_do_btn"), callback_data=f"reparse_do:{tor_hash}"),
          InlineKeyboardButton(t("unlink_btn"),     callback_data=f"unlink:{tor_hash}")],
-        [InlineKeyboardButton(t("back_btn"),        callback_data="list:edit")],
+        [InlineKeyboardButton(t("back_btn"),        callback_data=f"tor_action:{tor_hash}")],
     ])
 
 
@@ -184,9 +195,11 @@ def update_view(local, remote):
     return t("update_available", local=local, remote=remote), update_kb(True)
 
 
-def list_text(torrents):
+def list_text(torrents, page=0):
+    start = page * PAGE_SIZE
+    page_torrents = torrents[start:start + PAGE_SIZE]
     lines = []
-    for i, tor in enumerate(torrents, 1):
+    for i, tor in enumerate(page_torrents, start + 1):
         icon = ICONS.get(tor.state, "❓")
         pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
         size = f"{tor.size/1024**3:.1f} GB"
