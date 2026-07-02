@@ -178,6 +178,19 @@ def process_torrent_rename(tor, cats: list[dict]) -> tuple[list[int], list[str]]
     return pending_ids, errors
 
 
+def delete_all_hardlinks():
+    from store import get_all_rename_jobs, delete_all_rename_jobs
+
+    for job in get_all_rename_jobs():
+        if job["status"] == "linked" and job["dst_path"] and os.path.exists(job["dst_path"]):
+            try:
+                os.unlink(job["dst_path"])
+                _cleanup_empty_dirs(job["dst_path"], job["cat_path"])
+            except OSError as e:
+                log.warning("Could not remove hardlink %s: %s", job["dst_path"], e)
+    delete_all_rename_jobs()
+
+
 def delete_torrent_hardlinks(torrent_hash: str):
     from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
 

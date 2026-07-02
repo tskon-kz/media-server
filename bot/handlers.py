@@ -18,7 +18,7 @@ from store import (
 )
 import qbittorrentapi
 from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, trigger_update
-from rename import process_torrent_rename, delete_torrent_hardlinks, parse_manual_input, build_target_path, create_hardlink
+from rename import process_torrent_rename, delete_torrent_hardlinks, delete_all_hardlinks, parse_manual_input, build_target_path, create_hardlink
 from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
 import keyboards as kb
 
@@ -393,7 +393,7 @@ async def on_callback(update, ctx):
                         query.message.chat_id,
                         t("rename_failed_parse", filename=filename),
                         parse_mode="Markdown",
-                        reply_markup=kb.rename_manual_kb(job_id),
+                        reply_markup=kb.rename_manual_kb(job_id, len(pending_ids)),
                     )
             linked = sum(1 for j in get_rename_jobs_by_hash(value) if j["status"] == "linked")
             if not linked and not pending_ids and not errors:
@@ -403,15 +403,27 @@ async def on_callback(update, ctx):
 
         case "unlink":
             jobs = get_rename_jobs_by_hash(value)
-            linked = [j for j in jobs if j["status"] == "linked"]
-            if not linked:
+            if not jobs:
                 await query.answer(t("unlink_nothing"), show_alert=True)
                 return
             delete_torrent_hardlinks(value)
             await _edit(query, t("unlink_done"))
 
+        case "rename_reset":
+            if value == "confirm":
+                delete_all_hardlinks()
+                await _edit(query, t("rename_reset_done"))
+            else:
+                await _edit(query, t("rename_reset_confirm"), kb.rename_reset_confirm_kb())
+
         case "rename":
             sub, _, job_id_str = value.partition(":")
+            if sub == "skipall":
+                pending = get_pending_rename_jobs()
+                for j in pending:
+                    update_rename_job(j["id"], "skipped")
+                await _edit(query, t("rename_skipall_done", n=len(pending)))
+                return
             job = get_rename_job(int(job_id_str))
             if not job:
                 await query.answer("Not found")
@@ -487,7 +499,7 @@ async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
                             uid,
                             t("rename_failed_parse", filename=filename),
                             parse_mode="Markdown",
-                            reply_markup=kb.rename_manual_kb(job_id),
+                            reply_markup=kb.rename_manual_kb(job_id, len(pending_ids)),
                         )
         known[tor.hash] = tor.state
     for h in list(known):

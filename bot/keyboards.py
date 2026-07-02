@@ -17,7 +17,8 @@ def main_menu_kb():
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
-    buttons.append([InlineKeyboardButton(t("settings_update"), callback_data="settings:update")])
+    buttons.append([InlineKeyboardButton(t("settings_update"),       callback_data="settings:update")])
+    buttons.append([InlineKeyboardButton(t("settings_rename_reset"), callback_data="rename_reset:")])
     if server_ip:
         buttons.append([
             InlineKeyboardButton("qBittorrent", url=f"http://{server_ip}:{QB_PORT}"),
@@ -125,6 +126,13 @@ def update_kb(has_update):
     return InlineKeyboardMarkup(buttons)
 
 
+def rename_reset_confirm_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("rename_reset_confirm_btn"), callback_data="rename_reset:confirm")],
+        [InlineKeyboardButton(t("back_btn"),                  callback_data="settings:menu")],
+    ])
+
+
 def reparse_menu_kb(tor_hash: str):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(t("reparse_do_btn"), callback_data=f"reparse_do:{tor_hash}"),
@@ -133,11 +141,14 @@ def reparse_menu_kb(tor_hash: str):
     ])
 
 
-def rename_manual_kb(job_id: int):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("rename_manual_btn"), callback_data=f"rename:manual:{job_id}"),
-         InlineKeyboardButton(t("rename_skip_btn"),   callback_data=f"rename:skip:{job_id}")],
-    ])
+def rename_manual_kb(job_id: int, pending_total: int = 1):
+    rows = [[
+        InlineKeyboardButton(t("rename_manual_btn"), callback_data=f"rename:manual:{job_id}"),
+        InlineKeyboardButton(t("rename_skip_btn"),   callback_data=f"rename:skip:{job_id}"),
+    ]]
+    if pending_total > 1:
+        rows.append([InlineKeyboardButton(t("rename_skipall_btn"), callback_data="rename:skipall:")])
+    return InlineKeyboardMarkup(rows)
 
 
 # --- View helpers (text + keyboard) ---

@@ -34,19 +34,6 @@ async def _post_init(app):
             except Exception:
                 pass
 
-    for job in store.get_pending_rename_jobs():
-        if os.path.exists(job["src_path"]):
-            filename = os.path.basename(job["src_path"])
-            for uid in ALLOWED:
-                try:
-                    await app.bot.send_message(
-                        uid,
-                        store.t("rename_failed_parse", filename=filename),
-                        parse_mode="Markdown",
-                        reply_markup=kb.rename_manual_kb(job["id"]),
-                    )
-                except Exception:
-                    pass
 
 
 def main():

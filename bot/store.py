@@ -270,6 +270,18 @@ def delete_rename_jobs_by_hash(torrent_hash: str):
     _conn.commit()
 
 
+def get_all_rename_jobs() -> list[dict]:
+    rows = _conn.execute(
+        "SELECT id, torrent_hash, src_path, dst_path, cat_path, jf_type, status FROM rename_jobs"
+    ).fetchall()
+    return [_row_to_job(r) for r in rows]
+
+
+def delete_all_rename_jobs():
+    _conn.execute("DELETE FROM rename_jobs")
+    _conn.commit()
+
+
 # ---- update notifications ----
 
 def has_notified_update(version: str) -> bool:
