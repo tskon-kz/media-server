@@ -73,7 +73,7 @@ async def _show_torrent_actions(query, tor_hash):
     size = f"{tor.size/1024**3:.1f} GB"
     await _edit(
         query,
-        f"{icon} <b>{escape(tor.name)}</b>{pct} — {size}",
+        f"{icon} <b>{escape(kb.short_name(tor.name))}</b>{pct} — {size}",
         kb.torrent_action_kb(tor.hash, has_move, has_reparse),
         parse_mode="HTML",
     )
@@ -218,7 +218,7 @@ async def on_message(update, ctx):
         icon = ICONS.get(tor.state, "❓")
         pct  = f" {tor.progress*100:.0f}%" if tor.progress < 1 else ""
         size = f"{tor.size/1024**3:.1f} GB"
-        text_out = f"{icon} <b>{escape(tor.name)}</b>{pct} — {size}"
+        text_out = f"{icon} <b>{escape(kb.short_name(tor.name))}</b>{pct} — {size}"
         clear_user_state(uid)
         try:
             await update.message.delete()
