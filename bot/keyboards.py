@@ -122,6 +122,13 @@ def update_kb(has_update):
     return InlineKeyboardMarkup(buttons)
 
 
+def rename_manual_kb(job_id: int):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("rename_manual_btn"), callback_data=f"rename:manual:{job_id}"),
+         InlineKeyboardButton(t("rename_skip_btn"),   callback_data=f"rename:skip:{job_id}")],
+    ])
+
+
 # --- View helpers (text + keyboard) ---
 
 def cats_view(cats):

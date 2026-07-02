@@ -1,3 +1,4 @@
+import errno
 import os
 import re
 from functools import wraps
@@ -13,9 +14,11 @@ from store import (
     has_notified_update, mark_update_notified,
     get_qb_status, set_qb_status,
     set_config,
+    get_rename_job, update_rename_job,
 )
 import qbittorrentapi
 from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, trigger_update
+from rename import process_torrent_rename, delete_torrent_hardlinks, parse_manual_input, build_target_path, create_hardlink
 import keyboards as kb
 
 
@@ -160,6 +163,42 @@ async def on_message(update, ctx):
             await update.effective_chat.send_message(f"{t('qb_pass_error')}\n`{result}`", parse_mode="Markdown", reply_markup=kb.qb_settings_kb(is_perm=False))
         return
 
+    if state == "await_episode_manual":
+        job_id = pop_pending(uid, "pending_rename_id")
+        if job_id is None:
+            clear_user_state(uid)
+            await update.message.reply_text(t("hint"))
+            return
+        job = get_rename_job(int(job_id))
+        if not job:
+            clear_user_state(uid)
+            await update.message.reply_text(t("hint"))
+            return
+        cats = load_cats()
+        cat = next((c for c in cats if c["path"] == job["cat_path"]), None)
+        jf_type = cat["jf_type"] if cat else job["jf_type"]
+        filename = os.path.basename(job["src_path"])
+        parsed = parse_manual_input(jf_type, text, filename)
+        if parsed is None:
+            # keep state, let user try again
+            set_user_state(uid, "await_episode_manual")
+            set_pending(uid, "pending_rename_id", job_id)
+            await update.message.reply_text(t("rename_invalid_input"))
+            return
+        clear_user_state(uid)
+        dst_path = build_target_path({"path": job["cat_path"], "jf_type": jf_type}, parsed, filename)
+        try:
+            create_hardlink(job["src_path"], dst_path)
+            update_rename_job(job["id"], "linked", dst_path)
+            await update.message.reply_text(t("rename_done", dst=dst_path), parse_mode="Markdown")
+        except OSError as e:
+            if e.errno == errno.EXDEV:
+                await update.message.reply_text(t("rename_xdev"))
+            else:
+                update_rename_job(job["id"], "pending_manual")
+                await update.message.reply_text(t("rename_error", e=e))
+        return
+
     await update.message.reply_text(t("hint"))
 
 
@@ -256,6 +295,7 @@ async def on_callback(update, ctx):
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
                 return
+            delete_torrent_hardlinks(value)
             await _show_list(query, edit_mode=True)
 
         case "addmagnet":
@@ -324,6 +364,23 @@ async def on_callback(update, ctx):
             jf_add_library(name, path, value)
             await _edit(query, *kb.cats_view(cats))
 
+        case "rename":
+            sub, _, job_id_str = value.partition(":")
+            job = get_rename_job(int(job_id_str))
+            if not job:
+                await query.answer("Not found")
+                return
+            if sub == "skip":
+                update_rename_job(job["id"], "skipped")
+                await _edit(query, t("rename_skipped"))
+            elif sub == "manual":
+                jf_type = job["jf_type"]
+                filename = os.path.basename(job["src_path"])
+                key = "rename_manual_prompt_tv" if jf_type == "tvshows" else "rename_manual_prompt_movie"
+                set_user_state(uid, "await_episode_manual")
+                set_pending(uid, "pending_rename_id", job["id"])
+                await _edit(query, t(key, filename=filename), parse_mode="Markdown")
+
         case "jf_deluser":
             if jf("DELETE", f"/Users/{value}") is not None:
                 await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
@@ -364,12 +421,28 @@ async def job_check_done(ctx: ContextTypes.DEFAULT_TYPE):
         return
     set_qb_status("ok")
     active = {tor.hash for tor in torrents}
+    cats = load_cats()
     for tor in torrents:
         prev = known.get(tor.hash)
         if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
             for uid in ALLOWED:
                 await ctx.bot.send_message(uid, t("download_done", name=tor.name))
             jf("POST", "/Library/Refresh")
+            pending_ids, errors = process_torrent_rename(tor, cats)
+            for err in errors:
+                for uid in ALLOWED:
+                    await ctx.bot.send_message(uid, t("rename_xdev"))
+            for job_id in pending_ids:
+                job = get_rename_job(job_id)
+                if job:
+                    filename = os.path.basename(job["src_path"])
+                    for uid in ALLOWED:
+                        await ctx.bot.send_message(
+                            uid,
+                            t("rename_failed_parse", filename=filename),
+                            parse_mode="Markdown",
+                            reply_markup=kb.rename_manual_kb(job_id),
+                        )
         known[tor.hash] = tor.state
     for h in list(known):
         if h not in active:
