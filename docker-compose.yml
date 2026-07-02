@@ -1,7 +1,7 @@
 services:
   jellyfin:
     image: jellyfin/jellyfin:latest
-    container_name: jellyfin
+    container_name: media-server-jellyfin
     restart: unless-stopped
     ports:
       - "${JELLYFIN_PORT:-8096}:8096"
@@ -11,7 +11,7 @@ services:
       - ${MEDIA_PATH:-./media}:/media
   qbittorrent:
     image: ghcr.io/hotio/qbittorrent:latest
-    container_name: qbittorrent
+    container_name: media-server-qbittorrent
     restart: unless-stopped
     environment:
       - PUID=1000
@@ -28,7 +28,7 @@ services:
 
   telegram-bot:
     image: ghcr.io/tskon-kz/media-server-bot:latest
-    container_name: telegram-bot
+    container_name: media-server-telegram-bot
     restart: unless-stopped
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
@@ -51,7 +51,7 @@ services:
 
   watchtower:
     image: containrrr/watchtower
-    container_name: watchtower
+    container_name: media-server-watchtower
     restart: unless-stopped
     ports:
       - "127.0.0.1:9080:8080"

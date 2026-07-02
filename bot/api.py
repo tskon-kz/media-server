@@ -58,7 +58,7 @@ def qb_temp_password() -> str | None:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(5)
         s.connect("/var/run/docker.sock")
-        req = b"GET /containers/qbittorrent/logs?stdout=1&stderr=1&tail=100 HTTP/1.0\r\nHost: localhost\r\n\r\n"
+        req = b"GET /containers/media-server-qbittorrent/logs?stdout=1&stderr=1&tail=100 HTTP/1.0\r\nHost: localhost\r\n\r\n"
         s.sendall(req)
         raw = b""
         while chunk := s.recv(4096):
@@ -80,12 +80,12 @@ def qb_temp_password() -> str | None:
 
 
 def qb_restart() -> bool:
-    """Send POST /containers/qbittorrent/restart to Docker socket. Returns True on success."""
+    """Send POST /containers/media-server-qbittorrent/restart to Docker socket. Returns True on success."""
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(10)
         s.connect("/var/run/docker.sock")
-        s.sendall(b"POST /containers/qbittorrent/restart HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n")
+        s.sendall(b"POST /containers/media-server-qbittorrent/restart HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n")
         resp = b""
         while chunk := s.recv(4096):
             resp += chunk

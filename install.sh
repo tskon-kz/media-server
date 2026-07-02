@@ -220,7 +220,7 @@ if ! _db_has "qb_pass"; then
     TEMP_PASS=""
     printf "  %s" "$MSG_QB_WAIT"
     for i in $(seq 1 30); do
-        TEMP_PASS=$(docker logs qbittorrent 2>&1 | grep "temporary password" | awk '{print $NF}' | tail -1 | tr -d "'\"\r\n")
+        TEMP_PASS=$(docker logs media-server-qbittorrent 2>&1 | grep "temporary password" | awk '{print $NF}' | tail -1 | tr -d "'\"\r\n")
         [ -n "$TEMP_PASS" ] && break
         printf "."
         sleep 2
