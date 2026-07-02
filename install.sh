@@ -128,7 +128,8 @@ _spin "$MSG_DOWNLOADING" bash -c "
     mkdir -p lang
     curl -fsSL '$RAW/lang/en.sh'          -o lang/en.sh
     curl -fsSL '$RAW/lang/ru.sh'          -o lang/ru.sh
-    curl -fsSL '$RAW/teardown.sh'         -o teardown.sh     && chmod +x teardown.sh
+    curl -fsSL '$RAW/update.sh'           -o update.sh        && chmod +x update.sh
+    curl -fsSL '$RAW/teardown.sh'         -o teardown.sh      && chmod +x teardown.sh
     curl -fsSL '$RAW/migrate-media.sh'    -o migrate-media.sh && chmod +x migrate-media.sh
 "
 
