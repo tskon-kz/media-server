@@ -20,7 +20,7 @@ from store import (
 )
 import qbittorrentapi
 from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, trigger_update
-from rename import process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job, delete_torrent_links, delete_all_cat_contents, parse_manual_input, build_target_path, create_hardlink
+from parser import process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job, delete_torrent_links, delete_all_cat_contents, parse_manual_input, build_target_path, create_hardlink
 from store import get_rename_jobs_by_hash, delete_rename_jobs_by_hash
 import keyboards as kb
 
