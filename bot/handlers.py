@@ -1,3 +1,4 @@
+import asyncio
 import errno
 import os
 import re
@@ -80,6 +81,16 @@ async def _run_pretty_parse(query, ctx, tor):
             t("reparse_result", linked=linked, pending=len(pending_ids)),
             kb.rename_torrent_summary_kb(tor.hash, linked, len(pending_ids)),
         )
+
+
+async def _do_trigger_update(message):
+    ok = await asyncio.to_thread(trigger_update)
+    if not ok:
+        set_config("update_pending", "")
+        try:
+            await message.reply_text(t("update_error"))
+        except Exception:
+            pass
 
 
 async def _show_torrent_actions(query, tor_hash):
@@ -411,11 +422,9 @@ async def on_callback(update, ctx):
 
         case "update":
             if value == "start":
-                if trigger_update():
-                    set_config("update_pending", "1")
-                    await _edit(query, t("update_started"))
-                else:
-                    await _edit(query, t("update_error"))
+                set_config("update_pending", "1")
+                await _edit(query, t("update_started"))
+                asyncio.create_task(_do_trigger_update(query.message))
 
         case "tor_action":
             await _show_torrent_actions(query, value)

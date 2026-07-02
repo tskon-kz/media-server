@@ -142,9 +142,11 @@ def trigger_update() -> bool:
         headers={"Authorization": f"Bearer {WATCHTOWER_TOKEN}"},
     )
     try:
-        urllib.request.urlopen(req, timeout=10)
+        urllib.request.urlopen(req, timeout=90)
         return True
     except urllib.error.HTTPError:
         return True  # got a response — Watchtower received and processed the request
+    except urllib.error.URLError:
+        return False  # connection refused — Watchtower not reachable
     except Exception:
-        return False
+        return True  # timeout means Watchtower is processing (pulling image)
