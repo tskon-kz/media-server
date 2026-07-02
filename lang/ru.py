@@ -6,6 +6,7 @@ M = {
     "list_title":    "Торренты",
     "list_manage_btn":      "✏️ Управлять",
     "list_refresh_btn":     "🔄 Обновить",
+    "search_btn":           "🔍 Найти торрент",
     "list_select_prompt":   "Введите номер торрента (1–{n}):",
     "list_select_invalid":  "❌ Неверный номер. Введите от 1 до {n}",
     "del_btn":       "🗑 Удалить",
@@ -116,8 +117,8 @@ M = {
     "rename_tor_kept_flat":        "✅ Структура оставлена без изменений",
     "rename_tor_sending_manual":   "✏️ Укажи названия для {n} файлов:",
     "rename_tor_skipped":          "⏭ Пропущено нераспознанных: {n}",
-    "rename_mode_flat_btn":     "📁 Авто-структура: оригинальная ✓",
-    "rename_mode_pretty_btn":   "🎬 Авто-структура: умная ✓",
+    "rename_mode_flat_btn":     "📁 Авто-структура: оригинальная",
+    "rename_mode_pretty_btn":   "🎬 Авто-структура: умная",
     "rename_mode_set_pretty":   "✅ При загрузке: умная структура (имена файлов будут распарсены)",
     "rename_mode_set_flat":     "✅ При загрузке: оригинальная структура",
 }

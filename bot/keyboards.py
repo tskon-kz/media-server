@@ -82,6 +82,9 @@ def list_kb(page=0, total=0):
         InlineKeyboardButton(t("list_manage_btn"),  callback_data=f"list:manage:{page}"),
         InlineKeyboardButton(t("list_refresh_btn"), callback_data="list:view"),
     ])
+    buttons.append([
+        InlineKeyboardButton(t("search_btn"), url="https://jac-red.ru"),
+    ])
     return InlineKeyboardMarkup(buttons)
 
 
