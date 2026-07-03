@@ -155,8 +155,15 @@ async def on_message(update, ctx):
         return
 
     if state == "await_jackett_pass":
+        msg_id   = pop_pending(uid, "jackett_pass_msg_id")
+        chat_id  = pop_pending(uid, "jackett_pass_chat_id")
         clear_user_state(uid)
         await update.message.delete()
+        if msg_id and chat_id:
+            try:
+                await ctx.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            except Exception:
+                pass
         result = jackett_set_password(text)
         if result is True:
             await update.effective_chat.send_message(t("jackett_pass_changed"), reply_markup=kb.jackett_settings_kb(has_password=True))

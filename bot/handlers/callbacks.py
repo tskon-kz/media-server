@@ -450,6 +450,8 @@ async def on_callback(update, ctx):
                 await _edit(query, t("jackett_ask_key"))
             elif value == "change_pass":
                 set_user_state(uid, "await_jackett_pass")
+                set_pending(uid, "jackett_pass_msg_id", query.message.message_id)
+                set_pending(uid, "jackett_pass_chat_id", query.message.chat_id)
                 await _edit(query, t("jackett_ask_pass"))
             elif value == "remove_pass":
                 result = jackett_set_password("")
