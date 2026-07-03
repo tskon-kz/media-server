@@ -13,12 +13,39 @@ echo "2) Русский"
 printf "Select language / Выберите язык [1/2]: "
 read -r LANG_CHOICE
 
-TMP_LANG=$(mktemp -d)
-curl -fsSL "$RAW/lang/en.sh" -o "$TMP_LANG/en.sh"
-curl -fsSL "$RAW/lang/ru.sh" -o "$TMP_LANG/ru.sh"
+# Translations are kept inline so this one-time script has no dependency on
+# lang/*.sh and can be deleted from the repo in a single step.
 case "$LANG_CHOICE" in
-    2) source "$TMP_LANG/ru.sh" ;;
-    *) source "$TMP_LANG/en.sh" ;;
+    2)
+        MSG_JACKETT_TITLE="=== Миграция: добавление Jackett ==="
+        MSG_JACKETT_NO_ENV="Ошибка: .env или docker-compose.yml не найден. Для новой установки используй install.sh."
+        MSG_JACKETT_ALREADY_DONE="✅ Jackett уже есть в docker-compose.yml. Ничего делать не нужно."
+        MSG_JACKETT_UPDATING="⬇  Загружаю актуальный docker-compose.yml..."
+        MSG_JACKETT_STARTING="▶  Запускаю контейнеры (Jackett будет добавлен)..."
+        MSG_JACKETT_DONE_TITLE="✅ Готово! Jackett запущен."
+        MSG_JACKETT_DONE_NEXT="Следующие шаги:"
+        MSG_JACKETT_DONE_1="  1. Открой веб-интерфейс Jackett и добавь индексаторы:"
+        MSG_JACKETT_DONE_2="  2. Скопируй API Key с верхней части страницы Jackett."
+        MSG_JACKETT_DONE_3="  3. В Telegram-боте: /settings → Jackett → Указать API key"
+        MSG_JACKETT_DONE_UPDATE="     (Если бот ещё не обновился: /settings → Обновление, или выполни:"
+        MSG_JACKETT_DONE_UPDATE2="      docker compose pull telegram-bot && docker compose up -d telegram-bot)"
+        MSG_JACKETT_DONE_PASS="  ⚠️  Пароль Jackett не задан — панель пока публична. Установи его в боте: /settings → Jackett."
+        ;;
+    *)
+        MSG_JACKETT_TITLE="=== Jackett Migration ==="
+        MSG_JACKETT_NO_ENV="Error: .env or docker-compose.yml not found. Use install.sh for a fresh install."
+        MSG_JACKETT_ALREADY_DONE="✅ Jackett is already present in docker-compose.yml. Nothing to do."
+        MSG_JACKETT_UPDATING="⬇  Downloading latest docker-compose.yml..."
+        MSG_JACKETT_STARTING="▶  Starting containers (Jackett will be added)..."
+        MSG_JACKETT_DONE_TITLE="✅ Done! Jackett is running."
+        MSG_JACKETT_DONE_NEXT="Next steps:"
+        MSG_JACKETT_DONE_1="  1. Open the Jackett web UI and add your indexers:"
+        MSG_JACKETT_DONE_2="  2. Copy the API Key from the top of the Jackett page."
+        MSG_JACKETT_DONE_3="  3. In the Telegram bot: /settings → Jackett → Set API key"
+        MSG_JACKETT_DONE_UPDATE="     (If the bot hasn't updated yet: /settings → Update, or run:"
+        MSG_JACKETT_DONE_UPDATE2="      docker compose pull telegram-bot && docker compose up -d telegram-bot)"
+        MSG_JACKETT_DONE_PASS="  ⚠️  No Jackett password yet — the panel is public. Set it in the bot: /settings → Jackett."
+        ;;
 esac
 
 echo ""
@@ -50,42 +77,13 @@ if ! grep -q "JACKETT_PORT" .env 2>/dev/null; then
     echo "# JACKETT_PORT=9117" >> .env
 fi
 
-printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
-
 # Pull new image and start all services
 echo "$MSG_JACKETT_STARTING"
 docker compose pull
 docker compose up -d
 
-# ---- Jackett password setup ----
-
-JACKETT_CFG="$INSTALL_DIR/data/jackett/config/Jackett/ServerConfig.json"
-if [ -n "$JACKETT_PASS" ]; then
-    printf "  %s" "$MSG_JACKETT_WAIT"
-    for i in $(seq 1 30); do
-        [ -f "$JACKETT_CFG" ] && break
-        printf "."
-        sleep 2
-    done
-    printf "\n"
-    if [ -f "$JACKETT_CFG" ]; then
-        python3 - "$JACKETT_CFG" "$JACKETT_PASS" <<'PYEOF'
-import json, sys, hashlib
-cfg, pw = sys.argv[1], sys.argv[2]
-with open(cfg) as f:
-    d = json.load(f)
-d['AdminPassword'] = hashlib.sha512((pw + d.get('APIKey', '')).encode('utf-16-le')).hexdigest()
-with open(cfg, 'w') as f:
-    json.dump(d, f, indent=2)
-PYEOF
-        docker compose restart jackett >/dev/null 2>&1
-        echo "$MSG_JACKETT_PASS_SET"
-    else
-        echo "$MSG_JACKETT_PASS_SKIP"
-    fi
-else
-    echo "$MSG_JACKETT_PASS_SKIP"
-fi
+# The Jackett admin password is set from the bot (/settings → Jackett), not here —
+# the bot writes it into the mounted config and restarts the container itself.
 
 # Resolve JACKETT_PORT for the final message
 JACKETT_PORT=$(grep "^JACKETT_PORT=" .env 2>/dev/null | cut -d'=' -f2- || echo "")
@@ -112,4 +110,6 @@ echo "$MSG_JACKETT_DONE_2"
 echo "$MSG_JACKETT_DONE_3"
 echo "$MSG_JACKETT_DONE_UPDATE"
 echo "$MSG_JACKETT_DONE_UPDATE2"
+echo ""
+echo "$MSG_JACKETT_DONE_PASS"
 echo ""

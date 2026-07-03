@@ -42,18 +42,20 @@ def main_menu_kb():
     server_ip = store.get_config("server_ip")
     jf_key    = store.get_config("jellyfin_api_key")
     rename_mode = store.get_config("rename_mode", "flat")
+    # 2-column grid, grouped by meaning: content (categories/library),
+    # system (language/update), services (qBittorrent/Jackett).
     buttons = [
-        [InlineKeyboardButton(t("settings_cats"),    callback_data="settings:cats")],
-        [InlineKeyboardButton(t("settings_lang"),    callback_data="settings:lang")],
-        [InlineKeyboardButton(t("settings_qb"),      callback_data="settings:qb")],
-        [InlineKeyboardButton(t("settings_jackett"), callback_data="settings:jackett")],
+        [InlineKeyboardButton(t("settings_cats"),       callback_data="settings:cats"),
+         InlineKeyboardButton(t("settings_media_mgmt"), callback_data="settings:media")],
+        [InlineKeyboardButton(t("settings_lang"),       callback_data="settings:lang"),
+         InlineKeyboardButton(t("settings_update"),     callback_data="settings:update")],
+        [InlineKeyboardButton(t("settings_qb"),         callback_data="settings:qb"),
+         InlineKeyboardButton(t("settings_jackett"),    callback_data="settings:jackett")],
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
     mode_key = "rename_mode_flat_btn" if rename_mode == "flat" else "rename_mode_pretty_btn"
     buttons.append([InlineKeyboardButton(t(mode_key), callback_data="toggle_rename_mode")])
-    buttons.append([InlineKeyboardButton(t("settings_update"),     callback_data="settings:update")])
-    buttons.append([InlineKeyboardButton(t("settings_media_mgmt"), callback_data="settings:media")])
     if server_ip:
         buttons.append([
             InlineKeyboardButton("qBittorrent", url=f"http://{server_ip}:{QB_PORT}"),
