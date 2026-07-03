@@ -185,7 +185,7 @@ def jackett_has_password() -> bool:
         return False
 
 
-def jackett_set_password(new_pass: str) -> bool:
+def jackett_set_password(new_pass: str) -> bool | str:
     import hashlib
     try:
         with open(_JACKETT_CFG) as f:
@@ -193,9 +193,11 @@ def jackett_set_password(new_pass: str) -> bool:
         d["AdminPassword"] = hashlib.md5(new_pass.encode()).hexdigest() if new_pass else ""
         with open(_JACKETT_CFG, "w") as f:
             json.dump(d, f, indent=2)
-    except Exception:
-        return False
-    return _jackett_restart()
+    except Exception as e:
+        return str(e)
+    if not _jackett_restart():
+        return "restart failed"
+    return True
 
 
 def _jackett_restart() -> bool:

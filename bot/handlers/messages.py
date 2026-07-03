@@ -157,9 +157,15 @@ async def on_message(update, ctx):
     if state == "await_jackett_pass":
         clear_user_state(uid)
         await update.message.delete()
-        ok = jackett_set_password(text)
-        msg_key = "jackett_pass_changed" if ok else "jackett_pass_error"
-        await update.effective_chat.send_message(t(msg_key), reply_markup=kb.jackett_settings_kb())
+        result = jackett_set_password(text)
+        if result is True:
+            await update.effective_chat.send_message(t("jackett_pass_changed"), reply_markup=kb.jackett_settings_kb())
+        else:
+            await update.effective_chat.send_message(
+                f"{t('jackett_pass_error')}\n`{result}`",
+                parse_mode="Markdown",
+                reply_markup=kb.jackett_settings_kb(),
+            )
         return
 
     if state == "await_episode_manual":
