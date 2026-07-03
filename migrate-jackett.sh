@@ -45,10 +45,42 @@ if ! grep -q "JACKETT_PORT" .env 2>/dev/null; then
     echo "# JACKETT_PORT=9117" >> .env
 fi
 
+printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
+
 # Pull new image and start all services
 echo "$MSG_JACKETT_STARTING"
 docker compose pull
 docker compose up -d
+
+# ---- Jackett password setup ----
+
+JACKETT_CFG="$SCRIPT_DIR/data/jackett/config/Jackett/ServerConfig.json"
+if [ -n "$JACKETT_PASS" ]; then
+    printf "  %s" "$MSG_JACKETT_WAIT"
+    for i in $(seq 1 30); do
+        [ -f "$JACKETT_CFG" ] && break
+        printf "."
+        sleep 2
+    done
+    printf "\n"
+    if [ -f "$JACKETT_CFG" ]; then
+        python3 - "$JACKETT_CFG" "$JACKETT_PASS" <<'PYEOF'
+import json, sys, hashlib
+cfg, pw = sys.argv[1], sys.argv[2]
+with open(cfg) as f:
+    d = json.load(f)
+d['AdminPassword'] = hashlib.md5(pw.encode()).hexdigest()
+with open(cfg, 'w') as f:
+    json.dump(d, f, indent=2)
+PYEOF
+        docker compose restart jackett >/dev/null 2>&1
+        echo "$MSG_JACKETT_PASS_SET"
+    else
+        echo "$MSG_JACKETT_PASS_SKIP"
+    fi
+else
+    echo "$MSG_JACKETT_PASS_SKIP"
+fi
 
 # Resolve JACKETT_PORT for the final message
 JACKETT_PORT=$(grep "^JACKETT_PORT=" .env 2>/dev/null | cut -d'=' -f2- || echo "")
