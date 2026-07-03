@@ -6,6 +6,7 @@ on:
     paths:
       - "bot/**"
       - "pyproject.toml"
+      - "docker-compose.yml"
       - "lang/**"
       - ".github/workflows/build-push.yml"
   workflow_dispatch: 
