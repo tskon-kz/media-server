@@ -1,0 +1,117 @@
+# Installation
+
+## Quick install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/install.sh)
+```
+
+The script:
+1. Asks for the interface language (English / Russian)
+2. Installs Docker if it's not present
+3. Downloads project files to `~/media-server/`
+4. Prompts for credentials and configuration
+5. Configures qBittorrent and Jellyfin automatically
+6. Starts all containers
+
+### What the installer asks for
+
+| Prompt | Description |
+|--------|-------------|
+| Language | English or Russian |
+| Telegram Bot Token | From [@BotFather](https://t.me/BotFather) |
+| Your Telegram ID | From [@userinfobot](https://t.me/userinfobot). Comma-separated for multiple users |
+| Server IP | External IP used for web UI links in the bot |
+| Media path | Host path mounted as `/media` (default: `./media`). Use a mounted disk path, e.g. `/mnt/disk2` |
+| Jellyfin admin username / password | Created on first run |
+| Jellyfin server name | Optional, defaults to `Media Server` |
+| Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
+| Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080) |
+
+After the installer completes, the bot is live in your Telegram chat.
+
+---
+
+## Manual setup
+
+If you prefer not to use the installer:
+
+### 1. Clone and configure `.env`
+
+```bash
+git clone https://github.com/tskon-kz/media-server ~/media-server
+cd ~/media-server
+cp /dev/null .env
+```
+
+Add to `.env`:
+
+```dotenv
+BOT_TOKEN=...           # from @BotFather
+ALLOWED_USER=123456789  # from @userinfobot; comma-separated for multiple users
+WATCHTOWER_TOKEN=...    # any random string, e.g.: openssl rand -hex 16
+
+# Optional — uncomment to override defaults
+# JELLYFIN_PORT=8096
+# QB_PORT=8080
+# MEDIA_PATH=./media
+```
+
+### 2. Seed the database
+
+```bash
+DB=bot-data/media_server.db
+mkdir -p bot-data
+python3 -c "
+import sqlite3
+db = sqlite3.connect('$DB')
+db.execute('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)')
+db.executemany('INSERT OR REPLACE INTO config VALUES (?,?)', [
+    ('server_ip', 'YOUR_SERVER_IP'),
+    ('lang',      'en'),
+    ('proxy_url', ''),
+])
+db.commit()
+"
+```
+
+### 3. Start containers
+
+```bash
+docker compose up -d
+```
+
+### 4. Configure services
+
+Open the web UIs and complete initial setup:
+- qBittorrent: `http://SERVER_IP:8080` — note the auto-generated password from container logs
+- Jellyfin: `http://SERVER_IP:8096` — complete the setup wizard
+
+Then store credentials in the database:
+
+```bash
+python3 -c "
+import sqlite3
+db = sqlite3.connect('$DB')
+db.executemany('INSERT OR REPLACE INTO config VALUES (?,?)', [
+    ('qb_user',          'admin'),
+    ('qb_pass',          'YOUR_QB_WEBUI_PASSWORD'),
+    ('jellyfin_api_key', 'YOUR_JELLYFIN_API_KEY'),
+])
+db.commit()
+"
+```
+
+Jellyfin API key: Dashboard → API Keys → +.
+
+---
+
+## Accessing the stack
+
+| Service | URL |
+|---------|-----|
+| Jellyfin | `http://SERVER_IP:8096` |
+| qBittorrent | `http://SERVER_IP:8080` |
+| Telegram bot | Find by username in Telegram |
+
+Normal usage goes entirely through the Telegram bot — web UIs are only needed for advanced configuration.
