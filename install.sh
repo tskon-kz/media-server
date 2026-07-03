@@ -359,7 +359,7 @@ import json, sys, hashlib
 cfg, pw = sys.argv[1], sys.argv[2]
 with open(cfg) as f:
     d = json.load(f)
-d['AdminPassword'] = hashlib.sha1(pw.encode()).hexdigest()
+d['AdminPassword'] = hashlib.sha512((pw + d.get('APIKey', '')).encode('utf-16-le')).hexdigest()
 with open(cfg, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF
