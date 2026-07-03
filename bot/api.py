@@ -142,6 +142,14 @@ def qb_set_password(new_pass: str) -> bool | str:
 
 # --- Jackett ---
 
+def jackett_get_api_key() -> str:
+    try:
+        with open(_JACKETT_CFG) as f:
+            return json.load(f).get("APIKey", "")
+    except Exception:
+        return ""
+
+
 def jackett_search(query: str) -> list[dict] | None:
     """Search via Jackett aggregate endpoint.
 
@@ -149,7 +157,7 @@ def jackett_search(query: str) -> list[dict] | None:
     Returns [] if API key not configured or no results found.
     Each item: title, seeders, size (bytes), magnet (str|None), link (str|None).
     """
-    key = get_config("jackett_api_key")
+    key = jackett_get_api_key()
     if not key:
         return []
     params = urllib.parse.urlencode({"apikey": key, "Query": query})

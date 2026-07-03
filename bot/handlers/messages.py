@@ -148,12 +148,6 @@ async def on_message(update, ctx):
         await _do_search(update.message, uid, text)
         return
 
-    if state == "await_jackett_key":
-        clear_user_state(uid)
-        set_config("jackett_api_key", text)
-        await update.message.reply_text(t("jackett_key_saved"), reply_markup=kb.jackett_settings_kb())
-        return
-
     if state == "await_jackett_pass":
         msg_id   = pop_pending(uid, "jackett_pass_msg_id")
         chat_id  = pop_pending(uid, "jackett_pass_chat_id")

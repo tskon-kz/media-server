@@ -11,7 +11,7 @@ from config import ALLOWED, ICONS, INCOMING_DIR
 import store
 from store import t, load_cats
 import keyboards as kb
-from api import jf, qb, trigger_update, jackett_search
+from api import jf, qb, trigger_update, jackett_search, jackett_get_api_key
 from parser import process_torrent_rename, delete_torrent_links
 
 log = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ async def _do_trigger_update(message):
 
 
 async def _do_search(message, uid: int, query: str):
-    if not store.get_config("jackett_api_key"):
+    if not jackett_get_api_key():
         await message.reply_text(t("jackett_no_key"))
         return
     results = await asyncio.to_thread(jackett_search, query)
