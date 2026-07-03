@@ -6,7 +6,7 @@ from config import ALLOWED, APP_VERSION
 from store import (
     t, set_lang, load_cats, save_cats,
     get_user_state, set_user_state, clear_user_state,
-    set_pending, pop_pending, pop_pending_torrent, set_pending_torrent,
+    set_pending, get_pending, pop_pending, pop_pending_torrent, set_pending_torrent,
     get_rename_job, get_rename_jobs_by_hash, get_pending_rename_jobs,
     delete_rename_job, delete_rename_jobs_by_hash,
     set_config, get_config, set_qb_status,
@@ -456,6 +456,20 @@ async def on_callback(update, ctx):
                     await _edit(query, *kb.jackett_view())
                 else:
                     await query.answer(f"{t('jackett_pass_error')}: {result}", show_alert=True)
+
+        case "searchpage":
+            results = get_pending(uid, "search_results")
+            if not results:
+                await _edit(query, t("add_error", e="expired"))
+                return
+            q = get_pending(uid, "search_query", "")
+            page = int(value)
+            await _edit(
+                query,
+                kb.search_results_text(q, results, page),
+                kb.search_results_kb(results, page),
+                parse_mode="HTML",
+            )
 
         case "search":
             results = pop_pending(uid, "search_results")

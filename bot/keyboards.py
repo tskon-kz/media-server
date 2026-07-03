@@ -3,7 +3,7 @@ from functools import lru_cache
 from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from guessit import guessit
-from config import JF_PORT, QB_PORT, JACKETT_PORT, ICONS
+from config import JF_PORT, QB_PORT, JACKETT_PORT, ICONS, SEARCH_PAGE_SIZE
 import store
 from store import t, load_cats
 from api import jackett_has_password, jackett_get_api_key
@@ -290,11 +290,24 @@ def _search_size(b: int) -> str:
     return f"{b / 1024:.0f} KB"
 
 
-def search_results_text(query: str, results: list[dict]) -> str:
+_SEARCH_DIVIDER = "\n" + "─" * 16 + "\n"
+
+
+def _search_page(results: list[dict], page: int) -> tuple[int, int, int]:
+    total_pages = max(1, (len(results) + SEARCH_PAGE_SIZE - 1) // SEARCH_PAGE_SIZE)
+    page = max(0, min(page, total_pages - 1))
+    start = page * SEARCH_PAGE_SIZE
+    return page, total_pages, start
+
+
+def search_results_text(query: str, results: list[dict], page: int = 0) -> str:
     # Rendered as the message body (HTML) so the title can wrap freely across
     # lines — inline-button labels are single-line and get truncated.
-    lines = [t("search_results_title", q=escape(query), n=len(results))]
-    for i, r in enumerate(results, 1):
+    page, total_pages, start = _search_page(results, page)
+    header = t("search_results_title", q=escape(query), n=len(results),
+               page=page + 1, pages=total_pages)
+    entries = []
+    for offset, r in enumerate(results[start:start + SEARCH_PAGE_SIZE]):
         info = t(
             "search_result_info",
             seeders=r.get("seeders", 0),
@@ -302,19 +315,26 @@ def search_results_text(query: str, results: list[dict]) -> str:
             tracker=escape(r.get("tracker") or "?"),
             date=(r.get("date") or "")[:10] or "?",
         )
-        lines.append(f"<b>{i}.</b> {escape(r['title'])}\n{info}")
-    return "\n\n".join(lines)
+        # Blank line between title and stats so each result reads as a block.
+        entries.append(f"<b>{start + offset + 1}.</b> {escape(r['title'])}\n\n{info}")
+    return header + "\n\n" + _SEARCH_DIVIDER.join(entries)
 
 
-def search_results_kb(results: list[dict]):
-    buttons, row = [], []
-    for i in range(len(results)):
-        row.append(InlineKeyboardButton(str(i + 1), callback_data=f"search:{i}"))
-        if len(row) == 5:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
+def search_results_kb(results: list[dict], page: int = 0):
+    page, total_pages, start = _search_page(results, page)
+    nums = [
+        InlineKeyboardButton(str(start + offset + 1), callback_data=f"search:{start + offset}")
+        for offset in range(len(results[start:start + SEARCH_PAGE_SIZE]))
+    ]
+    buttons = [nums]
+    if total_pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton("←", callback_data=f"searchpage:{page - 1}"))
+        nav.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="noop:"))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton("→", callback_data=f"searchpage:{page + 1}"))
+        buttons.append(nav)
     return InlineKeyboardMarkup(buttons)
 
 

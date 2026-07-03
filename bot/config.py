@@ -11,7 +11,8 @@ JACKETT_PORT     = os.environ.get("JACKETT_PORT", "9117")
 APP_VERSION      = os.environ.get("APP_VERSION", "dev")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_TOKEN", "")
 
-SEARCH_RESULTS_LIMIT = 10
+SEARCH_RESULTS_LIMIT = 30
+SEARCH_PAGE_SIZE     = 5
 
 DATA_DIR       = "/app/data"
 INCOMING_DIR   = "/media/.downloads"

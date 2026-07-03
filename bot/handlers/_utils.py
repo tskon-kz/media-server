@@ -116,9 +116,10 @@ async def _do_search(message, uid: int, query: str):
         await message.reply_text(t("search_no_results"))
         return
     store.set_pending(uid, "search_results", results)
+    store.set_pending(uid, "search_query", query)
     await message.reply_text(
-        kb.search_results_text(query, results),
-        reply_markup=kb.search_results_kb(results),
+        kb.search_results_text(query, results, 0),
+        reply_markup=kb.search_results_kb(results, 0),
         parse_mode="HTML",
     )
 
