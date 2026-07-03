@@ -11,7 +11,7 @@ from store import (
     delete_rename_job, delete_rename_jobs_by_hash,
     set_config, get_config, set_qb_status,
 )
-from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, invalidate_qb, jackett_download_torrent
+from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, invalidate_qb, jackett_download_torrent, jackett_set_password
 from parser import (
     process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job,
     delete_torrent_links, delete_all_cat_contents,
@@ -451,6 +451,12 @@ async def on_callback(update, ctx):
             elif value == "change_pass":
                 set_user_state(uid, "await_jackett_pass")
                 await _edit(query, t("jackett_ask_pass"))
+            elif value == "remove_pass":
+                result = jackett_set_password("")
+                if result is True:
+                    await _edit(query, *kb.jackett_view())
+                else:
+                    await query.answer(f"{t('jackett_pass_error')}: {result}", show_alert=True)
 
         case "search":
             results = pop_pending(uid, "search_results")

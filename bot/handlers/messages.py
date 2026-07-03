@@ -159,7 +159,7 @@ async def on_message(update, ctx):
         await update.message.delete()
         result = jackett_set_password(text)
         if result is True:
-            await update.effective_chat.send_message(t("jackett_pass_changed"), reply_markup=kb.jackett_settings_kb())
+            await update.effective_chat.send_message(t("jackett_pass_changed"), reply_markup=kb.jackett_settings_kb(has_password=True))
         else:
             await update.effective_chat.send_message(
                 f"{t('jackett_pass_error')}\n`{result}`",

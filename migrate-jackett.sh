@@ -1,19 +1,24 @@
 #!/bin/bash
+# bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/migrate-jackett.sh)
 # One-time migration script for servers deployed before Jackett support was added.
 # Safe to delete this file once all existing installations have been updated.
 set -e
 
 REPO="tskon-kz/media-server"
 RAW="https://raw.githubusercontent.com/$REPO/main"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_DIR="$HOME/media-server"
 
 echo "1) English"
 echo "2) Русский"
 printf "Select language / Выберите язык [1/2]: "
 read -r LANG_CHOICE
+
+TMP_LANG=$(mktemp -d)
+curl -fsSL "$RAW/lang/en.sh" -o "$TMP_LANG/en.sh"
+curl -fsSL "$RAW/lang/ru.sh" -o "$TMP_LANG/ru.sh"
 case "$LANG_CHOICE" in
-    2) source "$SCRIPT_DIR/lang/ru.sh" ;;
-    *) source "$SCRIPT_DIR/lang/en.sh" ;;
+    2) source "$TMP_LANG/ru.sh" ;;
+    *) source "$TMP_LANG/en.sh" ;;
 esac
 
 echo ""
@@ -21,12 +26,12 @@ echo "$MSG_JACKETT_TITLE"
 echo ""
 
 # Verify this is an existing installation
-if [ ! -f "$SCRIPT_DIR/.env" ] || [ ! -f "$SCRIPT_DIR/docker-compose.yml" ]; then
+if [ ! -f "$INSTALL_DIR/.env" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
     echo "$MSG_JACKETT_NO_ENV"
     exit 1
 fi
 
-cd "$SCRIPT_DIR"
+cd "$INSTALL_DIR"
 
 # Idempotency: skip if jackett already present
 if grep -q "jackett" docker-compose.yml 2>/dev/null; then
@@ -54,7 +59,7 @@ docker compose up -d
 
 # ---- Jackett password setup ----
 
-JACKETT_CFG="$SCRIPT_DIR/data/jackett/config/Jackett/ServerConfig.json"
+JACKETT_CFG="$INSTALL_DIR/data/jackett/config/Jackett/ServerConfig.json"
 if [ -n "$JACKETT_PASS" ]; then
     printf "  %s" "$MSG_JACKETT_WAIT"
     for i in $(seq 1 30); do
@@ -90,7 +95,7 @@ JACKETT_PORT="${JACKETT_PORT:-9117}"
 SERVER_IP=$(python3 -c "
 import sqlite3, os
 try:
-    db = sqlite3.connect(os.path.join('$SCRIPT_DIR', 'bot-data', 'media_server.db'))
+    db = sqlite3.connect(os.path.join('$INSTALL_DIR', 'bot-data', 'media_server.db'))
     r = db.execute(\"SELECT value FROM config WHERE key='server_ip'\").fetchone()
     print(r[0] if r and r[0] else 'YOUR_SERVER_IP')
 except Exception:
