@@ -279,6 +279,7 @@ async def on_callback(update, ctx):
             cats = load_cats()
             delete_torrent_links(torrents[0], cats)
             errors = create_flat_hardlinks(torrents[0], cats)
+            jf("POST", "/Library/Refresh")
             if errors and "cross-device" in errors[0].lower():
                 await _edit(query, t("rename_xdev"))
             else:
@@ -309,6 +310,7 @@ async def on_callback(update, ctx):
                     all_linked += linked
                     all_pending.extend(pids)
                     all_errors.extend(errs)
+                jf("POST", "/Library/Refresh")
                 for _ in all_errors:
                     await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
                 await _edit(query, t("media_pretty_done", linked=all_linked, pending=len(all_pending)))
@@ -322,6 +324,7 @@ async def on_callback(update, ctx):
                 errors = []
                 for tor in torrents:
                     errors.extend(create_flat_hardlinks(tor, cats))
+                jf("POST", "/Library/Refresh")
                 if errors and "cross-device" in errors[0].lower():
                     await _edit(query, t("rename_xdev"))
                 else:
@@ -348,6 +351,7 @@ async def on_callback(update, ctx):
                     delete_rename_job(j["id"])
                     if dst:
                         n += 1
+                jf("POST", "/Library/Refresh")
                 await _edit(query, t("rename_flatall_done", n=n))
                 return
             job = get_rename_job(int(job_id_str))
@@ -361,6 +365,7 @@ async def on_callback(update, ctx):
                 dst = create_flat_hardlink_for_job(job)
                 delete_rename_job(job["id"])
                 if dst:
+                    jf("POST", "/Library/Refresh")
                     await _edit(query, t("rename_done", dst=dst), parse_mode="Markdown")
                 else:
                     await _edit(query, t("rename_xdev"))
@@ -384,6 +389,7 @@ async def on_callback(update, ctx):
                 if torrents:
                     delete_torrent_links(torrents[0], cats)
                     create_flat_hardlinks(torrents[0], cats)
+                    jf("POST", "/Library/Refresh")
                 delete_rename_jobs_by_hash(tor_hash)
                 await _edit(query, t("rename_tor_kept_flat"))
             elif sub == "manual":

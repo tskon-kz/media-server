@@ -47,10 +47,9 @@ async def job_check_done(ctx):
             log.info("Download done: %s", tor.name)
             for uid in ALLOWED:
                 await ctx.bot.send_message(uid, t("download_done", name=kb.short_name(tor.name)), parse_mode="Markdown")
-            jf("POST", "/Library/Refresh")
-
             if rename_mode == "pretty":
                 linked, pending_ids, errors = process_torrent_rename(tor, cats)
+                jf("POST", "/Library/Refresh")
                 for _ in errors:
                     for uid in ALLOWED:
                         await ctx.bot.send_message(uid, t("rename_xdev"))
@@ -64,6 +63,7 @@ async def job_check_done(ctx):
                         )
             else:
                 errors = create_flat_hardlinks(tor, cats)
+                jf("POST", "/Library/Refresh")
                 for _ in errors:
                     for uid in ALLOWED:
                         await ctx.bot.send_message(uid, t("rename_xdev"))

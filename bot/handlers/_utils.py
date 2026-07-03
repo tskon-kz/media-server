@@ -11,7 +11,7 @@ from config import ALLOWED, ICONS, INCOMING_DIR
 import store
 from store import t, load_cats
 import keyboards as kb
-from api import qb, trigger_update
+from api import jf, qb, trigger_update
 from parser import process_torrent_rename, delete_torrent_links
 
 log = logging.getLogger(__name__)
@@ -79,6 +79,7 @@ async def _run_pretty_parse(query, ctx, tor):
     cats = load_cats()
     delete_torrent_links(tor, cats)
     linked, pending_ids, errors = process_torrent_rename(tor, cats)
+    jf("POST", "/Library/Refresh")
     for _ in errors:
         await ctx.bot.send_message(query.message.chat_id, t("rename_xdev"))
     if not linked and not pending_ids and not errors:

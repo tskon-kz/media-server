@@ -169,6 +169,7 @@ async def on_message(update, ctx):
         try:
             create_hardlink(job["src_path"], dst_path)
             delete_rename_job(job["id"])
+            jf("POST", "/Library/Refresh")
             await update.message.reply_text(t("rename_done", dst=dst_path), parse_mode="Markdown")
         except OSError as e:
             if e.errno == errno.EXDEV:
