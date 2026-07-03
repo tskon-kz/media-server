@@ -164,6 +164,7 @@ while true; do
 done
 printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
 printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
+printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
 
 JF_PORT=8096
 QB_PORT=8080
@@ -350,6 +351,22 @@ except Exception:
         echo "$MSG_JACKETT_SETUP_OK"
     else
         echo "$MSG_JACKETT_SETUP_FAIL"
+    fi
+
+    if [ -n "$JACKETT_PASS" ]; then
+        python3 - "$JACKETT_CFG" "$JACKETT_PASS" <<'PYEOF'
+import json, sys, hashlib
+cfg, pw = sys.argv[1], sys.argv[2]
+with open(cfg) as f:
+    d = json.load(f)
+d['AdminPassword'] = hashlib.md5(pw.encode()).hexdigest()
+with open(cfg, 'w') as f:
+    json.dump(d, f, indent=2)
+PYEOF
+        docker compose restart jackett >&3 2>&3
+        echo "$MSG_JACKETT_PASS_SET"
+    else
+        echo "$MSG_JACKETT_PASS_SKIP"
     fi
 fi
 

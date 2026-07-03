@@ -12,7 +12,7 @@ from store import (
     get_rename_job, delete_rename_job,
     set_config, set_qb_status,
 )
-from api import jf, qb, qb_set_password, invalidate_qb
+from api import jf, qb, qb_set_password, invalidate_qb, jackett_set_password
 from parser import build_target_path, create_hardlink, parse_manual_input
 import keyboards as kb
 from ._utils import guard, _dl_path, _is_renameable, _do_search, log
@@ -152,6 +152,14 @@ async def on_message(update, ctx):
         clear_user_state(uid)
         set_config("jackett_api_key", text)
         await update.message.reply_text(t("jackett_key_saved"), reply_markup=kb.jackett_settings_kb())
+        return
+
+    if state == "await_jackett_pass":
+        clear_user_state(uid)
+        await update.message.delete()
+        ok = jackett_set_password(text)
+        msg_key = "jackett_pass_changed" if ok else "jackett_pass_error"
+        await update.effective_chat.send_message(t(msg_key), reply_markup=kb.jackett_settings_kb())
         return
 
     if state == "await_episode_manual":

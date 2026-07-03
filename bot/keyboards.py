@@ -6,6 +6,7 @@ from guessit import guessit
 from config import JF_PORT, QB_PORT, JACKETT_PORT, ICONS
 import store
 from store import t, load_cats
+from api import jackett_has_password
 
 PAGE_SIZE = 10
 
@@ -270,8 +271,9 @@ def update_view(local, remote):
 
 def jackett_settings_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("jackett_set_key_btn"), callback_data="jackett:set_key")],
-        [InlineKeyboardButton(t("back_btn"),             callback_data="settings:menu")],
+        [InlineKeyboardButton(t("jackett_set_key_btn"),     callback_data="jackett:set_key")],
+        [InlineKeyboardButton(t("jackett_change_pass_btn"), callback_data="jackett:change_pass")],
+        [InlineKeyboardButton(t("back_btn"),                 callback_data="settings:menu")],
     ])
 
 
@@ -295,8 +297,9 @@ def search_results_kb(results: list[dict]):
 
 def jackett_view():
     key = store.get_config("jackett_api_key")
-    status = t("jackett_key_set") if key else t("jackett_key_not_set")
-    return t("jackett_settings_title", status=status), jackett_settings_kb()
+    api_status = t("jackett_key_set") if key else t("jackett_key_not_set")
+    pass_status = t("jackett_pass_set") if jackett_has_password() else t("jackett_pass_not_set")
+    return t("jackett_settings_title", api_status=api_status, pass_status=pass_status), jackett_settings_kb()
 
 
 def list_text(torrents, page=0):

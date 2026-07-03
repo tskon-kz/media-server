@@ -445,6 +445,9 @@ async def on_callback(update, ctx):
             if value == "set_key":
                 set_user_state(uid, "await_jackett_key")
                 await _edit(query, t("jackett_ask_key"))
+            elif value == "change_pass":
+                set_user_state(uid, "await_jackett_pass")
+                await _edit(query, t("jackett_ask_pass"))
 
         case "search":
             results = pop_pending(uid, "search_results")

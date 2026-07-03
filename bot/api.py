@@ -174,6 +174,45 @@ def jackett_search(query: str) -> list[dict] | None:
     return out
 
 
+_JACKETT_CFG = "/jackett-config/Jackett/ServerConfig.json"
+
+
+def jackett_has_password() -> bool:
+    try:
+        with open(_JACKETT_CFG) as f:
+            return bool(json.load(f).get("AdminPassword"))
+    except Exception:
+        return False
+
+
+def jackett_set_password(new_pass: str) -> bool:
+    import hashlib
+    try:
+        with open(_JACKETT_CFG) as f:
+            d = json.load(f)
+        d["AdminPassword"] = hashlib.md5(new_pass.encode()).hexdigest() if new_pass else ""
+        with open(_JACKETT_CFG, "w") as f:
+            json.dump(d, f, indent=2)
+    except Exception:
+        return False
+    return _jackett_restart()
+
+
+def _jackett_restart() -> bool:
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(10)
+        s.connect("/var/run/docker.sock")
+        s.sendall(b"POST /containers/media-server-jackett/restart HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n")
+        resp = b""
+        while chunk := s.recv(4096):
+            resp += chunk
+        s.close()
+        return int(resp.split(b"\r\n", 1)[0].split()[1]) in (204, 200)
+    except Exception:
+        return False
+
+
 def jackett_download_torrent(link: str) -> bytes | None:
     """Download .torrent bytes from a Jackett proxy link. Returns None on error."""
     req = urllib.request.Request(link, headers={"Accept": "*/*"})
