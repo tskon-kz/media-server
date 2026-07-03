@@ -25,8 +25,9 @@ The script:
 | Media path | Host path mounted as `/media` (default: `./media`). Use a mounted disk path, e.g. `/mnt/disk2` |
 | Jellyfin admin username / password | Created on first run |
 | Jellyfin server name | Optional, defaults to `Media Server` |
+| Jackett admin password | Optional — protects the Jackett web UI; leave empty for no password |
 | Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
-| Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080) |
+| Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080, Jackett: 9117) |
 
 After the installer completes, the bot is live in your Telegram chat.
 
@@ -127,3 +128,5 @@ Jackett starts automatically with the stack. After installation:
 2. Copy the **API Key** shown at the top of the Jackett page.
 3. In the Telegram bot: `/settings` → **Jackett** → **Set API key** — paste the key.
 4. Use `/search <query>` in the bot to search all configured indexers.
+
+> **Security:** The Jackett web UI is publicly accessible on the configured port. The installer prompts you to set an admin password during setup. You can also change or remove it later via `/settings` → Jackett → 🔒 Change admin password.

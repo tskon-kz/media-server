@@ -7,7 +7,8 @@ Self-hosted media streaming stack: Jellyfin + qBittorrent, fully managed via a T
 ## Features
 
 - Send a magnet link or `.torrent` file to Telegram — bot handles everything
-- **Torrent search** via `/search` — searches all Jackett indexers, pick a result to add
+- **Torrent search** via `/search` or the button in `/list` — searches all Jackett indexers, pick a result to add
+- Jackett admin password management from the bot (set, change, remove)
 - Download notifications with automatic Jellyfin library scan
 - Automatic media renaming to Jellyfin-standard paths via hardlinks (no duplicate files)
 - Category-based library management (Movies, Series + custom)

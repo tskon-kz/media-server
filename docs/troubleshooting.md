@@ -80,16 +80,18 @@ bash migrate-media.sh
 Use this if you deployed the stack before Jackett support was added and want to add it without losing data.
 
 ```bash
-bash migrate-jackett.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/migrate-jackett.sh)
 ```
 
 **What it does:**
-1. Checks that `.env` and `docker-compose.yml` exist (exits with an error if not — use `install.sh` for a fresh install)
+1. Checks that `~/media-server/.env` and `docker-compose.yml` exist (exits with an error if not — use `install.sh` for a fresh install)
 2. Skips silently if Jackett is already in `docker-compose.yml` (idempotent)
 3. Downloads the latest `docker-compose.yml` (which includes the Jackett service)
 4. Adds `JACKETT_PORT` comment to `.env` if it's missing
-5. Runs `docker compose pull && docker compose up -d` — starts Jackett without touching existing services or data
-6. Prints next steps: open Jackett UI, copy API key, configure via the bot
+5. Prompts for an optional Jackett admin password
+6. Runs `docker compose pull && docker compose up -d` — starts Jackett without touching existing services or data
+7. Waits for Jackett to initialize, then sets the admin password if one was provided
+8. Prints next steps: open Jackett UI, copy API key, configure via the bot
 
 **What it does NOT touch:**
 - `data/jellyfin`, `data/qbittorrent`, `bot-data/` — all data is preserved

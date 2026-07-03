@@ -26,7 +26,9 @@ Searches all indexers configured in Jackett and shows the top 10 results sorted 
 
 Or just `/search` — the bot will ask for the query.
 
-Each result is shown as a button: title · seeders · size. Tapping a result starts the normal category-picker flow, identical to sending a magnet link manually.
+Each result is shown as a button: full torrent title (up to 120 chars) on the first line, seeders and size on the second. Tapping a result starts the normal category-picker flow, identical to sending a magnet link manually.
+
+The search is also accessible directly from `/list` via the **🔍 Поиск Jackett** button.
 
 **Requires:** Jackett running and API key configured in `/settings` → Jackett.
 
@@ -61,7 +63,7 @@ Shows all torrents with status icons:
 | Categories | Add, rename, delete categories. Each maps to a folder and a Jellyfin library |
 | Language | Switch between Russian and English |
 | qBittorrent | Manage credentials and connection |
-| Jackett | Set the Jackett API key for `/search` |
+| Jackett | Set the Jackett API key; change or remove the admin password for the Jackett web UI |
 | Jellyfin users | Add and delete Jellyfin user accounts |
 | Update | Check for updates and apply with one tap |
 | Quick links | Open qBittorrent / Jellyfin / Jackett web UI directly from the menu |
