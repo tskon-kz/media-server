@@ -44,7 +44,7 @@ _spin() {  # _spin "label" cmd [args...]
 }
 
 _pull_progress() {  # pulls images one by one, shows [████░░░] n/total
-    local -a svcs=(jellyfin qbittorrent telegram-bot watchtower)
+    local -a svcs=(jellyfin qbittorrent jackett telegram-bot watchtower)
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
@@ -167,12 +167,15 @@ printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
 
 JF_PORT=8096
 QB_PORT=8080
+JACKETT_PORT=9117
 printf "%s" "$MSG_ASK_PORTS"; read -r CUSTOM_PORTS
 if [[ "$CUSTOM_PORTS" =~ ^[Yy]$ ]]; then
-    printf "%s" "$MSG_ASK_JF_PORT"; read -r _JF_PORT
-    printf "%s" "$MSG_ASK_QB_PORT"; read -r _QB_PORT
-    [ -n "$_JF_PORT" ] && JF_PORT="$_JF_PORT"
-    [ -n "$_QB_PORT" ] && QB_PORT="$_QB_PORT"
+    printf "%s" "$MSG_ASK_JF_PORT";      read -r _JF_PORT
+    printf "%s" "$MSG_ASK_QB_PORT";      read -r _QB_PORT
+    printf "%s" "$MSG_ASK_JACKETT_PORT"; read -r _JACKETT_PORT
+    [ -n "$_JF_PORT"      ] && JF_PORT="$_JF_PORT"
+    [ -n "$_QB_PORT"      ] && QB_PORT="$_QB_PORT"
+    [ -n "$_JACKETT_PORT" ] && JACKETT_PORT="$_JACKETT_PORT"
 else
     echo "$MSG_PORTS_DEFAULT"
 fi
@@ -186,9 +189,10 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     echo "BOT_TOKEN=$BOT_TOKEN"
     echo "ALLOWED_USER=$ALLOWED_USER"
     echo "WATCHTOWER_TOKEN=$WATCHTOWER_TOKEN"
-    [ "$JF_PORT" != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
-    [ "$QB_PORT" != "8080" ] && echo "QB_PORT=$QB_PORT"
-    [ "$MEDIA_PATH" != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
+    [ "$JF_PORT"      != "8096"   ] && echo "JELLYFIN_PORT=$JF_PORT"
+    [ "$QB_PORT"      != "8080"   ] && echo "QB_PORT=$QB_PORT"
+    [ "$JACKETT_PORT" != "9117"   ] && echo "JACKETT_PORT=$JACKETT_PORT"
+    [ "$MEDIA_PATH"   != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.
@@ -208,12 +212,13 @@ fi
 mkdir -p "$_media_abs/movies" "$_media_abs/series" \
     "$INSTALL_DIR/data/jellyfin/config" "$INSTALL_DIR/data/jellyfin/cache" \
     "$INSTALL_DIR/data/qbittorrent/config" \
+    "$INSTALL_DIR/data/jackett/config" \
     "$INSTALL_DIR/bot-data"
 sudo chown -R "$USER:$USER" "$INSTALL_DIR" 2>/dev/null || true
 
 echo ""
 _pull_progress
-_spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin watchtower
+_spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin jackett watchtower
 
 # ---- qBittorrent credentials ----
 
@@ -319,12 +324,42 @@ if ! _db_has "jellyfin_api_key"; then
     fi
 fi
 
+# ---- Jackett setup ----
+
+if ! _db_has "jackett_api_key"; then
+    JACKETT_CFG="$INSTALL_DIR/data/jackett/config/Jackett/ServerConfig.json"
+    printf "  %s" "$MSG_JACKETT_WAIT"
+    for i in $(seq 1 30); do
+        if [ -f "$JACKETT_CFG" ]; then
+            JACKETT_KEY=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    print(d.get('APIKey', ''))
+except Exception:
+    print('')
+" "$JACKETT_CFG" 2>/dev/null || echo "")
+            [ -n "$JACKETT_KEY" ] && break
+        fi
+        printf "."
+        sleep 2
+    done
+    printf "\n"
+    if [ -n "$JACKETT_KEY" ]; then
+        _db_set "jackett_api_key" "$JACKETT_KEY"
+        echo "$MSG_JACKETT_SETUP_OK"
+    else
+        echo "$MSG_JACKETT_SETUP_FAIL"
+    fi
+fi
+
 _spin "$MSG_STARTING" docker compose up -d telegram-bot
 
 echo ""
 echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
+echo "Jackett:     http://$SERVER_IP:$JACKETT_PORT"
 echo ""
 echo "=== Install finished: $(date '+%Y-%m-%d %H:%M:%S') ===" >&3
 echo "Log: $LOG_FILE"
