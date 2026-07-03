@@ -162,9 +162,9 @@ while true; do
     [ -n "$JF_PASS" ] && break
     echo "$MSG_PASS_EMPTY"
 done
-printf "%s" "$MSG_ASK_JF_NAME";   read -r JF_NAME
-printf "%s" "$MSG_ASK_PROXY";     read -r PROXY_URL
+printf "%s" "$MSG_ASK_JF_NAME";      read -r JF_NAME
 printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
+printf "%s" "$MSG_ASK_PROXY";        read -r PROXY_URL
 
 JF_PORT=8096
 QB_PORT=8080
@@ -359,7 +359,7 @@ import json, sys, hashlib
 cfg, pw = sys.argv[1], sys.argv[2]
 with open(cfg) as f:
     d = json.load(f)
-d['AdminPassword'] = hashlib.md5(pw.encode()).hexdigest()
+d['AdminPassword'] = hashlib.sha1(pw.encode()).hexdigest()
 with open(cfg, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF

@@ -135,6 +135,7 @@ M = {
     "jackett_pass_not_set":     "🔓 не задан (панель публична)",
     "jackett_set_key_btn":      "🔑 Указать API key",
     "jackett_change_pass_btn":  "🔒 Сменить пароль администратора",
+    "jackett_remove_pass_btn":  "🔓 Убрать пароль",
     "jackett_ask_key":          "Введи API key из веб-интерфейса Jackett (раздел «API Key»):",
     "jackett_key_saved":        "✅ Jackett API key сохранён",
     "jackett_ask_pass":         "Введи новый пароль администратора Jackett (пусто — убрать пароль):",

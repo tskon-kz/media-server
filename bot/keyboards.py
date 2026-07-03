@@ -270,12 +270,15 @@ def update_view(local, remote):
     return t("update_available", local=local, remote=remote), update_kb(True)
 
 
-def jackett_settings_kb():
-    return InlineKeyboardMarkup([
+def jackett_settings_kb(has_password: bool = False):
+    buttons = [
         [InlineKeyboardButton(t("jackett_set_key_btn"),     callback_data="jackett:set_key")],
         [InlineKeyboardButton(t("jackett_change_pass_btn"), callback_data="jackett:change_pass")],
-        [InlineKeyboardButton(t("back_btn"),                 callback_data="settings:menu")],
-    ])
+    ]
+    if has_password:
+        buttons.append([InlineKeyboardButton(t("jackett_remove_pass_btn"), callback_data="jackett:remove_pass")])
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
+    return InlineKeyboardMarkup(buttons)
 
 
 def search_results_kb(results: list[dict]):
@@ -299,8 +302,9 @@ def search_results_kb(results: list[dict]):
 def jackett_view():
     key = store.get_config("jackett_api_key")
     api_status = t("jackett_key_set") if key else t("jackett_key_not_set")
-    pass_status = t("jackett_pass_set") if jackett_has_password() else t("jackett_pass_not_set")
-    return t("jackett_settings_title", api_status=api_status, pass_status=pass_status), jackett_settings_kb()
+    has_password = jackett_has_password()
+    pass_status = t("jackett_pass_set") if has_password else t("jackett_pass_not_set")
+    return t("jackett_settings_title", api_status=api_status, pass_status=pass_status), jackett_settings_kb(has_password)
 
 
 def list_text(torrents, page=0):

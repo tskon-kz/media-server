@@ -69,7 +69,7 @@ import json, sys, hashlib
 cfg, pw = sys.argv[1], sys.argv[2]
 with open(cfg) as f:
     d = json.load(f)
-d['AdminPassword'] = hashlib.md5(pw.encode()).hexdigest()
+d['AdminPassword'] = hashlib.sha1(pw.encode()).hexdigest()
 with open(cfg, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF

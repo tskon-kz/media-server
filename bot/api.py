@@ -190,7 +190,7 @@ def jackett_set_password(new_pass: str) -> bool | str:
     try:
         with open(_JACKETT_CFG) as f:
             d = json.load(f)
-        d["AdminPassword"] = hashlib.md5(new_pass.encode()).hexdigest() if new_pass else ""
+        d["AdminPassword"] = hashlib.sha1(new_pass.encode()).hexdigest() if new_pass else ""
         with open(_JACKETT_CFG, "w") as f:
             json.dump(d, f, indent=2)
     except Exception as e:

@@ -135,6 +135,7 @@ M = {
     "jackett_pass_not_set":     "🔓 not set (panel is public)",
     "jackett_set_key_btn":      "🔑 Set API key",
     "jackett_change_pass_btn":  "🔒 Change admin password",
+    "jackett_remove_pass_btn":  "🔓 Remove password",
     "jackett_ask_key":          "Enter the API key from the Jackett web UI (API Key section):",
     "jackett_key_saved":        "✅ Jackett API key saved",
     "jackett_ask_pass":         "Enter new Jackett admin password (empty to remove password):",
