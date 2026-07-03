@@ -20,6 +20,7 @@ from api import remote_version
 async def _post_init(app):
     await app.bot.set_my_commands([
         BotCommand("list",     "Список торрентов"),
+        BotCommand("search",   "Поиск раздач через Jackett"),
         BotCommand("status",   "Статус сети"),
         BotCommand("scan",     "Сканировать Jellyfin"),
         BotCommand("settings", "Настройки"),
@@ -53,6 +54,7 @@ def main():
 
     app.add_handler(CommandHandler("start",    h.cmd_start))
     app.add_handler(CommandHandler("list",     h.cmd_list))
+    app.add_handler(CommandHandler("search",   h.cmd_search))
     app.add_handler(CommandHandler("status",   h.cmd_status))
     app.add_handler(CommandHandler("scan",     h.cmd_scan))
     app.add_handler(CommandHandler("settings", h.cmd_settings))

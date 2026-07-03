@@ -9,9 +9,26 @@ Send a **magnet link** or a **.torrent file** directly to the chat. The bot will
 | Command | Description |
 |---------|-------------|
 | `/list` | Torrent list with status icons and action buttons |
+| `/search <query>` | Search all Jackett indexers and pick a torrent to add |
 | `/status` | Current download / upload speeds |
 | `/scan` | Trigger a Jellyfin library scan |
 | `/settings` | Settings menu |
+
+---
+
+## `/search`
+
+Searches all indexers configured in Jackett and shows the top 10 results sorted by seeders.
+
+```
+/search Breaking Bad
+```
+
+Or just `/search` — the bot will ask for the query.
+
+Each result is shown as a button: title · seeders · size. Tapping a result starts the normal category-picker flow, identical to sending a magnet link manually.
+
+**Requires:** Jackett running and API key configured in `/settings` → Jackett.
 
 ---
 
@@ -43,9 +60,11 @@ Shows all torrents with status icons:
 |---------|-----------------|
 | Categories | Add, rename, delete categories. Each maps to a folder and a Jellyfin library |
 | Language | Switch between Russian and English |
+| qBittorrent | Manage credentials and connection |
+| Jackett | Set the Jackett API key for `/search` |
 | Jellyfin users | Add and delete Jellyfin user accounts |
 | Update | Check for updates and apply with one tap |
-| Quick links | Open qBittorrent / Jellyfin web UI directly from the menu |
+| Quick links | Open qBittorrent / Jellyfin / Jackett web UI directly from the menu |
 
 ---
 

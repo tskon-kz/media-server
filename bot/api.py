@@ -7,6 +7,8 @@ import urllib.parse
 import qbittorrentapi
 from config import (
     JF_URL, QB_HOST,
+    JACKETT_URL,
+    SEARCH_RESULTS_LIMIT,
     WATCHTOWER_TOKEN, WATCHTOWER_URL,
     REPO_SLUG,
 )
@@ -136,6 +138,50 @@ def qb_set_password(new_pass: str) -> bool | str:
         return True if resp.ok else f"HTTP {resp.status_code}: {resp.text[:120]}"
     except Exception as e:
         return f"setPreferences error: {e}"
+
+
+# --- Jackett ---
+
+def jackett_search(query: str) -> list[dict] | None:
+    """Search via Jackett aggregate endpoint.
+
+    Returns sorted list of dicts or None on connection error.
+    Returns [] if API key not configured or no results found.
+    Each item: title, seeders, size (bytes), magnet (str|None), link (str|None).
+    """
+    key = get_config("jackett_api_key")
+    if not key:
+        return []
+    params = urllib.parse.urlencode({"apikey": key, "Query": query})
+    url = f"{JACKETT_URL}/api/v2.0/indexers/all/results?{params}"
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            data = json.loads(r.read())
+    except Exception:
+        return None
+    results = data.get("Results") or []
+    results.sort(key=lambda r: r.get("Seeders") or 0, reverse=True)
+    out = []
+    for r in results[:SEARCH_RESULTS_LIMIT]:
+        out.append({
+            "title":   r.get("Title") or "",
+            "seeders": r.get("Seeders") or 0,
+            "size":    r.get("Size") or 0,
+            "magnet":  r.get("MagnetUri") or None,
+            "link":    r.get("Link") or None,
+        })
+    return out
+
+
+def jackett_download_torrent(link: str) -> bytes | None:
+    """Download .torrent bytes from a Jackett proxy link. Returns None on error."""
+    req = urllib.request.Request(link, headers={"Accept": "*/*"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return r.read()
+    except Exception:
+        return None
 
 
 # --- Updates ---

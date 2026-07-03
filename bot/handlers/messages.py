@@ -15,7 +15,7 @@ from store import (
 from api import jf, qb, qb_set_password, invalidate_qb
 from parser import build_target_path, create_hardlink, parse_manual_input
 import keyboards as kb
-from ._utils import guard, _dl_path, _is_renameable, log
+from ._utils import guard, _dl_path, _is_renameable, _do_search, log
 
 
 @guard
@@ -141,6 +141,17 @@ async def on_message(update, ctx):
             text_out, parse_mode="HTML",
             reply_markup=kb.torrent_action_kb(tor.hash, bool(cats), _is_renameable(tor, cats)),
         )
+        return
+
+    if state == "await_search_query":
+        clear_user_state(uid)
+        await _do_search(update.message, uid, text)
+        return
+
+    if state == "await_jackett_key":
+        clear_user_state(uid)
+        set_config("jackett_api_key", text)
+        await update.message.reply_text(t("jackett_key_saved"), reply_markup=kb.jackett_settings_kb())
         return
 
     if state == "await_episode_manual":

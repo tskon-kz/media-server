@@ -3,7 +3,7 @@ from functools import lru_cache
 from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from guessit import guessit
-from config import JF_PORT, QB_PORT, ICONS
+from config import JF_PORT, QB_PORT, JACKETT_PORT, ICONS
 import store
 from store import t, load_cats
 
@@ -42,9 +42,10 @@ def main_menu_kb():
     jf_key    = store.get_config("jellyfin_api_key")
     rename_mode = store.get_config("rename_mode", "flat")
     buttons = [
-        [InlineKeyboardButton(t("settings_cats"), callback_data="settings:cats")],
-        [InlineKeyboardButton(t("settings_lang"), callback_data="settings:lang")],
-        [InlineKeyboardButton(t("settings_qb"),   callback_data="settings:qb")],
+        [InlineKeyboardButton(t("settings_cats"),    callback_data="settings:cats")],
+        [InlineKeyboardButton(t("settings_lang"),    callback_data="settings:lang")],
+        [InlineKeyboardButton(t("settings_qb"),      callback_data="settings:qb")],
+        [InlineKeyboardButton(t("settings_jackett"), callback_data="settings:jackett")],
     ]
     if jf_key:
         buttons.append([InlineKeyboardButton(t("jf_users_btn"), callback_data="settings:jf_users")])
@@ -56,6 +57,7 @@ def main_menu_kb():
         buttons.append([
             InlineKeyboardButton("qBittorrent", url=f"http://{server_ip}:{QB_PORT}"),
             InlineKeyboardButton("Jellyfin",    url=f"http://{server_ip}:{JF_PORT}"),
+            InlineKeyboardButton("Jackett",     url=f"http://{server_ip}:{JACKETT_PORT}"),
         ])
     return InlineKeyboardMarkup(buttons)
 
@@ -264,6 +266,37 @@ def update_view(local, remote):
     if remote == local:
         return t("update_up_to_date", v=local), update_kb(False)
     return t("update_available", local=local, remote=remote), update_kb(True)
+
+
+def jackett_settings_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("jackett_set_key_btn"), callback_data="jackett:set_key")],
+        [InlineKeyboardButton(t("back_btn"),             callback_data="settings:menu")],
+    ])
+
+
+def search_results_kb(results: list[dict]):
+    def _size(b: int) -> str:
+        if b >= 1024 ** 3:
+            return f"{b / 1024 ** 3:.1f}GB"
+        if b >= 1024 ** 2:
+            return f"{b / 1024 ** 2:.0f}MB"
+        return f"{b / 1024:.0f}KB"
+
+    buttons = []
+    for i, r in enumerate(results):
+        label = f"📥 {short_name(r['title'])[:35]} | 🌱{r['seeders']} | {_size(r['size'])}"
+        buttons.append([InlineKeyboardButton(label, callback_data=f"search:{i}")])
+    return InlineKeyboardMarkup(buttons)
+
+
+# --- View helpers (text + keyboard) ---
+
+
+def jackett_view():
+    key = store.get_config("jackett_api_key")
+    status = t("jackett_key_set") if key else t("jackett_key_not_set")
+    return t("jackett_settings_title", status=status), jackett_settings_kb()
 
 
 def list_text(torrents, page=0):

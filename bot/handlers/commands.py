@@ -1,7 +1,7 @@
-from store import t
+from store import t, set_user_state
 from api import jf, qb
 import keyboards as kb
-from ._utils import guard, _show_list
+from ._utils import guard, _show_list, _do_search
 
 
 @guard
@@ -45,3 +45,13 @@ async def cmd_scan(update, ctx):
 @guard
 async def cmd_settings(update, ctx):
     await update.message.reply_text(t("settings_main"), reply_markup=kb.main_menu_kb())
+
+
+@guard
+async def cmd_search(update, ctx):
+    uid = update.effective_user.id
+    if ctx.args:
+        await _do_search(update.message, uid, " ".join(ctx.args))
+    else:
+        set_user_state(uid, "await_search_query")
+        await update.message.reply_text(t("search_ask_query"))

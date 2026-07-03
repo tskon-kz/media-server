@@ -73,6 +73,31 @@ bash migrate-media.sh
 
 ---
 
+## `migrate-jackett.sh` — Add Jackett to an existing installation
+
+> **Temporary script** — will be removed from the repository once all existing installations have been updated.
+
+Use this if you deployed the stack before Jackett support was added and want to add it without losing data.
+
+```bash
+bash migrate-jackett.sh
+```
+
+**What it does:**
+1. Checks that `.env` and `docker-compose.yml` exist (exits with an error if not — use `install.sh` for a fresh install)
+2. Skips silently if Jackett is already in `docker-compose.yml` (idempotent)
+3. Downloads the latest `docker-compose.yml` (which includes the Jackett service)
+4. Adds `JACKETT_PORT` comment to `.env` if it's missing
+5. Runs `docker compose pull && docker compose up -d` — starts Jackett without touching existing services or data
+6. Prints next steps: open Jackett UI, copy API key, configure via the bot
+
+**What it does NOT touch:**
+- `data/jellyfin`, `data/qbittorrent`, `bot-data/` — all data is preserved
+- Media files and existing torrents — qBittorrent keeps seeding normally
+- Any existing `.env` values
+
+---
+
 ## Common issues
 
 ### Bot doesn't respond

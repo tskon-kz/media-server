@@ -26,6 +26,19 @@ services:
       - ./data/qbittorrent/config:/config
       - ${MEDIA_PATH:-./media}:/media
 
+  jackett:
+    image: linuxserver/jackett:latest
+    container_name: media-server-jackett
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
+    ports:
+      - "${JACKETT_PORT:-9117}:9117"
+    volumes:
+      - ./data/jackett/config:/config
+
   telegram-bot:
     image: ghcr.io/tskon-kz/media-server-bot:latest
     container_name: media-server-telegram-bot
@@ -37,6 +50,8 @@ services:
       - JELLYFIN_URL=http://jellyfin:8096
       - JELLYFIN_PORT=${JELLYFIN_PORT:-8096}
       - QB_PORT=${QB_PORT:-8080}
+      - JACKETT_URL=http://jackett:9117
+      - JACKETT_PORT=${JACKETT_PORT:-9117}
       - WATCHTOWER_TOKEN=${WATCHTOWER_TOKEN}
       - PYTHONUNBUFFERED=1
     volumes:
@@ -46,6 +61,7 @@ services:
     depends_on:
       - qbittorrent
       - jellyfin
+      - jackett
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 

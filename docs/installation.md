@@ -112,6 +112,18 @@ Jellyfin API key: Dashboard → API Keys → +.
 |---------|-----|
 | Jellyfin | `http://SERVER_IP:8096` |
 | qBittorrent | `http://SERVER_IP:8080` |
+| Jackett | `http://SERVER_IP:9117` |
 | Telegram bot | Find by username in Telegram |
 
 Normal usage goes entirely through the Telegram bot — web UIs are only needed for advanced configuration.
+
+---
+
+## Setting up Jackett (torrent search)
+
+Jackett starts automatically with the stack. After installation:
+
+1. Open `http://SERVER_IP:9117` and add your indexers (trackers) via the Jackett web UI.
+2. Copy the **API Key** shown at the top of the Jackett page.
+3. In the Telegram bot: `/settings` → **Jackett** → **Set API key** — paste the key.
+4. Use `/search <query>` in the bot to search all configured indexers.

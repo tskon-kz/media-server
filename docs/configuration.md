@@ -12,6 +12,7 @@
 | `MEDIA_PATH` | No | `./media` | Host path mounted as `/media` in all containers |
 | `JELLYFIN_PORT` | No | `8096` | Jellyfin web UI port |
 | `QB_PORT` | No | `8080` | qBittorrent web UI port |
+| `JACKETT_PORT` | No | `9117` | Jackett web UI port |
 
 Generate `WATCHTOWER_TOKEN`: `openssl rand -hex 16`
 
@@ -30,6 +31,7 @@ Stored in `/app/data/media_server.db` (host bind-mount: `./bot-data/media_server
 | `qb_user` / `qb_pass` | qBittorrent WebUI credentials |
 | `qb_pass_is_perm` | `"1"` if password was explicitly set (vs auto-generated temp) |
 | `qb_conn_status` | `"unknown"` / `"ok"` / `"error"` — connection health |
+| `jackett_api_key` | Jackett API key for `/search` (set via `/settings` → Jackett) |
 | `cats_init` | `"1"` once categories table is initialized with defaults |
 | `update_pending` | `"1"` between Watchtower trigger and bot restart |
 

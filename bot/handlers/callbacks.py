@@ -6,12 +6,12 @@ from config import ALLOWED, APP_VERSION
 from store import (
     t, set_lang, load_cats, save_cats,
     get_user_state, set_user_state, clear_user_state,
-    set_pending, pop_pending, pop_pending_torrent,
+    set_pending, pop_pending, pop_pending_torrent, set_pending_torrent,
     get_rename_job, get_rename_jobs_by_hash, get_pending_rename_jobs,
     delete_rename_job, delete_rename_jobs_by_hash,
     set_config, get_config, set_qb_status,
 )
-from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, invalidate_qb
+from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, invalidate_qb, jackett_download_torrent
 from parser import (
     process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job,
     delete_torrent_links, delete_all_cat_contents,
@@ -76,6 +76,8 @@ async def on_callback(update, ctx):
                     await _edit(query, *kb.update_view(APP_VERSION, remote_version()))
                 case "media":
                     await _edit(query, t("media_mgmt_title"), kb.global_structure_menu_kb())
+                case "jackett":
+                    await _edit(query, *kb.jackett_view())
 
         case "toggle_rename_mode":
             current = get_config("rename_mode", "flat")
@@ -424,3 +426,46 @@ async def on_callback(update, ctx):
         case "addcat":
             set_user_state(uid, "await_cat_name")
             await _edit(query, t("cat_add_name"))
+
+        case "jackett":
+            if value == "set_key":
+                set_user_state(uid, "await_jackett_key")
+                await _edit(query, t("jackett_ask_key"))
+
+        case "search":
+            results = pop_pending(uid, "search_results")
+            if not results:
+                await _edit(query, t("add_error", e="expired"))
+                return
+            idx = int(value)
+            result = results[idx]
+            cats = load_cats()
+            magnet = result.get("magnet")
+            if magnet:
+                if not cats:
+                    try:
+                        qb().torrents_add(urls=magnet, save_path="/media/downloads")
+                        await _edit(query, t("added"))
+                    except Exception as e:
+                        await _edit(query, t("add_error", e=e))
+                    return
+                set_pending(uid, "pending_magnet", magnet)
+                await _edit(query, t("pick_cat"), kb.cats_pick_kb(cats, "addmagnet"))
+            else:
+                link = result.get("link")
+                if not link:
+                    await _edit(query, t("add_error", e="no torrent link"))
+                    return
+                torrent_bytes = await asyncio.to_thread(jackett_download_torrent, link)
+                if torrent_bytes is None:
+                    await _edit(query, t("jackett_error"))
+                    return
+                if not cats:
+                    try:
+                        qb().torrents_add(torrent_files=torrent_bytes, save_path="/media/downloads")
+                        await _edit(query, t("added"))
+                    except Exception as e:
+                        await _edit(query, t("add_error", e=e))
+                    return
+                set_pending_torrent(uid, torrent_bytes)
+                await _edit(query, t("pick_cat"), kb.cats_pick_kb(cats, "addtorrent"))
