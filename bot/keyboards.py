@@ -87,6 +87,7 @@ def list_kb(page=0, total=0):
     ])
     buttons.append([
         InlineKeyboardButton(t("search_btn"), url="https://jac-red.ru"),
+        InlineKeyboardButton(t("search_jackett_btn"), callback_data="list:search"),
     ])
     return InlineKeyboardMarkup(buttons)
 
@@ -287,7 +288,7 @@ def search_results_kb(results: list[dict]):
 
     buttons = []
     for i, r in enumerate(results):
-        label = f"📥 {short_name(r['title'])[:35]} | 🌱{r['seeders']} | {_size(r['size'])}"
+        label = f"📥 {r['title'][:120]}\n🌱{r['seeders']} · {_size(r['size'])}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"search:{i}")])
     return InlineKeyboardMarkup(buttons)
 

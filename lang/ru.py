@@ -7,6 +7,7 @@ M = {
     "list_manage_btn":      "✏️ Управлять",
     "list_refresh_btn":     "🔄 Обновить",
     "search_btn":           "🔍 Найти торрент",
+    "search_jackett_btn":   "🔍 Поиск Jackett",
     "list_select_prompt":   "Введите номер торрента (1–{n}):",
     "list_select_invalid":  "❌ Неверный номер. Введите от 1 до {n}",
     "del_btn":       "🗑 Удалить",

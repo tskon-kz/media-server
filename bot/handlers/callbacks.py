@@ -56,6 +56,9 @@ async def on_callback(update, ctx):
                 await _edit(query, prompt, parse_mode="HTML")
             elif value.startswith("page:"):
                 await _show_list(query, int(value[5:]))
+            elif value == "search":
+                set_user_state(uid, "await_search_query")
+                await _edit(query, t("search_ask_query"))
             else:
                 await _show_list(query, 0)
 
