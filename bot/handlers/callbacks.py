@@ -469,6 +469,7 @@ async def on_callback(update, ctx):
                 kb.search_results_text(q, results, page),
                 kb.search_results_kb(results, page),
                 parse_mode="HTML",
+                disable_preview=True,
             )
 
         case "search":

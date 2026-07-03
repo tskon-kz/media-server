@@ -308,11 +308,15 @@ def search_results_text(query: str, results: list[dict], page: int = 0) -> str:
                page=page + 1, pages=total_pages)
     entries = []
     for offset, r in enumerate(results[start:start + SEARCH_PAGE_SIZE]):
+        tracker = escape(r.get("tracker") or "?")
+        details = r.get("details") or ""
+        if details:
+            tracker = f'<a href="{escape(details)}">{tracker}</a>'  # link to source page
         info = t(
             "search_result_info",
             seeders=r.get("seeders", 0),
             size=_search_size(r.get("size", 0)),
-            tracker=escape(r.get("tracker") or "?"),
+            tracker=tracker,
             date=(r.get("date") or "")[:10] or "?",
         )
         # Blank line between title and stats so each result reads as a block.

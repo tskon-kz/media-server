@@ -156,7 +156,7 @@ def jackett_search(query: str) -> list[dict] | None:
     Returns sorted list of dicts or None on connection error.
     Returns [] if API key not configured or no results found.
     Each item: title, seeders, size (bytes), tracker, date (ISO publish date),
-    magnet (str|None), link (str|None).
+    details (source page URL), magnet (str|None), link (str|None).
     """
     key = jackett_get_api_key()
     if not key:
@@ -182,6 +182,7 @@ def jackett_search(query: str) -> list[dict] | None:
             "size":    r.get("Size") or 0,
             "tracker": r.get("Tracker") or "",
             "date":    r.get("PublishDate") or "",
+            "details": r.get("Details") or r.get("Guid") or "",
             "magnet":  r.get("MagnetUri") or None,
             "link":    r.get("Link") or None,
         })

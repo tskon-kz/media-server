@@ -4,7 +4,7 @@ import os
 from functools import wraps
 from html import escape
 
-from telegram import Update
+from telegram import Update, LinkPreviewOptions
 from telegram.ext import ContextTypes
 
 from config import ALLOWED, ICONS, INCOMING_DIR
@@ -35,8 +35,11 @@ def guard(func):
     return wrapper
 
 
-async def _edit(query, text, keyboard=None, parse_mode="Markdown"):
-    await query.edit_message_text(text, parse_mode=parse_mode, reply_markup=keyboard)
+async def _edit(query, text, keyboard=None, parse_mode="Markdown", disable_preview=False):
+    kwargs = {}
+    if disable_preview:
+        kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
+    await query.edit_message_text(text, parse_mode=parse_mode, reply_markup=keyboard, **kwargs)
 
 
 async def _show_list(query, page=0):
@@ -121,6 +124,7 @@ async def _do_search(message, uid: int, query: str):
         kb.search_results_text(query, results, 0),
         reply_markup=kb.search_results_kb(results, 0),
         parse_mode="HTML",
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 
 
