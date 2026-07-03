@@ -8,7 +8,7 @@ import qbittorrentapi
 from config import (
     JF_URL, QB_HOST,
     JACKETT_URL,
-    SEARCH_RESULTS_LIMIT,
+    SEARCH_RESULTS_LIMIT, SEARCH_CATEGORIES,
     WATCHTOWER_TOKEN, WATCHTOWER_URL,
     REPO_SLUG,
 )
@@ -161,7 +161,10 @@ def jackett_search(query: str) -> list[dict] | None:
     key = jackett_get_api_key()
     if not key:
         return []
-    params = urllib.parse.urlencode({"apikey": key, "Query": query})
+    params = urllib.parse.urlencode(
+        [("apikey", key), ("Query", query)]
+        + [("Category[]", c) for c in SEARCH_CATEGORIES]
+    )
     url = f"{JACKETT_URL}/api/v2.0/indexers/all/results?{params}"
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:

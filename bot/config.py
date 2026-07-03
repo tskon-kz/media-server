@@ -14,6 +14,13 @@ WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_TOKEN", "")
 SEARCH_RESULTS_LIMIT = 30
 SEARCH_PAGE_SIZE     = 5
 
+# Torznab categories sent to Jackett so search returns only video content:
+# Movies (2000–2080) and TV (5000–5080).
+SEARCH_CATEGORIES = [
+    2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080,
+    5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080,
+]
+
 DATA_DIR       = "/app/data"
 INCOMING_DIR   = "/media/.downloads"
 WATCHTOWER_URL = "http://watchtower:8080"
