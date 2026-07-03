@@ -282,18 +282,39 @@ def jackett_settings_kb(has_password: bool = False):
     return InlineKeyboardMarkup(buttons)
 
 
-def search_results_kb(results: list[dict]):
-    def _size(b: int) -> str:
-        if b >= 1024 ** 3:
-            return f"{b / 1024 ** 3:.1f}GB"
-        if b >= 1024 ** 2:
-            return f"{b / 1024 ** 2:.0f}MB"
-        return f"{b / 1024:.0f}KB"
+def _search_size(b: int) -> str:
+    if b >= 1024 ** 3:
+        return f"{b / 1024 ** 3:.1f} GB"
+    if b >= 1024 ** 2:
+        return f"{b / 1024 ** 2:.0f} MB"
+    return f"{b / 1024:.0f} KB"
 
-    buttons = []
-    for i, r in enumerate(results):
-        label = f"📥 {r['title'][:120]}\n🌱{r['seeders']} · {_size(r['size'])}"
-        buttons.append([InlineKeyboardButton(label, callback_data=f"search:{i}")])
+
+def search_results_text(query: str, results: list[dict]) -> str:
+    # Rendered as the message body (HTML) so the title can wrap freely across
+    # lines — inline-button labels are single-line and get truncated.
+    lines = [t("search_results_title", q=escape(query), n=len(results))]
+    for i, r in enumerate(results, 1):
+        info = t(
+            "search_result_info",
+            seeders=r.get("seeders", 0),
+            size=_search_size(r.get("size", 0)),
+            tracker=escape(r.get("tracker") or "?"),
+            date=(r.get("date") or "")[:10] or "?",
+        )
+        lines.append(f"<b>{i}.</b> {escape(r['title'])}\n{info}")
+    return "\n\n".join(lines)
+
+
+def search_results_kb(results: list[dict]):
+    buttons, row = [], []
+    for i in range(len(results)):
+        row.append(InlineKeyboardButton(str(i + 1), callback_data=f"search:{i}"))
+        if len(row) == 5:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
     return InlineKeyboardMarkup(buttons)
 
 
