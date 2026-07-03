@@ -177,10 +177,10 @@ def count_parseable_files(tor, cats: list[dict]) -> tuple[int, int]:
     return parseable, unparseable
 
 
-def process_torrent_rename(tor, cats: list[dict]) -> tuple[int, list[int], list[str]]:
+def process_torrent_rename(tor, cats: list[dict], *, target_cat: dict | None = None) -> tuple[int, list[int], list[str]]:
     """Create pretty hardlinks for parseable files, queue the rest as pending_manual.
     Returns (linked_count, pending_job_ids, xdev_errors)."""
-    cat = _find_cat(tor, cats)
+    cat = target_cat or _find_cat(tor, cats)
     if not cat:
         log.debug("Torrent %s: no matching category", tor.hash)
         return 0, [], []
@@ -229,9 +229,9 @@ def create_flat_hardlink_for_job(job: dict) -> str | None:
         return None
 
 
-def create_flat_hardlinks(tor, cats: list[dict]) -> list[str]:
+def create_flat_hardlinks(tor, cats: list[dict], *, target_cat: dict | None = None) -> list[str]:
     """Flat hardlinks preserving the torrent's original file structure. Returns errors."""
-    cat = _find_cat(tor, cats)
+    cat = target_cat or _find_cat(tor, cats)
     if not cat:
         return []
 
@@ -252,43 +252,40 @@ def create_flat_hardlinks(tor, cats: list[dict]) -> list[str]:
 
 
 def delete_torrent_links(tor, cats: list[dict]):
-    """Delete all content directories created for a torrent."""
-    cat = _find_cat(tor, cats)
-    if not cat:
-        delete_rename_jobs_by_hash(tor.hash)
-        return
-
-    save_path = tor.save_path.rstrip("/")
+    """Delete all content directories created for a torrent across all categories."""
+    cur_cat = _find_cat(tor, cats)
     content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
-    incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
-    dirs_to_delete: set[str] = set()
-
+    src_files = get_video_files(content_path)
     fallback_title = _tor_fallback_title(tor)
-    for src_path in get_video_files(content_path):
-        filename = os.path.basename(src_path)
-        # pretty: collect parent dir of each linked file (e.g. Show/Season 01)
-        if cat["jf_type"] in ("tvshows", "movies"):
-            parsed = parse_filename(filename, cat["jf_type"], fallback_title)
-            if parsed:
-                d = os.path.dirname(build_target_path(cat, parsed, filename))
-                if d != cat["path"]:
-                    dirs_to_delete.add(d)
-        # flat: collect top-level subdir under cat path
-        base = incoming_cat if src_path.startswith(incoming_cat + os.sep) else cat["path"]
-        rel_parts = os.path.relpath(src_path, base).split(os.sep)
-        if len(rel_parts) > 1:
-            dirs_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
 
-    # delete deepest dirs first so parents are cleaned up correctly
-    for d in sorted(dirs_to_delete, key=lambda p: p.count(os.sep), reverse=True):
-        if os.path.isdir(d):
-            shutil.rmtree(d, ignore_errors=True)
-            log.info("Removed: %s", d)
-        # remove now-empty parent dirs up to cat root
-        parent = os.path.dirname(d)
-        while parent != cat["path"] and os.path.isdir(parent) and not os.listdir(parent):
-            os.rmdir(parent)
-            parent = os.path.dirname(parent)
+    for cat in cats:
+        incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
+        dirs_to_delete: set[str] = set()
+
+        for src_path in src_files:
+            filename = os.path.basename(src_path)
+            # pretty: reconstruct expected link path in this category
+            if cat["jf_type"] in ("tvshows", "movies"):
+                parsed = parse_filename(filename, cat["jf_type"], fallback_title)
+                if parsed:
+                    d = os.path.dirname(build_target_path(cat, parsed, filename))
+                    if d != cat["path"]:
+                        dirs_to_delete.add(d)
+            # flat links depend on the original save_path, only reliable for current category
+            if cat is cur_cat:
+                base = incoming_cat if src_path.startswith(incoming_cat + os.sep) else cat["path"]
+                rel_parts = os.path.relpath(src_path, base).split(os.sep)
+                if len(rel_parts) > 1:
+                    dirs_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
+
+        for d in sorted(dirs_to_delete, key=lambda p: p.count(os.sep), reverse=True):
+            if os.path.isdir(d):
+                shutil.rmtree(d, ignore_errors=True)
+                log.info("Removed: %s", d)
+            parent = os.path.dirname(d)
+            while parent != cat["path"] and os.path.isdir(parent) and not os.listdir(parent):
+                os.rmdir(parent)
+                parent = os.path.dirname(parent)
 
     delete_rename_jobs_by_hash(tor.hash)
 

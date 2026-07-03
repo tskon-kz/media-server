@@ -202,12 +202,26 @@ async def on_callback(update, ctx):
 
         case "moveto":
             tor_hash, _, cat_id_str = value.partition(":")
-            cat = next((c for c in load_cats() if c["id"] == int(cat_id_str)), None)
-            if not cat:
+            cats = load_cats()
+            new_cat = next((c for c in cats if c["id"] == int(cat_id_str)), None)
+            if not new_cat:
                 await _edit(query, t("add_error", e="category not found"))
                 return
             try:
-                qb().torrents_set_location(torrent_hashes=tor_hash, location=_dl_path(cat))
+                torrents = qb().torrents_info(torrent_hashes=tor_hash)
+            except Exception as e:
+                await _edit(query, t("qb_error", e=e))
+                return
+            if torrents:
+                tor = torrents[0]
+                delete_torrent_links(tor, cats)
+                if get_config("rename_mode", "flat") == "pretty":
+                    process_torrent_rename(tor, cats, target_cat=new_cat)
+                else:
+                    create_flat_hardlinks(tor, cats, target_cat=new_cat)
+                jf("POST", "/Library/Refresh")
+            try:
+                qb().torrents_set_location(torrent_hashes=tor_hash, location=_dl_path(new_cat))
             except Exception as e:
                 await _edit(query, t("add_error", e=e))
                 return
