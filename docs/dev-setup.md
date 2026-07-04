@@ -61,7 +61,7 @@ This starts Jellyfin, qBittorrent, the bot, and Watchtower.
 │   ├── keyboards.py    # Inline keyboard builders and text renderers
 │   ├── config.py       # Env vars and constants
 │   ├── store.py        # SQLite persistence
-│   ├── parser.py       # Filename parsing (guessit), hardlink creation/cleanup
+│   ├── parser/         # Package: filenames, naming, fsops, linker (+ __init__ re-exports)
 │   └── Dockerfile
 ├── lang/
 │   ├── ru.py / en.py   # Bot message strings
