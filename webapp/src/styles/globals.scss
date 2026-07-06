@@ -1,3 +1,11 @@
+:root {
+  --app-bg: #efeff3;
+}
+
+[data-theme="dark"] {
+  --app-bg: #17212b;
+}
+
 * { box-sizing: border-box; }
 
 html, body, #root { height: 100%; }
@@ -6,4 +14,5 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background: var(--app-bg);
 }

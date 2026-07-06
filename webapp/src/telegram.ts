@@ -47,13 +47,6 @@ export function initTelegram() {
   if (!tg) return;
   tg.ready();
   tg.expand();
-  applyColorScheme();
-  tg.onEvent("themeChanged", applyColorScheme);
-}
-
-function applyColorScheme() {
-  const scheme = tg?.colorScheme ?? "light";
-  document.documentElement.dataset.theme = scheme;
 }
 
 export function openExternal(url: string) {

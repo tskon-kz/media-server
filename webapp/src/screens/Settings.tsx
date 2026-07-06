@@ -10,6 +10,7 @@ import {
 import { api } from "../api";
 import { openExternal } from "../telegram";
 import { useToast } from "../components/Toast";
+import { useTheme, type ThemeMode } from "../theme";
 import { PromptSheet } from "../components/PromptSheet";
 import type { AppConfig, Category, JellyfinUser, Settings as SettingsData } from "../types";
 
@@ -24,6 +25,7 @@ const DEL_COLOR = "var(--tgui--destructive_text_color)";
 
 export function Settings() {
   const toast = useToast();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const [cfg, setCfg] = useState<AppConfig | null>(null);
   const [st, setSt] = useState<SettingsData | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
@@ -144,6 +146,21 @@ export function Settings() {
             }
           >
             Language
+          </Cell>
+        </Section>
+
+        {/* Appearance */}
+        <Section>
+          <Cell
+            after={
+              <SegmentedControl>
+                <SegmentedControl.Item selected={themeMode === "auto"} onClick={() => setThemeMode("auto" as ThemeMode)}>Auto</SegmentedControl.Item>
+                <SegmentedControl.Item selected={themeMode === "light"} onClick={() => setThemeMode("light" as ThemeMode)}>Light</SegmentedControl.Item>
+                <SegmentedControl.Item selected={themeMode === "dark"} onClick={() => setThemeMode("dark" as ThemeMode)}>Dark</SegmentedControl.Item>
+              </SegmentedControl>
+            }
+          >
+            Appearance
           </Cell>
         </Section>
 
