@@ -9,7 +9,7 @@ import { AddTorrent } from "./screens/AddTorrent";
 import { Search as SearchScreen } from "./screens/Search";
 import { Status } from "./screens/Status";
 import { Settings } from "./screens/Settings";
-import s from "./App.module.scss";
+import styles from "./App.module.scss";
 
 type Tab = "list" | "add" | "search" | "status" | "settings";
 
@@ -27,7 +27,7 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className={s.content}>
+      <div className={styles.content}>
         {tab === "list"     && <TorrentList />}
         {tab === "add"      && <AddTorrent onAdded={() => setTab("list")} />}
         {tab === "search"   && <SearchScreen />}

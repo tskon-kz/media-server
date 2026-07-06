@@ -1,24 +1,24 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import s from "./Collapse.module.scss";
+import styles from "./Collapse.module.scss";
 
 interface Props {
   title: string;
-  children: ReactNode;
+  children: ReactNode | ReactNode[];
   defaultOpen?: boolean;
 }
 
-export function Collapse({ title, children, defaultOpen = false }: Props) {
-  const [open, setOpen] = useState(defaultOpen);
+export function Collapse(props: Props) {
+  const [open, setOpen] = useState(props.defaultOpen ?? false);
 
   return (
     <div>
-      <button className={s.header} onClick={() => setOpen((o) => !o)}>
-        <span>{title}</span>
-        <ChevronDown size={15} className={`${s.chevron} ${open ? s.chevronOpen : ""}`} />
+      <button className={styles.header} onClick={() => setOpen((o) => !o)}>
+        <span>{props.title}</span>
+        <ChevronDown size={15} className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} />
       </button>
-      <div className={`${s.body} ${open ? s.bodyOpen : ""}`}>
-        <div className={s.inner}>{children}</div>
+      <div className={`${styles.body} ${open ? styles.bodyOpen : ""}`}>
+        <div className={styles.inner}>{props.children}</div>
       </div>
     </div>
   );
