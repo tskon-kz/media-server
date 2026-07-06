@@ -79,8 +79,8 @@ export default {
 
     // Auto-structure toggle
     autoStructure: "Авто-структура закачек",
-    smartSub: "Умный (парсинг имён файлов)",
-    originalSub: "Оригинальная структура",
+    smartSub: "Умный парсинг",
+    originalSub: "Ориг. структура",
 
     // Language & appearance
     language: "Язык",
