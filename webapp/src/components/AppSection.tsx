@@ -1,23 +1,25 @@
 import type { ReactNode } from "react";
 import styles from './AppSection.module.scss'
+import classNames from "classnames";
 
 interface Props {
+  className?: string
   children: ReactNode | ReactNode[];
   title?: string;
 }
 
-const AppSection = ({ children, title }: Props) => {
+const AppSection = (props: Props) => {
   return (
-    <div className={styles.wrapper}>
-      {title && (
+    <div className={classNames(styles.wrapper, props.className)}>
+      {props.title && (
         <div className={styles.title}>
-          {title}
+          {props.title}
         </div>
       )}
       <div
         className={styles.content}
       >
-        {children}
+        {props.children}
       </div>
     </div>
   );

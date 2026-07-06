@@ -25,7 +25,7 @@ export function Settings() {
   const { t } = useTranslation();
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const [cfg, setCfg] = useState<AppConfig | null>(null);
-  const [st, setSt] = useState<SettingsData | null>(null);
+  const [settingsData, setSettingsData] = useState<SettingsData | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [users, setUsers] = useState<JellyfinUser[] | null>(null);
   const [dialog, setDialog] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function Settings() {
 
   const reload = async () => {
     const [c, s, ct] = await Promise.all([api.config(), api.settings(), api.categories()]);
-    setCfg(c); setSt(s); setCats(ct.categories);
+    setCfg(c); setSettingsData(s); setCats(ct.categories);
     setAppLanguage(s.lang);
   };
 
@@ -45,7 +45,7 @@ export function Settings() {
     try { await fn(); } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  if (!cfg || !st) {
+  if (!cfg || !settingsData) {
     return (
       <Box style={{ textAlign: "center", paddingTop: 60 }}>
         <Loader size="md" />
@@ -61,7 +61,7 @@ export function Settings() {
   ];
 
   const toggleRename = () => guard(async () => {
-    const mode = st.rename_mode === "flat" ? "pretty" : "flat";
+    const mode = settingsData.rename_mode === "flat" ? "pretty" : "flat";
     await api.setRenameMode(mode);
     toast(mode === "pretty" ? t("settings.smartOn") : t("settings.originalOn"));
     reload();
@@ -142,40 +142,31 @@ export function Settings() {
       <Box p={16}>
         <Stack gap={8}>
           {/* Auto-structure toggle */}
-          <ListSection>
-            <ListItem
-              subtitle={st.rename_mode === "pretty" ? t("settings.smartSub") : t("settings.originalSub")}
-              after={
-                <Switch
-                  checked={st.rename_mode === "pretty"}
-                  onChange={toggleRename}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              }
-              multiline
-            >
-              {t("settings.autoStructure")}
-            </ListItem>
-          </ListSection>
+          <AppSection className={"mb-12"} title={t("settings.autoStructure")}>
+            <Switch
+              labelPosition="right"
+              label={settingsData.rename_mode === "pretty" ? t("settings.smartSub") : t("settings.originalSub")}
+              checked={settingsData.rename_mode === "pretty"}
+              onChange={toggleRename}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </AppSection>
 
           {/* Language */}
-          <AppSection title={t("settings.language")}>
-            <Box px={12} pb={12}>
+          <AppSection className="mb-12" title={t("settings.language")}>
               <SegmentedControl
                 fullWidth
-                value={st.lang}
+                value={settingsData.lang}
                 onChange={setLang}
                 data={[
                   { value: "ru", label: "RU" },
                   { value: "en", label: "EN" },
                 ]}
               />
-            </Box>
           </AppSection>
 
           {/* Appearance */}
-          <AppSection title={t("settings.appearance")}>
-            <Box px={12} pb={12}>
+          <AppSection className="mb-12" title={t("settings.appearance")}>
               <SegmentedControl
                 fullWidth
                 value={themeMode}
@@ -186,7 +177,6 @@ export function Settings() {
                   { value: "dark",  label: t("settings.dark") },
                 ]}
               />
-            </Box>
           </AppSection>
 
           {/* Categories */}
@@ -228,8 +218,8 @@ export function Settings() {
           <Collapse title={t("settings.qb")}>
             <ListSection>
               <ListItem
-                subtitle={t("settings.userSub", { user: st.qbittorrent.user })}
-                after={st.qbittorrent.is_perm ? <Lock size={16} /> : undefined}
+                subtitle={t("settings.userSub", { user: settingsData.qbittorrent.user })}
+                after={settingsData.qbittorrent.is_perm ? <Lock size={16} /> : undefined}
                 multiline
               >
                 {t("settings.credentials")}
@@ -237,7 +227,7 @@ export function Settings() {
             </ListSection>
             <Stack gap={8}>
               <Button fullWidth variant="light" onClick={() => setDialog("qbPass")}>{t("settings.changePass")}</Button>
-              {!st.qbittorrent.is_perm && <Button fullWidth variant="light" onClick={qbTemp}>{t("settings.getTemp")}</Button>}
+              {!settingsData.qbittorrent.is_perm && <Button fullWidth variant="light" onClick={qbTemp}>{t("settings.getTemp")}</Button>}
               <Button fullWidth variant="light" onClick={qbRestart}>{t("settings.restart")}</Button>
             </Stack>
           </Collapse>
@@ -246,8 +236,8 @@ export function Settings() {
           <Collapse title={t("settings.jackett")}>
             <ListSection>
               <ListItem
-                subtitle={t("settings.apiKey", { status: t(st.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing") })}
-                after={st.jackett.has_password ? <Lock size={16} /> : <Unlock size={16} />}
+                subtitle={t("settings.apiKey", { status: t(settingsData.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing") })}
+                after={settingsData.jackett.has_password ? <Lock size={16} /> : <Unlock size={16} />}
                 multiline
               >
                 {t("settings.jackett")}
@@ -255,7 +245,7 @@ export function Settings() {
             </ListSection>
             <Stack gap={8}>
               <Button fullWidth variant="light" onClick={() => setDialog("jackettPass")}>{t("settings.changePass")}</Button>
-              {st.jackett.has_password && (
+              {settingsData.jackett.has_password && (
                 <Button fullWidth variant="light" style={{ color: DEL_COLOR }} onClick={jackettRemovePass}>
                   {t("settings.removePass")}
                 </Button>
@@ -264,7 +254,7 @@ export function Settings() {
           </Collapse>
 
           {/* Jellyfin */}
-          {st.jellyfin.has_key && (
+          {settingsData.jellyfin.has_key && (
             <Collapse title={t("settings.jellyfin")}>
               <Button fullWidth variant="light" leftSection={<Users size={18} />} onClick={openUsers}>
                 {t("settings.manageUsers")}

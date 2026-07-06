@@ -76,7 +76,7 @@ export default {
     title: "Settings",
 
     // Auto-structure toggle
-    autoStructure: "Auto-structure",
+    autoStructure: "Torrents auto-structure",
     smartSub: "Smart (parse filenames)",
     originalSub: "Original structure",
 
