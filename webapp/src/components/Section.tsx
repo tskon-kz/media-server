@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import styles from './AppSection.module.scss'
+import styles from './Section.module.scss'
 import classNames from "classnames";
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
   title?: string;
 }
 
-const AppSection = (props: Props) => {
+const Section = (props: Props) => {
   return (
     <div className={classNames(styles.wrapper, props.className)}>
       {props.title && (
@@ -25,4 +25,4 @@ const AppSection = (props: Props) => {
   );
 };
 
-export default AppSection;
+export default Section;

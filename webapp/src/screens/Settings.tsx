@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Box, Button, Drawer, Loader, SegmentedControl, Stack, Text, Title,
+  Box, Button, Drawer, Loader, SegmentedControl, Stack, Text,
 } from "@mantine/core";
 import {
   Clapperboard, Film, Lock, Music, Package, Plus,
@@ -14,9 +14,10 @@ import { useTheme, type ThemeMode } from "../theme";
 import { setAppLanguage } from "../i18n";
 import { Collapse } from "../components/Collapse";
 import { PromptSheet } from "../components/PromptSheet";
-import AppSection from "../components/AppSection.tsx";
+import Section from "../components/Section.tsx";
 import { ListItem, ListSection } from "../components/ui";
 import type { AppConfig, Category, JellyfinUser, Settings as SettingsData } from "../types";
+import PageHeader from "../components/PageHeader.tsx";
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)";
 
@@ -126,14 +127,10 @@ export function Settings() {
 
   return (
     <Box>
-      <Box style={{ padding: "16px 16px 4px" }}>
-        <Title order={3} style={{ color: "var(--tg-theme-text-color)" }}>
-          {t("settings.title")}
-        </Title>
-      </Box>
+      <PageHeader title={t("settings.title")} />
 
       <Box p={16}>
-        <AppSection title={t("settings.autoStructure")} className="mb-16">
+        <Section title={t("settings.autoStructure")} className="mb-16">
           <SegmentedControl
             fullWidth
             value={settingsData.rename_mode}
@@ -147,9 +144,9 @@ export function Settings() {
               { value: "pretty", label: t("settings.smartSub") },
             ]}
           />
-        </AppSection>
+        </Section>
 
-        <AppSection className="mb-16" title={t("settings.language")}>
+        <Section className="mb-16" title={t("settings.language")}>
             <SegmentedControl
               fullWidth
               value={settingsData.lang}
@@ -159,9 +156,9 @@ export function Settings() {
                 { value: "en", label: "EN" },
               ]}
             />
-        </AppSection>
+        </Section>
 
-        <AppSection className="mb-16" title={t("settings.appearance")}>
+        <Section className="mb-16" title={t("settings.appearance")}>
             <SegmentedControl
               fullWidth
               value={themeMode}
@@ -172,7 +169,7 @@ export function Settings() {
                 { value: "dark",  label: t("settings.dark") },
               ]}
             />
-        </AppSection>
+        </Section>
 
         {/* Categories */}
         <Collapse title={t("settings.categories")}>
