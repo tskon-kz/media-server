@@ -18,7 +18,7 @@ Send a **magnet link** or a **.torrent file** directly to the chat. The bot will
 
 ## `/search`
 
-Searches all indexers configured in Jackett and shows the top 10 results sorted by seeders.
+Searches all indexers configured in Jackett and shows the top 30 results sorted by seeders.
 
 ```
 /search Breaking Bad
@@ -26,11 +26,11 @@ Searches all indexers configured in Jackett and shows the top 10 results sorted 
 
 Or just `/search` — the bot will ask for the query.
 
-Each result is shown as a button: full torrent title (up to 120 chars) on the first line, seeders and size on the second. Tapping a result starts the normal category-picker flow, identical to sending a magnet link manually.
+Results are displayed as a numbered list in the message body (title + seeders · size · indexer · date), paginated 5 per page with `←/→` navigation. Tap the number button for a result to start the normal category-picker flow, identical to sending a magnet link manually.
 
 The search is also accessible directly from `/list` via the **🔍 Поиск Jackett** button.
 
-**Requires:** Jackett running and API key configured in `/settings` → Jackett.
+**Requires:** Jackett running with at least one indexer configured. The API key is read automatically — no manual configuration needed.
 
 ---
 
@@ -52,7 +52,9 @@ Shows all torrents with status icons:
 |--------|--------|
 | 🗑 | Delete torrent with files |
 | 📁 | Move to a different category |
-| 🔄 | Re-parse filenames and recreate hardlinks |
+| 🗂 | Manage file structure (pretty names / original / delete hardlinks) |
+
+The `/list` view also has two search shortcut buttons: **🔍 Search torrents** (opens an external torrent search site) and **🔍 Поиск Jackett** (triggers a Jackett search in-bot).
 
 ---
 
@@ -61,12 +63,22 @@ Shows all torrents with status icons:
 | Section | What you can do |
 |---------|-----------------|
 | Categories | Add, rename, delete categories. Each maps to a folder and a Jellyfin library |
+| Media Library | Rebuild hardlinks for all torrents: smart names, original structure, or delete |
 | Language | Switch between Russian and English |
-| qBittorrent | Manage credentials and connection |
-| Jackett | Set the Jackett API key; change or remove the admin password for the Jackett web UI |
-| Jellyfin users | Add and delete Jellyfin user accounts |
 | Update | Check for updates and apply with one tap |
+| qBittorrent | Manage credentials and connection |
+| Jackett | Change or remove the admin password for the Jackett web UI |
+| Jellyfin users | Add and delete Jellyfin user accounts |
+| Auto-structure toggle | Switch between "original structure" and "smart names" for new downloads |
 | Quick links | Open qBittorrent / Jellyfin / Jackett web UI directly from the menu |
+
+**Auto-structure mode** — the toggle in the main settings menu controls what happens when a torrent finishes downloading:
+- **Original structure** (`flat`) — hardlinks are created with the same filenames and folder layout as the download, no parsing.
+- **Smart names** (`pretty`) — filenames are parsed and hardlinked to Jellyfin-standard paths (`Show/Season 01/Show - S01E04.mkv`).
+
+The current mode is shown on the toggle button (the checkmark ✓ marks the active one). You can also change the structure of any individual torrent at any time via the 🗂 Structure button in `/list` edit mode, regardless of the active mode.
+
+**Media Library** — applies a structure mode globally to all torrents at once: rebuilds all hardlinks as pretty, as flat, or removes all hardlinks.
 
 ---
 

@@ -125,8 +125,8 @@ Normal usage goes entirely through the Telegram bot — web UIs are only needed 
 Jackett starts automatically with the stack. After installation:
 
 1. Open `http://SERVER_IP:9117` and add your indexers (trackers) via the Jackett web UI.
-2. Copy the **API Key** shown at the top of the Jackett page.
-3. In the Telegram bot: `/settings` → **Jackett** → **Set API key** — paste the key.
-4. Use `/search <query>` in the bot to search all configured indexers.
+2. Use `/search <query>` in the bot to search all configured indexers.
+
+The Jackett API key is read automatically from the mounted config file — no manual copy/paste needed.
 
 > **Security:** The Jackett web UI is publicly accessible on the configured port. The installer prompts you to set an admin password during setup. You can also change or remove it later via `/settings` → Jackett → 🔒 Change admin password.

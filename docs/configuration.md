@@ -31,7 +31,7 @@ Stored in `/app/data/media_server.db` (host bind-mount: `./bot-data/media_server
 | `qb_user` / `qb_pass` | qBittorrent WebUI credentials |
 | `qb_pass_is_perm` | `"1"` if password was explicitly set (vs auto-generated temp) |
 | `qb_conn_status` | `"unknown"` / `"ok"` / `"error"` — connection health |
-| `jackett_api_key` | Jackett API key for `/search` (set via `/settings` → Jackett) |
+| `rename_mode` | `"flat"` (original structure) or `"pretty"` (smart Jellyfin names) — controls what happens on download completion |
 | `cats_init` | `"1"` once categories table is initialized with defaults |
 | `update_pending` | `"1"` between Watchtower trigger and bot restart |
 
