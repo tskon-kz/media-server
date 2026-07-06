@@ -44,7 +44,7 @@ _spin() {  # _spin "label" cmd [args...]
 }
 
 _pull_progress() {  # pulls images one by one, shows [████░░░] n/total
-    local -a svcs=(jellyfin qbittorrent jackett telegram-bot watchtower)
+    local -a svcs=(jellyfin qbittorrent jackett telegram-bot cloudflared watchtower)
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
@@ -394,13 +394,32 @@ PYEOF
     fi
 fi
 
-_spin "$MSG_STARTING" docker compose up -d telegram-bot
+_spin "$MSG_STARTING" docker compose up -d telegram-bot cloudflared
+
+# ---- Mini App (Cloudflare Tunnel) URL ----
+# The bot resolves the ephemeral trycloudflare.com URL from cloudflared's logs
+# and writes it to the DB (config key `webapp_url`) within one polling cycle.
+WEBAPP_URL=""
+printf "  %s" "$MSG_WEBAPP_WAIT"
+for i in $(seq 1 30); do
+    WEBAPP_URL=$(_db_get webapp_url "")
+    [ -n "$WEBAPP_URL" ] && break
+    printf "."
+    sleep 3
+done
+[ -n "$WEBAPP_URL" ] && printf " ✓\n" || printf " ⚠️\n"
 
 echo ""
 echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
 echo "Jackett:     http://$SERVER_IP:$JACKETT_PORT"
+if [ -n "$WEBAPP_URL" ]; then
+    echo "Mini App:    $WEBAPP_URL"
+    echo "$MSG_WEBAPP_HINT"
+else
+    echo "$MSG_WEBAPP_PENDING"
+fi
 echo ""
 echo "=== Install finished: $(date '+%Y-%m-%d %H:%M:%S') ===" >&3
 echo "Log: $LOG_FILE"

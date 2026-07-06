@@ -1,4 +1,5 @@
 import json
+import re
 import socket
 import struct
 import urllib.request
@@ -8,7 +9,7 @@ from config import (
     JF_URL, QB_HOST,
     JACKETT_URL,
     SEARCH_RESULTS_LIMIT, SEARCH_CATEGORIES,
-    REPO_SLUG, BOT_IMAGE, BOT_CONTAINER,
+    REPO_SLUG, BOT_IMAGE, BOT_CONTAINER, CLOUDFLARED_CONTAINER,
 )
 from store import get_config, get_creds, set_config
 
@@ -68,31 +69,83 @@ def invalidate_qb():
     _qb_client = None
 
 
-def qb_temp_password() -> str | None:
-    """Read current session temp password from qBittorrent container logs via Docker socket."""
+def _dechunk(body: bytes) -> bytes:
+    """Decode HTTP/1.1 chunked transfer-encoding into the raw payload.
+
+    Modern Docker daemons answer the /logs endpoint with chunked encoding even
+    for an HTTP/1.0 request; older ones send the body verbatim. If the body
+    doesn't parse as chunked, return it unchanged.
+    """
+    out, i = b"", 0
+    while i < len(body):
+        nl = body.find(b"\r\n", i)
+        if nl == -1:
+            break
+        try:
+            size = int(body[i:nl].split(b";", 1)[0], 16)
+        except ValueError:
+            return body  # not chunked — treat as raw
+        if size == 0:
+            return out
+        start = nl + 2
+        out += body[start:start + size]
+        i = start + size + 2  # skip data + trailing CRLF
+    return out or body
+
+
+def _docker_logs(container: str, tail: int = 100) -> str:
+    """Fetch a container's recent logs via the Docker socket, demultiplexed.
+
+    Returns the decoded log text (stdout+stderr interleaved), or "" on error.
+    Tolerant of the daemon holding the connection open (streams don't always
+    send Connection: close): a read timeout is expected, and whatever has been
+    received by then is parsed rather than discarded.
+    """
+    raw = b""
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(5)
         s.connect("/var/run/docker.sock")
-        req = b"GET /containers/media-server-qbittorrent/logs?stdout=1&stderr=1&tail=100 HTTP/1.0\r\nHost: localhost\r\n\r\n"
+        req = (
+            f"GET /containers/{container}/logs?stdout=1&stderr=1&tail={tail} "
+            "HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        ).encode()
         s.sendall(req)
-        raw = b""
         while chunk := s.recv(4096):
             raw += chunk
-        s.close()
-        body = raw.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in raw else raw
-        # Docker multiplexed log format: 8-byte header (1 byte stream, 3 zeros, 4-byte big-endian length)
-        lines, i = [], 0
-        while i + 8 <= len(body):
-            size = struct.unpack(">I", body[i+4:i+8])[0]
-            lines.append(body[i+8:i+8+size].decode(errors="ignore"))
-            i += 8 + size
-        for line in reversed("".join(lines).splitlines()):
-            if "temporary password" in line:
-                return line.split()[-1]
-        return None
+    except socket.timeout:
+        pass  # keep whatever streamed in before the timeout
     except Exception:
-        return None
+        return ""
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+    if b"\r\n\r\n" not in raw:
+        return ""
+    headers, body = raw.split(b"\r\n\r\n", 1)
+    if b"transfer-encoding: chunked" in headers.lower():
+        body = _dechunk(body)
+    # Docker multiplexed log format: 8-byte header (1 byte stream, 3 zeros, 4-byte big-endian length)
+    parts, i = [], 0
+    while i + 8 <= len(body):
+        size = struct.unpack(">I", body[i+4:i+8])[0]
+        if size == 0 or i + 8 + size > len(body):
+            break
+        parts.append(body[i+8:i+8+size].decode(errors="ignore"))
+        i += 8 + size
+    # Fall back to a raw decode if the stream wasn't multiplexed (TTY mode).
+    return "".join(parts) if parts else body.decode(errors="ignore")
+
+
+def qb_temp_password() -> str | None:
+    """Read current session temp password from qBittorrent container logs via Docker socket."""
+    for line in reversed(_docker_logs("media-server-qbittorrent").splitlines()):
+        if "temporary password" in line:
+            return line.split()[-1]
+    return None
 
 
 def qb_restart() -> bool:
@@ -240,6 +293,24 @@ def jackett_download_torrent(link: str) -> bytes | None:
             return r.read()
     except Exception:
         return None
+
+
+# --- Cloudflare Tunnel ---
+
+_TRYCLOUDFLARE_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+
+
+def get_cloudflared_url() -> str | None:
+    """Scrape the assigned quick-tunnel URL from cloudflared's container logs.
+
+    On start, `cloudflared tunnel --url ...` prints a banner containing the
+    randomly-assigned `https://<random>.trycloudflare.com` address. The URL is
+    ephemeral — it changes on every container restart — so callers must re-read
+    it rather than caching it across restarts. Returns None until the banner
+    appears (or if the container is unreachable).
+    """
+    m = _TRYCLOUDFLARE_RE.search(_docker_logs(CLOUDFLARED_CONTAINER, tail=200))
+    return m.group(0) if m else None
 
 
 # --- Updates ---

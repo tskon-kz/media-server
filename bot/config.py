@@ -10,6 +10,7 @@ JACKETT_URL      = os.environ.get("JACKETT_URL", "http://jackett:9117")
 JACKETT_PORT     = os.environ.get("JACKETT_PORT", "9117")
 APP_VERSION      = os.environ.get("APP_VERSION", "dev")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_TOKEN", "")
+WEBAPP_PORT      = int(os.environ.get("WEBAPP_PORT", "8081"))
 
 SEARCH_RESULTS_LIMIT = 30
 SEARCH_PAGE_SIZE     = 5
@@ -28,6 +29,7 @@ REPO_SLUG      = "tskon-kz/media-server"
 REPO_OWNER     = REPO_SLUG.split("/")[0]
 BOT_IMAGE      = f"ghcr.io/{REPO_OWNER}/media-server-bot"
 BOT_CONTAINER  = "media-server-telegram-bot"
+CLOUDFLARED_CONTAINER = "media-server-cloudflared"
 
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
