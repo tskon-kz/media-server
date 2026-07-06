@@ -5,6 +5,7 @@ import { useToast } from "../components/Toast";
 import { Sheet } from "../components/Sheet";
 import { PromptSheet } from "../components/PromptSheet";
 import type { AppConfig, Category, JellyfinUser, Settings as SettingsData } from "../types";
+import s from "./Settings.module.scss";
 
 const JF_TYPES = [
   { key: "movies", label: "🎬 Movies" },
@@ -37,7 +38,7 @@ export function Settings() {
     try { await fn(); } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  if (!cfg || !st) return <div className="spinner" />;
+  if (!cfg || !st) return <div className={s.spinner} />;
 
   const toggleRename = () => guard(async () => {
     const mode = st.rename_mode === "flat" ? "pretty" : "flat";
@@ -111,38 +112,38 @@ export function Settings() {
 
   return (
     <div>
-      <div className="screen-title">Settings</div>
+      <div className={s.screenTitle}>Settings</div>
 
       {/* Auto-structure */}
-      <div className="card tappable" onClick={toggleRename}>
-        <div className="row spread">
+      <div className={`${s.card} ${s.tappable}`} onClick={toggleRename}>
+        <div className={`${s.row} ${s.spread}`}>
           <div>
-            <div className="title-text">Auto-structure</div>
-            <div className="subtitle">{st.rename_mode === "pretty" ? "Smart (parse filenames)" : "Original structure"}</div>
+            <div className={s.titleText}>Auto-structure</div>
+            <div className={s.subtitle}>{st.rename_mode === "pretty" ? "Smart (parse filenames)" : "Original structure"}</div>
           </div>
-          <span className="chip active">{st.rename_mode === "pretty" ? "Smart" : "Original"}</span>
+          <span className={`${s.chip} ${s.active}`}>{st.rename_mode === "pretty" ? "Smart" : "Original"}</span>
         </div>
       </div>
 
       {/* Language */}
-      <div className="card">
-        <div className="row spread">
-          <div className="title-text">Language</div>
-          <div className="chips">
-            <span className={`chip ${st.lang === "ru" ? "active" : ""}`} onClick={() => setLang("ru")}>🇷🇺 RU</span>
-            <span className={`chip ${st.lang === "en" ? "active" : ""}`} onClick={() => setLang("en")}>🇬🇧 EN</span>
+      <div className={s.card}>
+        <div className={`${s.row} ${s.spread}`}>
+          <div className={s.titleText}>Language</div>
+          <div className={s.chips}>
+            <span className={`${s.chip}${st.lang === "ru" ? ` ${s.active}` : ""}`} onClick={() => setLang("ru")}>🇷🇺 RU</span>
+            <span className={`${s.chip}${st.lang === "en" ? ` ${s.active}` : ""}`} onClick={() => setLang("en")}>🇬🇧 EN</span>
           </div>
         </div>
       </div>
 
       {/* Categories */}
-      <div className="section-label">Categories</div>
+      <div className={s.sectionLabel}>Categories</div>
       {cats.map((c) => (
-        <div key={c.id} className="card">
-          <div className="row spread">
-            <div className="grow" onClick={() => { setRenameCat(c); setDialog("renameCat"); }}>
-              <div className="title-text">{c.name}</div>
-              <div className="subtitle mono">{c.path.replace("/media/", "")}</div>
+        <div key={c.id} className={s.card}>
+          <div className={`${s.row} ${s.spread}`}>
+            <div className={s.grow} onClick={() => { setRenameCat(c); setDialog("renameCat"); }}>
+              <div className={s.titleText}>{c.name}</div>
+              <div className={`${s.subtitle} ${s.mono}`}>{c.path.replace("/media/", "")}</div>
             </div>
             <button className="destructive" onClick={() => delCat(c)}>🗑</button>
           </div>
@@ -151,13 +152,13 @@ export function Settings() {
       <button className="secondary full" onClick={() => setDialog("newCat")}>➕ Add category</button>
 
       {/* qBittorrent */}
-      <div className="section-label">qBittorrent</div>
-      <div className="card">
-        <div className="row spread">
-          <span className="hint">User: {st.qbittorrent.user}</span>
-          <span className="hint">{st.qbittorrent.is_perm ? "🔒 permanent" : "temporary"}</span>
+      <div className={s.sectionLabel}>qBittorrent</div>
+      <div className={s.card}>
+        <div className={`${s.row} ${s.spread}`}>
+          <span className={s.hint}>User: {st.qbittorrent.user}</span>
+          <span className={s.hint}>{st.qbittorrent.is_perm ? "🔒 permanent" : "temporary"}</span>
         </div>
-        <div className="btn-row" style={{ marginTop: 10 }}>
+        <div className={s.btnRow} style={{ marginTop: 10 }}>
           <button className="secondary" onClick={() => setDialog("qbPass")}>Change pass</button>
           {!st.qbittorrent.is_perm && <button className="secondary" onClick={qbTemp}>Get temp</button>}
           <button className="secondary" onClick={qbRestart}>Restart</button>
@@ -165,13 +166,13 @@ export function Settings() {
       </div>
 
       {/* Jackett */}
-      <div className="section-label">Jackett</div>
-      <div className="card">
-        <div className="row spread">
-          <span className="hint">API key: {st.jackett.has_key ? "✅" : "❌"}</span>
-          <span className="hint">Password: {st.jackett.has_password ? "🔒 set" : "🔓 public"}</span>
+      <div className={s.sectionLabel}>Jackett</div>
+      <div className={s.card}>
+        <div className={`${s.row} ${s.spread}`}>
+          <span className={s.hint}>API key: {st.jackett.has_key ? "✅" : "❌"}</span>
+          <span className={s.hint}>Password: {st.jackett.has_password ? "🔒 set" : "🔓 public"}</span>
         </div>
-        <div className="btn-row" style={{ marginTop: 10 }}>
+        <div className={s.btnRow} style={{ marginTop: 10 }}>
           <button className="secondary" onClick={() => setDialog("jackettPass")}>Change pass</button>
           {st.jackett.has_password && <button className="destructive" onClick={jackettRemovePass}>Remove pass</button>}
         </div>
@@ -180,7 +181,7 @@ export function Settings() {
       {/* Jellyfin */}
       {st.jellyfin.has_key && (
         <>
-          <div className="section-label">Jellyfin</div>
+          <div className={s.sectionLabel}>Jellyfin</div>
           <button className="secondary full" onClick={openUsers}>👤 Manage users</button>
         </>
       )}
@@ -188,8 +189,8 @@ export function Settings() {
       {/* Quick links */}
       {cfg.quick_links && (
         <>
-          <div className="section-label">Web UIs</div>
-          <div className="btn-row">
+          <div className={s.sectionLabel}>Web UIs</div>
+          <div className={s.btnRow}>
             <button className="secondary" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</button>
             <button className="secondary" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</button>
             <button className="secondary" onClick={() => openExternal(cfg.quick_links!.jackett)}>Jackett</button>
@@ -197,7 +198,7 @@ export function Settings() {
         </>
       )}
 
-      <div className="center-msg" style={{ paddingTop: 24 }}>version {cfg.version}</div>
+      <div className={s.centerMsg} style={{ paddingTop: 24 }}>version {cfg.version}</div>
 
       {/* ---- dialogs ---- */}
       {dialog === "newCat" && (
@@ -205,7 +206,7 @@ export function Settings() {
           <label>Name</label>
           <input autoFocus value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="Anime" />
           <label>Library type</label>
-          <div className="chips">
+          <div className={s.chips}>
             {JF_TYPES.map((t) => (
               <button key={t.key} className="secondary" disabled={!newCatName.trim()} onClick={() => createCat(t.key)}>
                 {t.label}
@@ -238,12 +239,12 @@ export function Settings() {
         <Sheet title="Jellyfin users" onClose={() => setDialog(null)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {users.map((u) => (
-              <div key={u.id} className="row spread">
+              <div key={u.id} className={`${s.row} ${s.spread}`}>
                 <span>{u.name}</span>
                 <button className="destructive" onClick={() => delUser(u)}>🗑</button>
               </div>
             ))}
-            {users.length === 0 && <div className="hint">No users</div>}
+            {users.length === 0 && <div className={s.hint}>No users</div>}
             <button className="secondary full" onClick={() => setDialog("newUserName")}>➕ Add user</button>
           </div>
         </Sheet>

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { haptic } from "../telegram";
+import s from "./Toast.module.scss";
 
 type Toast = { id: number; text: string };
 const ToastCtx = createContext<(text: string, kind?: "ok" | "err") => void>(() => {});
@@ -22,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={show}>
       {children}
       {toasts.map((t) => (
-        <div key={t.id} className="toast">{t.text}</div>
+        <div key={t.id} className={s.toast}>{t.text}</div>
       ))}
     </ToastCtx.Provider>
   );

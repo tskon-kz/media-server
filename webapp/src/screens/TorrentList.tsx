@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import { Sheet } from "../components/Sheet";
 import { CategoryPicker } from "../components/CategoryPicker";
 import type { Category, Torrent } from "../types";
+import s from "./TorrentList.module.scss";
 
 export function TorrentList() {
   const toast = useToast();
@@ -84,32 +85,32 @@ export function TorrentList() {
     } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  if (torrents === null) return <div className="spinner" />;
+  if (torrents === null) return <div className={s.spinner} />;
 
   return (
     <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <div className="row spread">
-        <div className="screen-title">Torrents</div>
+      <div className={`${s.row} ${s.spread}`}>
+        <div className={s.screenTitle}>Torrents</div>
         <button className="ghost" onClick={() => load()}>↻</button>
       </div>
-      {pull > 0 && <div className="hint" style={{ textAlign: "center", height: pull }}>↓ pull to refresh</div>}
-      {err && <div className="card error-text">{err}</div>}
-      {!err && torrents.length === 0 && <div className="center-msg">📭 List is empty</div>}
+      {pull > 0 && <div className={s.hint} style={{ textAlign: "center", height: pull }}>↓ pull to refresh</div>}
+      {err && <div className={`${s.card} ${s.errorText}`}>{err}</div>}
+      {!err && torrents.length === 0 && <div className={s.centerMsg}>📭 List is empty</div>}
 
       {torrents.map((t) => (
-        <div key={t.hash} className="card tappable" onClick={() => setSelected(t)}>
-          <div className="row">
-            <span className="icon-lg">{t.icon}</span>
-            <div className="grow">
-              <div className="title-text">{t.name}</div>
-              <div className="subtitle">
+        <div key={t.hash} className={`${s.card} ${s.tappable}`} onClick={() => setSelected(t)}>
+          <div className={s.row}>
+            <span className={s.iconLg}>{t.icon}</span>
+            <div className={s.grow}>
+              <div className={s.titleText}>{t.name}</div>
+              <div className={s.subtitle}>
                 {t.progress < 1 ? `${pct(t.progress)} · ` : ""}{bytes(t.size)}
                 {t.dlspeed > 0 ? ` · ↓ ${speed(t.dlspeed)}` : ""}
               </div>
             </div>
           </div>
           {t.progress < 1 && (
-            <div className="progress"><span style={{ width: `${t.progress * 100}%` }} /></div>
+            <div className={s.progress}><span style={{ width: `${t.progress * 100}%` }} /></div>
           )}
         </div>
       ))}
@@ -130,10 +131,10 @@ export function TorrentList() {
 
       {confirmDel && (
         <Sheet title="Delete torrent?" onClose={() => setConfirmDel(null)}>
-          <div className="hint" style={{ marginBottom: 12 }}>
-            “{confirmDel.name}” and all its files will be removed. This cannot be undone.
+          <div className={s.hint} style={{ marginBottom: 12 }}>
+            "{confirmDel.name}" and all its files will be removed. This cannot be undone.
           </div>
-          <div className="btn-row">
+          <div className={s.btnRow}>
             <button className="secondary" onClick={() => setConfirmDel(null)}>Cancel</button>
             <button className="destructive" onClick={() => doDelete(confirmDel)}>Delete</button>
           </div>

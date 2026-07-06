@@ -5,6 +5,7 @@ import { openExternal } from "../telegram";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
 import type { Category, SearchResult } from "../types";
+import s from "./Search.module.scss";
 
 export function Search() {
   const toast = useToast();
@@ -50,12 +51,12 @@ export function Search() {
 
   return (
     <div>
-      <div className="screen-title">Search</div>
+      <div className={s.screenTitle}>Search</div>
 
-      <div className="card">
-        <div className="row">
+      <div className={s.card}>
+        <div className={s.row}>
           <input
-            className="grow"
+            className={s.grow}
             style={{ marginBottom: 0 }}
             placeholder="Search Jackett…"
             value={q}
@@ -66,16 +67,16 @@ export function Search() {
         </div>
       </div>
 
-      {loading && <div className="spinner" />}
-      {err && <div className="card error-text">{err}</div>}
+      {loading && <div className={s.spinner} />}
+      {err && <div className={`${s.card} ${s.errorText}`}>{err}</div>}
       {results !== null && !loading && results.length === 0 && !err && (
-        <div className="center-msg">🔍 No results</div>
+        <div className={s.centerMsg}>🔍 No results</div>
       )}
 
       {results?.map((r, i) => (
-        <div key={i} className="card tappable" onClick={() => choose(r)}>
-          <div className="title-text" style={{ whiteSpace: "normal" }}>{r.title}</div>
-          <div className="subtitle">
+        <div key={i} className={`${s.card} ${s.tappable}`} onClick={() => choose(r)}>
+          <div className={s.titleText} style={{ whiteSpace: "normal" }}>{r.title}</div>
+          <div className={s.subtitle}>
             🌱 {r.seeders} · 📦 {bytes(r.size)} ·{" "}
             {r.details ? (
               <a onClick={(e) => { e.stopPropagation(); openExternal(r.details); }}>{r.tracker}</a>

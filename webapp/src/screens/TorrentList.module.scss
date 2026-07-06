@@ -1,0 +1,93 @@
+.spinner {
+  width: 26px;
+  height: 26px;
+  margin: 40px auto;
+  border: 3px solid var(--tg-theme-secondary-bg-color);
+  border-top-color: var(--tg-theme-button-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spread { justify-content: space-between; }
+
+.grow { flex: 1; min-width: 0; }
+
+.screenTitle {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 4px 0 14px;
+}
+
+.hint {
+  color: var(--tg-theme-hint-color);
+  font-size: 14px;
+}
+
+.card {
+  background: var(--tg-theme-section-bg-color);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.tappable {
+  cursor: pointer;
+  transition: opacity 0.15s;
+  &:active { opacity: 0.6; }
+}
+
+.errorText {
+  color: var(--tg-theme-destructive-text-color);
+  font-size: 14px;
+}
+
+.centerMsg {
+  text-align: center;
+  color: var(--tg-theme-hint-color);
+  padding: 40px 20px;
+}
+
+.iconLg {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.titleText {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  color: var(--tg-theme-hint-color);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.progress {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--tg-theme-secondary-bg-color);
+  overflow: hidden;
+  margin-top: 10px;
+
+  > span {
+    display: block;
+    height: 100%;
+    background: var(--tg-theme-button-color);
+  }
+}
+
+.btnRow {
+  display: flex;
+  gap: 8px;
+  > button { flex: 1; }
+}

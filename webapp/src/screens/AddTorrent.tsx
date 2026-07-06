@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
 import type { Category } from "../types";
+import s from "./AddTorrent.module.scss";
 
 export function AddTorrent({ onAdded }: { onAdded: () => void }) {
   const toast = useToast();
@@ -46,9 +47,9 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
 
   return (
     <div>
-      <div className="screen-title">Add torrent</div>
+      <div className={s.screenTitle}>Add torrent</div>
 
-      <div className="card">
+      <div className={s.card}>
         <label>Magnet link</label>
         <textarea
           placeholder="magnet:?xt=urn:btih:…"
@@ -60,7 +61,7 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
         </button>
       </div>
 
-      <div className="card">
+      <div className={s.card}>
         <label>Or upload a .torrent file</label>
         <input
           ref={fileRef}

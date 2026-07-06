@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { speed } from "../format";
 import { useToast } from "../components/Toast";
+import s from "./Status.module.scss";
 
 export function Status() {
   const toast = useToast();
@@ -29,24 +30,24 @@ export function Status() {
 
   return (
     <div>
-      <div className="screen-title">Status</div>
+      <div className={s.screenTitle}>Status</div>
 
-      <div className="card">
-        <div className="row spread">
-          <span className="hint">qBittorrent</span>
+      <div className={s.card}>
+        <div className={`${s.row} ${s.spread}`}>
+          <span className={s.hint}>qBittorrent</span>
           <span>{st ? (st.connected ? "✅ connected" : "❌ unavailable") : "…"}</span>
         </div>
       </div>
 
-      <div className="row" style={{ gap: 10 }}>
-        <div className="card grow" style={{ textAlign: "center" }}>
-          <div className="hint">Download</div>
+      <div className={s.row} style={{ gap: 10 }}>
+        <div className={`${s.card} ${s.grow}`} style={{ textAlign: "center" }}>
+          <div className={s.hint}>Download</div>
           <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
             ↓ {st?.connected ? speed(st.dl ?? 0) : "—"}
           </div>
         </div>
-        <div className="card grow" style={{ textAlign: "center" }}>
-          <div className="hint">Upload</div>
+        <div className={`${s.card} ${s.grow}`} style={{ textAlign: "center" }}>
+          <div className={s.hint}>Upload</div>
           <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
             ↑ {st?.connected ? speed(st.ul ?? 0) : "—"}
           </div>

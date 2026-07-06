@@ -5,6 +5,7 @@ import { AddTorrent } from "./screens/AddTorrent";
 import { Search } from "./screens/Search";
 import { Status } from "./screens/Status";
 import { Settings } from "./screens/Settings";
+import s from "./App.module.scss";
 
 type Tab = "list" | "add" | "search" | "status" | "settings";
 
@@ -21,18 +22,22 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className="app">
-        <div className="content">
+      <div className={s.app}>
+        <div className={s.content}>
           {tab === "list" && <TorrentList />}
           {tab === "add" && <AddTorrent onAdded={() => setTab("list")} />}
           {tab === "search" && <Search />}
           {tab === "status" && <Status />}
           {tab === "settings" && <Settings />}
         </div>
-        <nav className="tabbar">
+        <nav className={s.tabbar}>
           {TABS.map((t) => (
-            <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
-              <span className="tab-ico">{t.icon}</span>
+            <button
+              key={t.key}
+              className={`${s.tabBtn}${tab === t.key ? ` ${s.active}` : ""}`}
+              onClick={() => setTab(t.key)}
+            >
+              <span className={s.tabIco}>{t.icon}</span>
               {t.label}
             </button>
           ))}
