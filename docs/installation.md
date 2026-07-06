@@ -27,9 +27,59 @@ The script:
 | Jellyfin server name | Optional, defaults to `Media Server` |
 | Jackett admin password | Optional — protects the Jackett web UI; leave empty for no password |
 | Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
+| Named Cloudflare tunnel | Optional — see [Mini App URL](#mini-app-url--cloudflare-tunnel) below |
 | Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080, Jackett: 9117) |
 
 After the installer completes, the bot is live in your Telegram chat.
+
+---
+
+## Mini App URL — Cloudflare Tunnel
+
+The Mini App (web UI in Telegram) is served over HTTPS via a Cloudflare Tunnel. Two modes are supported:
+
+### Quick tunnel (default, no account required)
+
+The installer starts a `cloudflared` container that opens an ephemeral `*.trycloudflare.com` HTTPS URL. The bot detects it automatically and sets the Menu Button in Telegram. No configuration needed — just press `n` at the named tunnel prompt.
+
+**Limitation:** the URL changes every time the `cloudflared` container restarts. The bot updates the Menu Button automatically within ~60 s, so there is no manual action required — but the URL is not static, so the bot cannot be registered in BotFather with a fixed Mini App URL (no OPEN button in the Telegram chat list).
+
+### Named tunnel (static URL, requires Cloudflare account)
+
+A named tunnel gives the Mini App a permanent `https://app.yourdomain.com` address. This enables the **OPEN** button in the Telegram chat list and allows registering the bot in BotFather with a fixed URL.
+
+#### Before running the installer
+
+1. Log in to [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → **Networks → Tunnels → Create a tunnel**
+2. Name the tunnel (e.g. `media-server`) → copy the **tunnel token**
+3. Under **Public Hostnames**, add:
+   - **Subdomain / Domain:** `app.yourdomain.com` (any subdomain on your CF-managed domain)
+   - **Service:** `http://telegram-bot:8081`
+
+#### During the installer
+
+When asked `Named Cloudflare tunnel? [y/n]` — press `y`, then enter:
+- The tunnel token
+- Your static URL (e.g. `https://app.yourdomain.com`)
+
+The installer writes both to `.env` and the bot uses the static URL from the first start.
+
+#### Switching from quick tunnel to named tunnel after install
+
+Edit `.env` on the server and add:
+
+```dotenv
+CLOUDFLARE_TUNNEL_TOKEN=eyJ...your-token...
+WEBAPP_URL=https://app.yourdomain.com
+```
+
+Then restart:
+
+```bash
+docker compose up -d cloudflared telegram-bot
+```
+
+The bot picks up `WEBAPP_URL` on next start and updates the Menu Button immediately.
 
 ---
 

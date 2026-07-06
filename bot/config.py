@@ -11,6 +11,7 @@ JACKETT_PORT     = os.environ.get("JACKETT_PORT", "9117")
 APP_VERSION      = os.environ.get("APP_VERSION", "dev")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_TOKEN", "")
 WEBAPP_PORT      = int(os.environ.get("WEBAPP_PORT", "8081"))
+WEBAPP_URL       = os.environ.get("WEBAPP_URL", "")  # static override for named CF tunnel
 # Dev-only auth bypass for the Mini App API. When enabled, /api/* skips Telegram
 # initData validation and acts as the configured ALLOWED user — used when the
 # frontend runs in a plain browser (Vite dev server) with no Telegram context.

@@ -214,6 +214,14 @@ printf "%s" "$MSG_ASK_JF_NAME";      read -r JF_NAME
 printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
 printf "%s" "$MSG_ASK_PROXY";        read -r PROXY_URL
 
+CF_TUNNEL_TOKEN=""
+CF_WEBAPP_URL=""
+printf "%s" "$MSG_ASK_CF_TUNNEL"; read -r _CF_ANSWER
+if [[ "$_CF_ANSWER" =~ ^[Yy]$ ]]; then
+    printf "%s" "$MSG_ASK_CF_TOKEN"; read -r CF_TUNNEL_TOKEN
+    printf "%s" "$MSG_ASK_CF_URL";   read -r CF_WEBAPP_URL
+fi
+
 JF_PORT=8096
 QB_PORT=8080
 JACKETT_PORT=9117
@@ -243,6 +251,8 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     [ "$QB_PORT"      != "8080"   ] && echo "QB_PORT=$QB_PORT"
     [ "$JACKETT_PORT" != "9117"   ] && echo "JACKETT_PORT=$JACKETT_PORT"
     [ "$MEDIA_PATH"   != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
+    [ -n "$CF_TUNNEL_TOKEN" ] && echo "CLOUDFLARE_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN"
+    [ -n "$CF_WEBAPP_URL"   ] && echo "WEBAPP_URL=$CF_WEBAPP_URL"
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.
@@ -421,25 +431,33 @@ fi
 
 _spin "$MSG_STARTING" docker compose up -d telegram-bot cloudflared
 
-# ---- Mini App (Cloudflare Tunnel) URL ----
-# The bot resolves the ephemeral trycloudflare.com URL from cloudflared's logs
-# and writes it to the DB (config key `webapp_url`) within one polling cycle.
+# ---- Mini App URL ----
 WEBAPP_URL=""
-printf "  %s" "$MSG_WEBAPP_WAIT"
-for i in $(seq 1 30); do
-    WEBAPP_URL=$(_db_get webapp_url "")
-    [ -n "$WEBAPP_URL" ] && break
-    printf "."
-    sleep 3
-done
-[ -n "$WEBAPP_URL" ] && printf " ✓\n" || printf " ⚠️\n"
+if [ -n "$CF_WEBAPP_URL" ]; then
+    # Static named tunnel URL — available immediately, no need to poll.
+    WEBAPP_URL="$CF_WEBAPP_URL"
+else
+    # Ephemeral quick tunnel: bot scrapes trycloudflare.com URL from cloudflared
+    # logs and writes it to the DB within one polling cycle (~60 s).
+    printf "  %s" "$MSG_WEBAPP_WAIT"
+    for i in $(seq 1 30); do
+        WEBAPP_URL=$(_db_get webapp_url "")
+        [ -n "$WEBAPP_URL" ] && break
+        printf "."
+        sleep 3
+    done
+    [ -n "$WEBAPP_URL" ] && printf " ✓\n" || printf " ⚠️\n"
+fi
 
 echo ""
 echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
 echo "Jackett:     http://$SERVER_IP:$JACKETT_PORT"
-if [ -n "$WEBAPP_URL" ]; then
+if [ -n "$CF_WEBAPP_URL" ]; then
+    echo "Mini App:    $WEBAPP_URL"
+    echo "$MSG_WEBAPP_HINT_STATIC"
+elif [ -n "$WEBAPP_URL" ]; then
     echo "Mini App:    $WEBAPP_URL"
     echo "$MSG_WEBAPP_HINT"
 else

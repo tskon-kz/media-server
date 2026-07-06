@@ -1,7 +1,7 @@
 import qbittorrentapi
 from telegram import MenuButtonWebApp, WebAppInfo
 
-from config import ALLOWED, DONE_STATES, APP_VERSION
+from config import ALLOWED, DONE_STATES, APP_VERSION, WEBAPP_URL
 from store import (
     t, load_cats, load_states, save_states,
     get_config, set_config, set_qb_status, get_qb_status,
@@ -78,14 +78,13 @@ async def job_check_done(ctx):
 
 
 async def job_check_webapp_url(ctx):
-    """Keep the stored Mini App URL and each user's Menu Button in sync with the
-    live cloudflared quick-tunnel URL.
+    """Keep the stored Mini App URL and each user's Menu Button in sync.
 
-    The tunnel URL is regenerated on every cloudflared restart, so this polls
-    the container logs and, whenever the URL changes, persists it and re-points
-    the persistent Menu Button (next to the message box) at the new address.
+    When WEBAPP_URL is set (named Cloudflare tunnel with a static domain), it is
+    used directly. Otherwise polls cloudflared container logs for the ephemeral
+    trycloudflare.com URL and updates on every change (new URL on each restart).
     """
-    url = get_cloudflared_url()
+    url = WEBAPP_URL or get_cloudflared_url()
     if not url or url == get_config("webapp_url"):
         return
     set_config("webapp_url", url)

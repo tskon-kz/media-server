@@ -54,6 +54,7 @@ services:
       - JACKETT_PORT=${JACKETT_PORT:-9117}
       - WATCHTOWER_TOKEN=${WATCHTOWER_TOKEN}
       - WEBAPP_PORT=${WEBAPP_PORT:-8081}
+      - WEBAPP_URL=${WEBAPP_URL:-}
       - PYTHONUNBUFFERED=1
     volumes:
       - ./bot-data:/app/data
@@ -71,7 +72,14 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: media-server-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://telegram-bot:${WEBAPP_PORT:-8081}
+    # Named tunnel (static URL): set CLOUDFLARE_TUNNEL_TOKEN in .env and also
+    # set WEBAPP_URL to your static domain — the bot will use it directly
+    # instead of scraping ephemeral trycloudflare.com URLs from logs.
+    # Leave CLOUDFLARE_TUNNEL_TOKEN empty to use the default quick tunnel.
+    entrypoint: ["sh", "-c"]
+    command: '[ -n "$$CLOUDFLARE_TUNNEL_TOKEN" ] && exec cloudflared tunnel --no-autoupdate run --token "$$CLOUDFLARE_TUNNEL_TOKEN" || exec cloudflared tunnel --no-autoupdate --url http://telegram-bot:${WEBAPP_PORT:-8081}'
+    environment:
+      - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
       - telegram-bot
 
