@@ -5,6 +5,7 @@ on:
     branches: [dev]
     paths:
       - "bot/**"
+      - "webapp/**"
       - "lang/**"
       - "pyproject.toml"
       - "docker-compose.yml"
