@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { Snackbar } from "@telegram-apps/telegram-ui";
 import { haptic } from "../telegram";
-import s from "./Toast.module.scss";
 
-type Toast = { id: number; text: string };
+type ToastEntry = { id: number; text: string };
 const ToastCtx = createContext<(text: string, kind?: "ok" | "err") => void>(() => {});
 
 export function useToast() {
@@ -10,21 +10,21 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toast, setToast] = useState<ToastEntry | null>(null);
 
   const show = useCallback((text: string, kind: "ok" | "err" = "ok") => {
     haptic(kind === "err" ? "error" : "success");
-    const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, text }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600);
+    setToast({ id: Date.now(), text });
   }, []);
 
   return (
     <ToastCtx.Provider value={show}>
       {children}
-      {toasts.map((t) => (
-        <div key={t.id} className={s.toast}>{t.text}</div>
-      ))}
+      {toast && (
+        <Snackbar key={toast.id} onClose={() => setToast(null)} duration={2600}>
+          {toast.text}
+        </Snackbar>
+      )}
     </ToastCtx.Provider>
   );
 }

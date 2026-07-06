@@ -1,20 +1,23 @@
 import { useState } from "react";
+import { Tabbar } from "@telegram-apps/telegram-ui";
+import { Activity, Inbox, Plus, Search, Settings2, type LucideProps } from "lucide-react";
+import type { ComponentType } from "react";
 import { ToastProvider } from "./components/Toast";
 import { TorrentList } from "./screens/TorrentList";
 import { AddTorrent } from "./screens/AddTorrent";
-import { Search } from "./screens/Search";
+import { Search as SearchScreen } from "./screens/Search";
 import { Status } from "./screens/Status";
 import { Settings } from "./screens/Settings";
 import s from "./App.module.scss";
 
 type Tab = "list" | "add" | "search" | "status" | "settings";
 
-const TABS: { key: Tab; icon: string; label: string }[] = [
-  { key: "list", icon: "📥", label: "Torrents" },
-  { key: "add", icon: "➕", label: "Add" },
-  { key: "search", icon: "🔍", label: "Search" },
-  { key: "status", icon: "📊", label: "Status" },
-  { key: "settings", icon: "⚙️", label: "Settings" },
+const TABS: { key: Tab; Icon: ComponentType<LucideProps>; label: string }[] = [
+  { key: "list",     Icon: Inbox,     label: "Torrents" },
+  { key: "add",      Icon: Plus,      label: "Add" },
+  { key: "search",   Icon: Search,    label: "Search" },
+  { key: "status",   Icon: Activity,  label: "Status" },
+  { key: "settings", Icon: Settings2, label: "Settings" },
 ];
 
 export default function App() {
@@ -22,27 +25,25 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className={s.app}>
-        <div className={s.content}>
-          {tab === "list" && <TorrentList />}
-          {tab === "add" && <AddTorrent onAdded={() => setTab("list")} />}
-          {tab === "search" && <Search />}
-          {tab === "status" && <Status />}
-          {tab === "settings" && <Settings />}
-        </div>
-        <nav className={s.tabbar}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              className={`${s.tabBtn}${tab === t.key ? ` ${s.active}` : ""}`}
-              onClick={() => setTab(t.key)}
-            >
-              <span className={s.tabIco}>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
+      <div className={s.content}>
+        {tab === "list"     && <TorrentList />}
+        {tab === "add"      && <AddTorrent onAdded={() => setTab("list")} />}
+        {tab === "search"   && <SearchScreen />}
+        {tab === "status"   && <Status />}
+        {tab === "settings" && <Settings />}
       </div>
+      <Tabbar>
+        {TABS.map(({ key, Icon, label }) => (
+          <Tabbar.Item
+            key={key}
+            text={label}
+            selected={tab === key}
+            onClick={() => setTab(key)}
+          >
+            <Icon size={28} />
+          </Tabbar.Item>
+        ))}
+      </Tabbar>
     </ToastProvider>
   );
 }

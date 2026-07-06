@@ -1,18 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { Button, Cell, Input, List, Placeholder, Section, Spinner, Title } from "@telegram-apps/telegram-ui";
+import { Search as SearchIcon } from "lucide-react";
 import { api } from "../api";
 import { bytes } from "../format";
-import { openExternal } from "../telegram";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
 import type { Category, SearchResult } from "../types";
-import s from "./Search.module.scss";
 
 export function Search() {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [pick, setPick] = useState<SearchResult | null>(null);
 
@@ -22,12 +21,11 @@ export function Search() {
     const query = q.trim();
     if (!query) return;
     setLoading(true);
-    setErr(null);
     try {
       const r = await api.search(query);
       setResults(r.results);
     } catch (e) {
-      setErr((e as Error).message);
+      toast((e as Error).message, "err");
       setResults([]);
     } finally {
       setLoading(false);
@@ -41,59 +39,60 @@ export function Search() {
 
   const addNow = async (r: SearchResult, cat?: Category) => {
     setPick(null);
-    try {
-      await api.searchAdd(r, cat?.id);
-      toast("✅ Added");
-    } catch (e) {
-      toast((e as Error).message, "err");
-    }
+    try { await api.searchAdd(r, cat?.id); toast("Added"); }
+    catch (e) { toast((e as Error).message, "err"); }
   };
 
   return (
     <div>
-      <div className={s.screenTitle}>Search</div>
-
-      <div className={s.card}>
-        <div className={s.row}>
-          <input
-            className={s.grow}
-            style={{ marginBottom: 0 }}
+      <div style={{ padding: "16px 16px 4px" }}>
+        <Title>Search</Title>
+      </div>
+      <List>
+        <Section>
+          <Input
+            header="Search Jackett"
             placeholder="Search Jackett…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
+            after={
+              <Button mode="plain" size="s" onClick={run} disabled={loading || !q.trim()}>
+                <SearchIcon size={20} />
+              </Button>
+            }
           />
-          <button onClick={run} disabled={loading || !q.trim()}>Go</button>
-        </div>
-      </div>
+        </Section>
 
-      {loading && <div className={s.spinner} />}
-      {err && <div className={`${s.card} ${s.errorText}`}>{err}</div>}
-      {results !== null && !loading && results.length === 0 && !err && (
-        <div className={s.centerMsg}>🔍 No results</div>
-      )}
+        {loading && <Spinner size="m" style={{ display: "block", margin: "24px auto" }} />}
 
-      {results?.map((r, i) => (
-        <div key={i} className={`${s.card} ${s.tappable}`} onClick={() => choose(r)}>
-          <div className={s.titleText} style={{ whiteSpace: "normal" }}>{r.title}</div>
-          <div className={s.subtitle}>
-            🌱 {r.seeders} · 📦 {bytes(r.size)} ·{" "}
-            {r.details ? (
-              <a onClick={(e) => { e.stopPropagation(); openExternal(r.details); }}>{r.tracker}</a>
-            ) : r.tracker}
-            {r.date ? ` · ${r.date.slice(0, 10)}` : ""}
-          </div>
-        </div>
-      ))}
+        {results !== null && !loading && results.length === 0 && (
+          <Placeholder header="No results" description="Try a different query" />
+        )}
 
-      {pick && (
-        <CategoryPicker
-          categories={cats}
-          title="Choose category"
-          onPick={(c) => addNow(pick, c)}
-          onClose={() => setPick(null)}
-        />
-      )}
+        {results && results.length > 0 && (
+          <Section>
+            {results.map((r, i) => (
+              <Cell
+                key={i}
+                subtitle={`${r.seeders} seeders · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
+                onClick={() => choose(r)}
+                multiline
+              >
+                {r.title}
+              </Cell>
+            ))}
+          </Section>
+        )}
+      </List>
+
+      <CategoryPicker
+        categories={cats}
+        open={!!pick}
+        title="Choose category"
+        onPick={(c) => pick && addNow(pick, c)}
+        onClose={() => setPick(null)}
+      />
     </div>
   );
 }

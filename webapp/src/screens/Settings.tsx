@@ -1,18 +1,26 @@
 import { useEffect, useState } from "react";
+import {
+  Button, Caption, Cell, Input, List, Modal, Section,
+  SegmentedControl, Spinner, Switch, Title,
+} from "@telegram-apps/telegram-ui";
+import {
+  Clapperboard, Film, Lock, Music, Package, Plus,
+  Trash2, Tv, Unlock, UserPlus, Users,
+} from "lucide-react";
 import { api } from "../api";
 import { openExternal } from "../telegram";
 import { useToast } from "../components/Toast";
-import { Sheet } from "../components/Sheet";
 import { PromptSheet } from "../components/PromptSheet";
 import type { AppConfig, Category, JellyfinUser, Settings as SettingsData } from "../types";
-import s from "./Settings.module.scss";
 
-const JF_TYPES = [
-  { key: "movies", label: "🎬 Movies" },
-  { key: "tvshows", label: "📺 TV Shows" },
-  { key: "music", label: "🎵 Music" },
-  { key: "mixed", label: "📦 Other" },
+const JF_TYPES: { key: string; label: string; Icon: typeof Clapperboard }[] = [
+  { key: "movies",  label: "Movies",   Icon: Film },
+  { key: "tvshows", label: "TV Shows", Icon: Tv },
+  { key: "music",   label: "Music",    Icon: Music },
+  { key: "mixed",   label: "Other",    Icon: Package },
 ];
+
+const DEL_COLOR = "var(--tgui--destructive_text_color)";
 
 export function Settings() {
   const toast = useToast();
@@ -20,8 +28,6 @@ export function Settings() {
   const [st, setSt] = useState<SettingsData | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [users, setUsers] = useState<JellyfinUser[] | null>(null);
-
-  // dialog state
   const [dialog, setDialog] = useState<string | null>(null);
   const [newCatName, setNewCatName] = useState("");
   const [renameCat, setRenameCat] = useState<Category | null>(null);
@@ -38,7 +44,7 @@ export function Settings() {
     try { await fn(); } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  if (!cfg || !st) return <div className={s.spinner} />;
+  if (!cfg || !st) return <Spinner size="m" style={{ display: "block", margin: "40px auto" }} />;
 
   const toggleRename = () => guard(async () => {
     const mode = st.rename_mode === "flat" ? "pretty" : "flat";
@@ -112,154 +118,217 @@ export function Settings() {
 
   return (
     <div>
-      <div className={s.screenTitle}>Settings</div>
-
-      {/* Auto-structure */}
-      <div className={`${s.card} ${s.tappable}`} onClick={toggleRename}>
-        <div className={`${s.row} ${s.spread}`}>
-          <div>
-            <div className={s.titleText}>Auto-structure</div>
-            <div className={s.subtitle}>{st.rename_mode === "pretty" ? "Smart (parse filenames)" : "Original structure"}</div>
-          </div>
-          <span className={`${s.chip} ${s.active}`}>{st.rename_mode === "pretty" ? "Smart" : "Original"}</span>
-        </div>
+      <div style={{ padding: "16px 16px 4px" }}>
+        <Title>Settings</Title>
       </div>
+      <List>
+        {/* Auto-structure */}
+        <Section>
+          <Cell
+            subtitle={st.rename_mode === "pretty" ? "Smart (parse filenames)" : "Original structure"}
+            after={<Switch checked={st.rename_mode === "pretty"} onChange={toggleRename} />}
+            multiline
+          >
+            Auto-structure
+          </Cell>
+        </Section>
 
-      {/* Language */}
-      <div className={s.card}>
-        <div className={`${s.row} ${s.spread}`}>
-          <div className={s.titleText}>Language</div>
-          <div className={s.chips}>
-            <span className={`${s.chip}${st.lang === "ru" ? ` ${s.active}` : ""}`} onClick={() => setLang("ru")}>🇷🇺 RU</span>
-            <span className={`${s.chip}${st.lang === "en" ? ` ${s.active}` : ""}`} onClick={() => setLang("en")}>🇬🇧 EN</span>
-          </div>
+        {/* Language */}
+        <Section>
+          <Cell
+            after={
+              <SegmentedControl>
+                <SegmentedControl.Item selected={st.lang === "ru"} onClick={() => setLang("ru")}>RU</SegmentedControl.Item>
+                <SegmentedControl.Item selected={st.lang === "en"} onClick={() => setLang("en")}>EN</SegmentedControl.Item>
+              </SegmentedControl>
+            }
+          >
+            Language
+          </Cell>
+        </Section>
+
+        {/* Categories */}
+        <Section header="Categories">
+          {cats.map((c) => (
+            <Cell
+              key={c.id}
+              subtitle={c.path.replace("/media/", "")}
+              after={
+                <Button
+                  mode="plain"
+                  size="s"
+                  style={{ color: DEL_COLOR }}
+                  onClick={(e) => { e.stopPropagation(); delCat(c); }}
+                >
+                  <Trash2 size={18} />
+                </Button>
+              }
+              onClick={() => { setRenameCat(c); setDialog("renameCat"); }}
+              multiline
+            >
+              {c.name}
+            </Cell>
+          ))}
+        </Section>
+        <div style={{ padding: "8px 16px" }}>
+          <Button stretched mode="bezeled" before={<Plus size={18} />} onClick={() => setDialog("newCat")}>
+            Add category
+          </Button>
         </div>
-      </div>
 
-      {/* Categories */}
-      <div className={s.sectionLabel}>Categories</div>
-      {cats.map((c) => (
-        <div key={c.id} className={s.card}>
-          <div className={`${s.row} ${s.spread}`}>
-            <div className={s.grow} onClick={() => { setRenameCat(c); setDialog("renameCat"); }}>
-              <div className={s.titleText}>{c.name}</div>
-              <div className={`${s.subtitle} ${s.mono}`}>{c.path.replace("/media/", "")}</div>
+        {/* qBittorrent */}
+        <Section header="qBittorrent">
+          <Cell
+            subtitle={`User: ${st.qbittorrent.user}`}
+            after={st.qbittorrent.is_perm ? <Lock size={16} /> : undefined}
+            multiline
+          >
+            Credentials
+          </Cell>
+        </Section>
+        <div style={{ padding: "8px 16px", display: "flex", gap: 8 }}>
+          <Button stretched mode="bezeled" onClick={() => setDialog("qbPass")}>Change pass</Button>
+          {!st.qbittorrent.is_perm && <Button stretched mode="bezeled" onClick={qbTemp}>Get temp</Button>}
+          <Button stretched mode="bezeled" onClick={qbRestart}>Restart</Button>
+        </div>
+
+        {/* Jackett */}
+        <Section header="Jackett">
+          <Cell
+            subtitle={`API key: ${st.jackett.has_key ? "available" : "missing"}`}
+            after={st.jackett.has_password ? <Lock size={16} /> : <Unlock size={16} />}
+            multiline
+          >
+            Jackett
+          </Cell>
+        </Section>
+        <div style={{ padding: "8px 16px", display: "flex", gap: 8 }}>
+          <Button stretched mode="bezeled" onClick={() => setDialog("jackettPass")}>Change pass</Button>
+          {st.jackett.has_password && (
+            <Button stretched mode="bezeled" style={{ color: DEL_COLOR }} onClick={jackettRemovePass}>Remove pass</Button>
+          )}
+        </div>
+
+        {/* Jellyfin */}
+        {st.jellyfin.has_key && (
+          <div style={{ padding: "8px 16px" }}>
+            <Button stretched mode="bezeled" before={<Users size={18} />} onClick={openUsers}>
+              Manage Jellyfin users
+            </Button>
+          </div>
+        )}
+
+        {/* Quick links */}
+        {cfg.quick_links && (
+          <>
+            <Section header="Web UIs" />
+            <div style={{ padding: "8px 16px", display: "flex", gap: 8 }}>
+              <Button stretched mode="bezeled" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</Button>
+              <Button stretched mode="bezeled" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</Button>
+              <Button stretched mode="bezeled" onClick={() => openExternal(cfg.quick_links!.jackett)}>Jackett</Button>
             </div>
-            <button className="destructive" onClick={() => delCat(c)}>🗑</button>
-          </div>
-        </div>
-      ))}
-      <button className="secondary full" onClick={() => setDialog("newCat")}>➕ Add category</button>
+          </>
+        )}
 
-      {/* qBittorrent */}
-      <div className={s.sectionLabel}>qBittorrent</div>
-      <div className={s.card}>
-        <div className={`${s.row} ${s.spread}`}>
-          <span className={s.hint}>User: {st.qbittorrent.user}</span>
-          <span className={s.hint}>{st.qbittorrent.is_perm ? "🔒 permanent" : "temporary"}</span>
-        </div>
-        <div className={s.btnRow} style={{ marginTop: 10 }}>
-          <button className="secondary" onClick={() => setDialog("qbPass")}>Change pass</button>
-          {!st.qbittorrent.is_perm && <button className="secondary" onClick={qbTemp}>Get temp</button>}
-          <button className="secondary" onClick={qbRestart}>Restart</button>
-        </div>
-      </div>
+        <Section footer={`version ${cfg.version}`} />
+      </List>
 
-      {/* Jackett */}
-      <div className={s.sectionLabel}>Jackett</div>
-      <div className={s.card}>
-        <div className={`${s.row} ${s.spread}`}>
-          <span className={s.hint}>API key: {st.jackett.has_key ? "✅" : "❌"}</span>
-          <span className={s.hint}>Password: {st.jackett.has_password ? "🔒 set" : "🔓 public"}</span>
-        </div>
-        <div className={s.btnRow} style={{ marginTop: 10 }}>
-          <button className="secondary" onClick={() => setDialog("jackettPass")}>Change pass</button>
-          {st.jackett.has_password && <button className="destructive" onClick={jackettRemovePass}>Remove pass</button>}
-        </div>
-      </div>
-
-      {/* Jellyfin */}
-      {st.jellyfin.has_key && (
-        <>
-          <div className={s.sectionLabel}>Jellyfin</div>
-          <button className="secondary full" onClick={openUsers}>👤 Manage users</button>
-        </>
-      )}
-
-      {/* Quick links */}
-      {cfg.quick_links && (
-        <>
-          <div className={s.sectionLabel}>Web UIs</div>
-          <div className={s.btnRow}>
-            <button className="secondary" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</button>
-            <button className="secondary" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</button>
-            <button className="secondary" onClick={() => openExternal(cfg.quick_links!.jackett)}>Jackett</button>
-          </div>
-        </>
-      )}
-
-      <div className={s.centerMsg} style={{ paddingTop: 24 }}>version {cfg.version}</div>
-
-      {/* ---- dialogs ---- */}
-      {dialog === "newCat" && (
-        <Sheet title="New category" onClose={() => setDialog(null)}>
-          <label>Name</label>
-          <input autoFocus value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="Anime" />
-          <label>Library type</label>
-          <div className={s.chips}>
-            {JF_TYPES.map((t) => (
-              <button key={t.key} className="secondary" disabled={!newCatName.trim()} onClick={() => createCat(t.key)}>
-                {t.label}
-              </button>
+      {/* New category dialog */}
+      <Modal
+        open={dialog === "newCat"}
+        onOpenChange={(o) => !o && setDialog(null)}
+        header={<Modal.Header>New category</Modal.Header>}
+      >
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <Input
+            header="Name"
+            autoFocus
+            value={newCatName}
+            onChange={(e) => setNewCatName(e.target.value)}
+            placeholder="Anime"
+          />
+          <Caption style={{ color: "var(--tgui--hint_color)" }}>Library type</Caption>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {JF_TYPES.map(({ key, label, Icon }) => (
+              <Button key={key} mode="bezeled" before={<Icon size={16} />} disabled={!newCatName.trim()} onClick={() => createCat(key)}>
+                {label}
+              </Button>
             ))}
           </div>
-        </Sheet>
-      )}
+        </div>
+      </Modal>
 
-      {dialog === "renameCat" && renameCat && (
-        <PromptSheet
-          title="Rename category"
-          label="New name"
-          onSubmit={doRenameCat}
-          onClose={() => { setRenameCat(null); setDialog(null); }}
-        />
-      )}
-
-      {dialog === "qbPass" && (
-        <PromptSheet title="qBittorrent password" label="New password" password
-          onSubmit={qbPass} onClose={() => setDialog(null)} />
-      )}
-
-      {dialog === "jackettPass" && (
-        <PromptSheet title="Jackett admin password" label="New password (empty to remove)" password
-          submitText="Save" onSubmit={jackettPass} onClose={() => setDialog(null)} />
-      )}
-
-      {dialog === "users" && users && (
-        <Sheet title="Jellyfin users" onClose={() => setDialog(null)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {users.map((u) => (
-              <div key={u.id} className={`${s.row} ${s.spread}`}>
-                <span>{u.name}</span>
-                <button className="destructive" onClick={() => delUser(u)}>🗑</button>
-              </div>
+      {/* Jellyfin users dialog */}
+      <Modal
+        open={dialog === "users"}
+        onOpenChange={(o) => !o && setDialog(null)}
+        header={<Modal.Header>Jellyfin users</Modal.Header>}
+      >
+        <List>
+          <Section>
+            {users?.map((u) => (
+              <Cell
+                key={u.id}
+                after={
+                  <Button mode="plain" size="s" style={{ color: DEL_COLOR }} onClick={() => delUser(u)}>
+                    <Trash2 size={18} />
+                  </Button>
+                }
+              >
+                {u.name}
+              </Cell>
             ))}
-            {users.length === 0 && <div className={s.hint}>No users</div>}
-            <button className="secondary full" onClick={() => setDialog("newUserName")}>➕ Add user</button>
-          </div>
-        </Sheet>
-      )}
+            {users?.length === 0 && <Cell>No users yet</Cell>}
+          </Section>
+        </List>
+        <div style={{ padding: "8px 16px 16px" }}>
+          <Button stretched mode="bezeled" before={<UserPlus size={18} />} onClick={() => setDialog("newUserName")}>
+            Add user
+          </Button>
+        </div>
+      </Modal>
 
-      {dialog === "newUserName" && (
-        <PromptSheet title="New user" label="Username" submitText="Next"
-          onSubmit={(n) => { setNewUserName(n); setDialog("newUserPass"); }}
-          onClose={() => setDialog("users")} />
-      )}
-
-      {dialog === "newUserPass" && (
-        <PromptSheet title={`Password for ${newUserName}`} label="Password" password
-          onSubmit={addUser} onClose={() => setDialog("users")} />
-      )}
+      {/* PromptSheets */}
+      <PromptSheet
+        title="Rename category"
+        label="New name"
+        open={dialog === "renameCat" && !!renameCat}
+        onSubmit={doRenameCat}
+        onClose={() => { setRenameCat(null); setDialog(null); }}
+      />
+      <PromptSheet
+        title="qBittorrent password"
+        label="New password"
+        password
+        open={dialog === "qbPass"}
+        onSubmit={qbPass}
+        onClose={() => setDialog(null)}
+      />
+      <PromptSheet
+        title="Jackett admin password"
+        label="New password (empty to remove)"
+        password
+        submitText="Save"
+        open={dialog === "jackettPass"}
+        onSubmit={jackettPass}
+        onClose={() => setDialog(null)}
+      />
+      <PromptSheet
+        title="New user"
+        label="Username"
+        submitText="Next"
+        open={dialog === "newUserName"}
+        onSubmit={(n) => { setNewUserName(n); setDialog("newUserPass"); }}
+        onClose={() => setDialog("users")}
+      />
+      <PromptSheet
+        title={`Password for ${newUserName}`}
+        label="Password"
+        password
+        open={dialog === "newUserPass"}
+        onSubmit={addUser}
+        onClose={() => setDialog("users")}
+      />
     </div>
   );
 }

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useEffect, useState } from "react";
+import { Button, FileInput, List, Section, Textarea, Title } from "@telegram-apps/telegram-ui";
 import { api } from "../api";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
 import type { Category } from "../types";
-import s from "./AddTorrent.module.scss";
 
 export function AddTorrent({ onAdded }: { onAdded: () => void }) {
   const toast = useToast();
@@ -11,7 +11,8 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
   const [cats, setCats] = useState<Category[]>([]);
   const [busy, setBusy] = useState(false);
   const [pick, setPick] = useState<null | { magnet?: string; file?: File }>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [fileKey, setFileKey] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { api.categories().then((c) => setCats(c.categories)).catch(() => {}); }, []);
 
@@ -34,9 +35,9 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
     try {
       if (what.magnet) await api.addMagnet(what.magnet, cat?.id);
       else if (what.file) await api.addTorrentFile(what.file, cat?.id);
-      toast("✅ Added");
+      toast("Added");
       setMagnet("");
-      if (fileRef.current) fileRef.current.value = "";
+      setFileKey((k) => k + 1);
       onAdded();
     } catch (e) {
       toast((e as Error).message, "err");
@@ -47,38 +48,41 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
 
   return (
     <div>
-      <div className={s.screenTitle}>Add torrent</div>
-
-      <div className={s.card}>
-        <label>Magnet link</label>
-        <textarea
-          placeholder="magnet:?xt=urn:btih:…"
-          value={magnet}
-          onChange={(e) => setMagnet(e.target.value)}
-        />
-        <button className="full" disabled={busy || !magnet.trim()} onClick={submitMagnet}>
-          Add magnet
-        </button>
+      <div style={{ padding: "16px 16px 4px" }}>
+        <Title>Add torrent</Title>
       </div>
+      <List>
+        <Section header="Magnet link">
+          <Textarea
+            ref={textareaRef}
+            placeholder="magnet:?xt=urn:btih:…"
+            value={magnet}
+            onChange={(e) => setMagnet(e.target.value)}
+          />
+          <div style={{ padding: "0 16px 12px" }}>
+            <Button stretched disabled={busy || !magnet.trim()} onClick={submitMagnet}>
+              Add magnet
+            </Button>
+          </div>
+        </Section>
 
-      <div className={s.card}>
-        <label>Or upload a .torrent file</label>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".torrent"
-          onChange={(e) => onFile(e.target.files?.[0])}
-        />
-      </div>
+        <Section header=".torrent file">
+          <FileInput
+            key={fileKey}
+            label="Upload .torrent file"
+            accept=".torrent"
+            onChange={(e) => onFile(e.target.files?.[0])}
+          />
+        </Section>
+      </List>
 
-      {pick && (
-        <CategoryPicker
-          categories={cats}
-          title="Choose category"
-          onPick={(c) => addNow(pick, c)}
-          onClose={() => setPick(null)}
-        />
-      )}
+      <CategoryPicker
+        categories={cats}
+        open={!!pick}
+        title="Choose category"
+        onPick={(c) => pick && addNow(pick, c)}
+        onClose={() => setPick(null)}
+      />
     </div>
   );
 }

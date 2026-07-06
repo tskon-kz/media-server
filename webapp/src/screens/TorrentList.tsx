@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button, Cell, List, Modal, Placeholder, Progress, Section, Spinner, Title } from "@telegram-apps/telegram-ui";
+import { Clapperboard, Folder, FolderInput, Layers, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "../api";
 import { bytes, pct, speed } from "../format";
 import { haptic } from "../telegram";
 import { useToast } from "../components/Toast";
-import { Sheet } from "../components/Sheet";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { TorrentIcon } from "../icons";
 import type { Category, Torrent } from "../types";
-import s from "./TorrentList.module.scss";
+
+const DEL_COLOR = "var(--tgui--destructive_text_color)";
 
 export function TorrentList() {
   const toast = useToast();
   const [torrents, setTorrents] = useState<Torrent[] | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
-  const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<Torrent | null>(null);
   const [moving, setMoving] = useState<Torrent | null>(null);
   const [structFor, setStructFor] = useState<Torrent | null>(null);
@@ -24,12 +26,11 @@ export function TorrentList() {
       const [tr, c] = await Promise.all([api.torrents(), api.categories()]);
       setTorrents(tr.torrents);
       setCats(c.categories);
-      setErr(null);
     } catch (e) {
-      setErr((e as Error).message);
+      toast((e as Error).message, "err");
       setTorrents([]);
     }
-  }, []);
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     load();
@@ -37,7 +38,6 @@ export function TorrentList() {
     return () => clearInterval(iv);
   }, [load]);
 
-  // Lightweight pull-to-refresh.
   const startY = useRef<number | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY <= 0) startY.current = e.touches[0].clientY;
@@ -56,21 +56,15 @@ export function TorrentList() {
   const doDelete = async (t: Torrent) => {
     setConfirmDel(null);
     setSelected(null);
-    try {
-      await api.deleteTorrent(t.hash);
-      toast("Deleted");
-      load();
-    } catch (e) { toast((e as Error).message, "err"); }
+    try { await api.deleteTorrent(t.hash); toast("Deleted"); load(); }
+    catch (e) { toast((e as Error).message, "err"); }
   };
 
   const doMove = async (t: Torrent, cat: Category) => {
     setMoving(null);
     setSelected(null);
-    try {
-      await api.moveTorrent(t.hash, cat.id);
-      toast(`Moved to ${cat.name}`);
-      load();
-    } catch (e) { toast((e as Error).message, "err"); }
+    try { await api.moveTorrent(t.hash, cat.id); toast(`Moved to ${cat.name}`); load(); }
+    catch (e) { toast((e as Error).message, "err"); }
   };
 
   const doStructure = async (t: Torrent, mode: "pretty" | "flat" | "delete") => {
@@ -85,80 +79,107 @@ export function TorrentList() {
     } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  if (torrents === null) return <div className={s.spinner} />;
+  if (torrents === null) {
+    return <Spinner size="m" style={{ display: "block", margin: "40px auto" }} />;
+  }
 
   return (
     <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <div className={`${s.row} ${s.spread}`}>
-        <div className={s.screenTitle}>Torrents</div>
-        <button className="ghost" onClick={() => load()}>↻</button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 4px" }}>
+        <Title>Torrents</Title>
+        <Button mode="plain" onClick={load}><RefreshCw size={20} /></Button>
       </div>
-      {pull > 0 && <div className={s.hint} style={{ textAlign: "center", height: pull }}>↓ pull to refresh</div>}
-      {err && <div className={`${s.card} ${s.errorText}`}>{err}</div>}
-      {!err && torrents.length === 0 && <div className={s.centerMsg}>📭 List is empty</div>}
 
-      {torrents.map((t) => (
-        <div key={t.hash} className={`${s.card} ${s.tappable}`} onClick={() => setSelected(t)}>
-          <div className={s.row}>
-            <span className={s.iconLg}>{t.icon}</span>
-            <div className={s.grow}>
-              <div className={s.titleText}>{t.name}</div>
-              <div className={s.subtitle}>
-                {t.progress < 1 ? `${pct(t.progress)} · ` : ""}{bytes(t.size)}
-                {t.dlspeed > 0 ? ` · ↓ ${speed(t.dlspeed)}` : ""}
-              </div>
-            </div>
-          </div>
-          {t.progress < 1 && (
-            <div className={s.progress}><span style={{ width: `${t.progress * 100}%` }} /></div>
-          )}
+      {pull > 0 && (
+        <div style={{ textAlign: "center", height: pull, color: "var(--tgui--hint_color)", fontSize: 14 }}>
+          ↓ pull to refresh
         </div>
-      ))}
-
-      {selected && (
-        <Sheet title={selected.name} onClose={() => setSelected(null)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {cats.length > 0 && (
-              <button className="secondary full" onClick={() => setMoving(selected)}>📁 Move to category</button>
-            )}
-            {selected.renameable && (
-              <button className="secondary full" onClick={() => setStructFor(selected)}>🗂 Structure</button>
-            )}
-            <button className="destructive full" onClick={() => setConfirmDel(selected)}>🗑 Delete</button>
-          </div>
-        </Sheet>
       )}
 
-      {confirmDel && (
-        <Sheet title="Delete torrent?" onClose={() => setConfirmDel(null)}>
-          <div className={s.hint} style={{ marginBottom: 12 }}>
-            "{confirmDel.name}" and all its files will be removed. This cannot be undone.
-          </div>
-          <div className={s.btnRow}>
-            <button className="secondary" onClick={() => setConfirmDel(null)}>Cancel</button>
-            <button className="destructive" onClick={() => doDelete(confirmDel)}>Delete</button>
-          </div>
-        </Sheet>
+      {torrents.length === 0 ? (
+        <Placeholder header="No torrents" description="Add a magnet link or .torrent file" />
+      ) : (
+        <List>
+          <Section>
+            {torrents.map((t) => (
+              <Cell
+                key={t.hash}
+                before={<TorrentIcon state={t.state} />}
+                subtitle={`${t.progress < 1 ? pct(t.progress) + " · " : ""}${bytes(t.size)}${t.dlspeed > 0 ? " · ↓ " + speed(t.dlspeed) : ""}`}
+                description={t.progress < 1 ? <Progress value={t.progress * 100} style={{ marginTop: 6 }} /> : undefined}
+                onClick={() => setSelected(t)}
+                multiline
+              >
+                {t.name}
+              </Cell>
+            ))}
+          </Section>
+        </List>
       )}
 
-      {moving && (
-        <CategoryPicker
-          categories={cats}
-          title="Move to category"
-          onPick={(c) => doMove(moving, c)}
-          onClose={() => setMoving(null)}
-        />
-      )}
+      {/* Torrent actions */}
+      <Modal
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        header={<Modal.Header>{selected?.name}</Modal.Header>}
+      >
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {cats.length > 0 && (
+            <Button stretched mode="bezeled" before={<FolderInput size={18} />} onClick={() => { setMoving(selected); setSelected(null); }}>
+              Move to category
+            </Button>
+          )}
+          {selected?.renameable && (
+            <Button stretched mode="bezeled" before={<Layers size={18} />} onClick={() => { setStructFor(selected); setSelected(null); }}>
+              Structure
+            </Button>
+          )}
+          <Button stretched mode="bezeled" before={<Trash2 size={18} />} style={{ color: DEL_COLOR }} onClick={() => { setConfirmDel(selected); setSelected(null); }}>
+            Delete
+          </Button>
+        </div>
+      </Modal>
 
-      {structFor && (
-        <Sheet title="Structure" onClose={() => setStructFor(null)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button className="secondary full" onClick={() => doStructure(structFor, "pretty")}>🎬 Pretty names</button>
-            <button className="secondary full" onClick={() => doStructure(structFor, "flat")}>📁 Original structure</button>
-            <button className="destructive full" onClick={() => doStructure(structFor, "delete")}>🗑 Delete hardlinks</button>
+      {/* Delete confirmation */}
+      <Modal
+        open={!!confirmDel}
+        onOpenChange={(o) => !o && setConfirmDel(null)}
+        header={<Modal.Header>Delete torrent?</Modal.Header>}
+      >
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ color: "var(--tgui--hint_color)", fontSize: 14, marginBottom: 4 }}>
+            "{confirmDel?.name}" and all its files will be removed.
           </div>
-        </Sheet>
-      )}
+          <Button stretched mode="bezeled" before={<Trash2 size={18} />} style={{ color: DEL_COLOR }} onClick={() => confirmDel && doDelete(confirmDel)}>
+            Delete
+          </Button>
+          <Button stretched mode="bezeled" onClick={() => setConfirmDel(null)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Move to category */}
+      <CategoryPicker
+        categories={cats}
+        open={!!moving}
+        title="Move to category"
+        onPick={(c) => moving && doMove(moving, c)}
+        onClose={() => setMoving(null)}
+      />
+
+      {/* Structure picker */}
+      <Modal
+        open={!!structFor}
+        onOpenChange={(o) => !o && setStructFor(null)}
+        header={<Modal.Header>Structure</Modal.Header>}
+      >
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <Button stretched mode="bezeled" before={<Clapperboard size={18} />} onClick={() => structFor && doStructure(structFor, "pretty")}>Pretty names</Button>
+          <Button stretched mode="bezeled" before={<Folder size={18} />} onClick={() => structFor && doStructure(structFor, "flat")}>Original structure</Button>
+          <Button stretched mode="bezeled" before={<Trash2 size={18} />} style={{ color: DEL_COLOR }} onClick={() => structFor && doStructure(structFor, "delete")}>Delete hardlinks</Button>
+        </div>
+      </Modal>
     </div>
   );
 }
