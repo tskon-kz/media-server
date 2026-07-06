@@ -47,11 +47,13 @@ export default {
     fileSection: ".torrent файл",
     uploadLabel: "Загрузить .torrent файл",
     invalidMagnet: "Введите корректную magnet-ссылку",
+    manual: "Добавить вручную",
   },
 
   // Search screen
   search: {
     title: "Поиск",
+    addViaSearch: "Добавить через поиск",
     inputHeader: "Поиск Jackett",
     placeholder: "Поиск Jackett…",
     empty: "Нет результатов",

@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { Activity, Inbox, Plus, Search, Settings2, type LucideProps } from "lucide-react";
+import { Activity, Inbox, Plus, Settings2, type LucideProps } from "lucide-react";
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { ToastProvider } from "./components/Toast";
 import { TorrentList } from "./screens/TorrentList";
 import { AddTorrent } from "./screens/AddTorrent";
-import { Search as SearchScreen } from "./screens/Search";
 import { Status } from "./screens/Status";
 import { Settings } from "./screens/Settings";
 import styles from "./App.module.scss";
 
-type Tab = "list" | "add" | "search" | "status" | "settings";
+type Tab = "list" | "add" | "status" | "settings";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("list");
@@ -19,7 +18,6 @@ export default function App() {
   const TABS: { key: Tab; Icon: ComponentType<LucideProps>; label: string }[] = [
     { key: "list",     Icon: Inbox,     label: t("tabs.torrents") },
     { key: "add",      Icon: Plus,      label: t("tabs.add") },
-    { key: "search",   Icon: Search,    label: t("tabs.search") },
     { key: "status",   Icon: Activity,  label: t("tabs.status") },
     { key: "settings", Icon: Settings2, label: t("tabs.settings") },
   ];
@@ -29,7 +27,6 @@ export default function App() {
       <div className={styles.content}>
         {tab === "list"     && <TorrentList />}
         {tab === "add"      && <AddTorrent onAdded={() => setTab("list")} />}
-        {tab === "search"   && <SearchScreen />}
         {tab === "status"   && <Status />}
         {tab === "settings" && <Settings />}
       </div>

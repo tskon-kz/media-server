@@ -47,11 +47,13 @@ export default {
     fileSection: ".torrent file",
     uploadLabel: "Upload .torrent file",
     invalidMagnet: "Enter a valid magnet link",
+    manual: "Add manually",
   },
 
   // Search screen
   search: {
     title: "Search",
+    addViaSearch: "Add via search",
     inputHeader: "Search Jackett",
     placeholder: "Search Jackett…",
     empty: "No results",
