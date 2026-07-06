@@ -1,9 +1,14 @@
 [project]
 name = "media-server"
-version = "0.2.1"
+# Frozen: the version is defined by the git tag on each GitHub Release, not here.
+# This field is kept only because the packaging tool requires it — it is never
+# read for update logic and never needs bumping. APP_VERSION is set at build
+# time from the tag/branch (see .github/workflows/build-*.yml).
+version = "0.0.0"
 requires-python = ">=3.11"
 dependencies = [
     "python-telegram-bot[job-queue]==21.*",
     "qbittorrent-api",
     "guessit",
+    "docker",
 ]

@@ -75,26 +75,29 @@ This starts Jellyfin, qBittorrent, the bot, and Watchtower.
 
 ## CI/CD
 
-Two GitHub Actions workflows trigger on changes to `bot/`, `lang/`, or `pyproject.toml` on `main`:
+Three image tracks, each backed by a git ref (path filters: `bot/**`, `lang/**`, `pyproject.toml`, `docker-compose.yml`). Full description in `CLAUDE.md` and the maintainer runbook in `docs/releases.md`.
 
-| Workflow | What it does |
-|----------|-------------|
-| `build-push.yml` | Builds and pushes bot image to `ghcr.io` with `:latest` and `:<version>` tags |
-| `dev-deploy.yml` | SSHes into the maintainer's server and calls Watchtower HTTP API to update |
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `build-dev.yml` | push to `dev` | Builds `:dev`, then triggers `dev-deploy.yml` |
+| `build-edge.yml` | push to `main` | Builds `:edge` (no deploy) |
+| `build-release.yml` | published GitHub Release | Builds `:vX.Y.Z` + `:stable` + `:latest` (no deploy) |
+| `dev-deploy.yml` | after `build-dev.yml` | SSHes into the maintainer's dev VM (Tailscale) and calls the Watchtower HTTP API |
 
-`dev-deploy.yml` is for the repo maintainer's own server. In forks, the deploy step is skipped automatically if `SERVER_HOST` secret is not set.
+`dev-deploy.yml` is for the repo maintainer's own dev VM (whose `.env` pins `BOT_IMAGE_TAG=dev`). In forks, the deploy step is a no-op if the server `.env` is absent.
 
 Required secrets for `dev-deploy.yml`:
 
 | Secret | Value |
 |--------|-------|
-| `SERVER_HOST` | Server IP |
-| `SERVER_USER` | SSH username |
-| `SERVER_SSH_KEY` | Private SSH key |
-| `SSH_PORT` | SSH port |
+| `DEV_SERVER_HOST` | Dev VM Tailscale host/IP |
+| `DEV_SERVER_USER` | SSH username |
+| `DEV_SERVER_SSH_KEY` | Private SSH key |
+| `DEV_SSH_PORT` | SSH port |
+| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Tailscale OAuth for the CI node |
 
-Both workflows can also be triggered manually via Actions → Run workflow.
+Workflows can also be triggered manually via Actions → Run workflow.
 
-## Bumping the version
+## Releasing a new version
 
-Version is read from `pyproject.toml → [project].version`. Bumping it triggers an update notification to all bot users (the bot checks `pyproject.toml` on GitHub every 6 hours).
+The git tag on a GitHub Release **is** the version (`pyproject.toml` version is frozen at `0.0.0` and never bumped). To cut a release: merge `dev → main` (builds `:edge`), then GitHub → Releases → create a new release with tag `vX.Y.Z` targeting `main` (builds `:stable`/`:vX.Y.Z`). Prod bots pick it up via `/settings` → Update. See `docs/releases.md`.

@@ -11,7 +11,7 @@ from store import (
     delete_rename_job, delete_rename_jobs_by_hash,
     set_config, get_config, set_qb_status,
 )
-from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, remote_version, invalidate_qb, jackett_download_torrent, jackett_set_password
+from api import jf, jf_add_library, jf_remove_library, qb, qb_restart, qb_set_password, qb_temp_password, gh_latest_release_tag, invalidate_qb, jackett_download_torrent, jackett_set_password
 from parser import (
     process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job,
     delete_torrent_links, delete_all_cat_contents,
@@ -19,7 +19,7 @@ from parser import (
 import keyboards as kb
 from ._utils import (
     _edit, _show_list, _show_torrent_actions, _run_pretty_parse,
-    _do_trigger_update, _dl_path, log,
+    _do_self_update, _dl_path, log,
 )
 from .jobs import job_qb_restart_check
 
@@ -76,7 +76,7 @@ async def on_callback(update, ctx):
                 case "jf_users":
                     await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
                 case "update":
-                    await _edit(query, *kb.update_view(APP_VERSION, remote_version()))
+                    await _edit(query, *kb.update_view(APP_VERSION, gh_latest_release_tag()))
                 case "media":
                     await _edit(query, t("media_mgmt_title"), kb.global_structure_menu_kb())
                 case "jackett":
@@ -128,11 +128,17 @@ async def on_callback(update, ctx):
             set_lang(value)
             await _edit(query, t("settings_main"), kb.main_menu_kb())
 
-        case "update":
-            if value == "start":
+        case "selfupdate":
+            if value == "stable":
                 set_config("update_pending", "1")
                 await _edit(query, t("update_started"))
-                asyncio.create_task(_do_trigger_update(query.message))
+                asyncio.create_task(_do_self_update(query.message, "stable"))
+            elif value == "edge:confirm":
+                await _edit(query, t("update_force_warn"), kb.update_force_confirm_kb())
+            elif value == "edge:go":
+                set_config("update_pending", "1")
+                await _edit(query, t("update_started"))
+                asyncio.create_task(_do_self_update(query.message, "edge"))
 
         case "tor_action":
             await _show_torrent_actions(query, value)

@@ -17,7 +17,53 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/u
 4. Pulls the latest Docker images
 5. Starts containers again
 
-> **Note:** This updates the infrastructure (compose file, images). The bot itself updates automatically via Watchtower, or manually via `/settings` → Update in the bot.
+> **Note:** This updates the infrastructure (compose file, images) and syncs
+> `BOT_IMAGE_TAG` in `.env` with the tag the bot last self-updated to (stored in
+> the DB, default `stable`). The bot itself normally updates via `/settings` →
+> Update (see below); Watchtower remains only as a weekly safety net.
+
+---
+
+## Updating the bot — `/settings` → Update
+
+The bot updates **itself**, locally, through the Docker socket it mounts — no
+GitHub secrets, no per-install configuration. `/settings` → Update offers:
+
+- **⬆️ Update to `vX.Y.Z`** — appears when a newer published release exists.
+  Pulls the `:stable` image and blue/green-replaces the bot container.
+- **⚠️ Force update (unreleased main)** — always available; asks for a second
+  confirmation. Installs the `:edge` build (latest `main`, not yet released).
+  Use for testing a fix before it's tagged.
+
+The bot starts the replacement container *before* stopping the old one, so a bad
+pull leaves the running bot untouched and reports the failure. On success it
+messages "Bot restarted and running …" once the new container boots.
+
+The passive check polls the GitHub Releases API every 6h and notifies you when a
+newer release tag is available.
+
+---
+
+## Rolling back to a specific version
+
+Every release also pushes an immutable `:vX.Y.Z` tag. If a release is bad and the
+in-bot flow is unavailable (e.g. the bot won't start), roll back manually on the
+server:
+
+```bash
+cd ~/media-server
+# 1. point compose at the known-good version
+sed -i 's/^BOT_IMAGE_TAG=.*/BOT_IMAGE_TAG=v1.4.0/' .env   # or add the line if absent
+# 2. also record it as the runtime default so update.sh won't undo it
+python3 -c "import sqlite3; d=sqlite3.connect('bot-data/media_server.db'); \
+d.execute(\"INSERT OR REPLACE INTO config VALUES ('bot_image_tag','v1.4.0')\"); d.commit()"
+# 3. pull and restart just the bot
+docker compose pull telegram-bot
+docker compose up -d telegram-bot
+```
+
+Once a fixed release is out, update normally via `/settings` → Update (or set the
+tag back to `stable` and repeat the steps above).
 
 ---
 

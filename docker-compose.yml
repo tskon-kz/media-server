@@ -40,7 +40,7 @@ services:
       - ./data/jackett/config:/config
 
   telegram-bot:
-    image: ghcr.io/tskon-kz/media-server-bot:latest
+    image: ghcr.io/tskon-kz/media-server-bot:${BOT_IMAGE_TAG:-stable}
     container_name: media-server-telegram-bot
     restart: unless-stopped
     environment:

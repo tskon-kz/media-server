@@ -1,0 +1,46 @@
+name: Build Edge
+
+# Builds the :edge tag on every push to main (dev is merged into main via PR).
+# This tag only needs to EXIST so prod can pull it on demand via the bot's
+# "Force update" action — it is never auto-deployed anywhere.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bot/**"
+      - "lang/**"
+      - "pyproject.toml"
+      - "docker-compose.yml"
+      - ".github/workflows/build-edge.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Short SHA
+        id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./bot/Dockerfile
+          push: true
+          build-args: VERSION=edge-${{ steps.sha.outputs.short }}
+          tags: ghcr.io/${{ github.repository_owner }}/media-server-bot:edge

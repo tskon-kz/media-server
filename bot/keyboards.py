@@ -182,11 +182,21 @@ def qb_settings_kb(is_perm: bool = True, has_auth_error: bool = False):
     return InlineKeyboardMarkup(buttons)
 
 
-def update_kb(has_update):
-    label = "update_btn" if has_update else "update_force_btn"
+def update_kb(has_update, remote=None):
+    buttons = []
+    if has_update:
+        buttons.append([InlineKeyboardButton(
+            t("update_btn", v=remote), callback_data="selfupdate:stable")])
+    buttons.append([InlineKeyboardButton(
+        t("update_force_btn"), callback_data="selfupdate:edge:confirm")])
+    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
+    return InlineKeyboardMarkup(buttons)
+
+
+def update_force_confirm_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t(label), callback_data="update:start")],
-        [InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")],
+        [InlineKeyboardButton(t("update_force_yes_btn"), callback_data="selfupdate:edge:go")],
+        [InlineKeyboardButton(t("cancel_btn"),           callback_data="settings:update")],
     ])
 
 
@@ -269,7 +279,7 @@ def update_view(local, remote):
         return t("update_check_fail", v=local), update_kb(False)
     if remote == local:
         return t("update_up_to_date", v=local), update_kb(False)
-    return t("update_available", local=local, remote=remote), update_kb(True)
+    return t("update_available", local=local, remote=remote), update_kb(True, remote)
 
 
 def jackett_settings_kb(has_password: bool = False):

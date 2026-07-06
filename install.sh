@@ -83,6 +83,23 @@ sys.exit(0 if row else 1)
 PYEOF
 }
 
+# Print the DB value for a key, or a default if unset/missing. Prints to stdout
+# (not the &3 log fd) so it can be captured. Used to resolve runtime switches
+# (e.g. bot_image_tag) that the Telegram bot writes but compose reads at start.
+_db_get() {  # _db_get key [default]
+    python3 - "$DB_FILE" "$1" "${2:-}" << 'PYEOF'
+import sqlite3, os, sys
+db_path, key, default = sys.argv[1], sys.argv[2], sys.argv[3]
+val = None
+if os.path.exists(db_path):
+    row = sqlite3.connect(db_path).execute(
+        "SELECT value FROM config WHERE key=? AND value IS NOT NULL AND value != ''", (key,)
+    ).fetchone()
+    val = row[0] if row else None
+print(val if val else default)
+PYEOF
+}
+
 # ---- language ----
 
 echo "1) English"
@@ -122,6 +139,12 @@ fi
 
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
+
+# Resolve the bot image tag for every `docker compose up -d` below. The DB is the
+# source of truth for tag switches made via the Telegram "Update"/"Force update"
+# actions; default to :stable for a fresh install. Exported once so all compose
+# invocations in this script agree with what the bot last self-updated to.
+export BOT_IMAGE_TAG="$(_db_get bot_image_tag stable)"
 
 _spin "$MSG_DOWNLOADING" bash -c "
     curl -fsSL '$RAW/docker-compose.yml'  -o docker-compose.yml
@@ -190,6 +213,7 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     echo "BOT_TOKEN=$BOT_TOKEN"
     echo "ALLOWED_USER=$ALLOWED_USER"
     echo "WATCHTOWER_TOKEN=$WATCHTOWER_TOKEN"
+    echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG"
     [ "$JF_PORT"      != "8096"   ] && echo "JELLYFIN_PORT=$JF_PORT"
     [ "$QB_PORT"      != "8080"   ] && echo "QB_PORT=$QB_PORT"
     [ "$JACKETT_PORT" != "9117"   ] && echo "JACKETT_PORT=$JACKETT_PORT"
