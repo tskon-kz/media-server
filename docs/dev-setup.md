@@ -90,7 +90,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 ## Mini App frontend (Vite hot-reload on Mac)
 
-The React SPA lives in `webapp/`. In production it's built into the Docker image and served as static files. In dev, Vite runs on the Mac and proxies `/api` to the dev server.
+The React SPA lives in `webapp/`. In production it's built into the Docker image and served as static files. In dev, Vite runs on your local machine and proxies `/api` to the dev server.
 
 **Requires:** the dev server is running with `docker-compose.dev.yml` applied (port 8081 published, `WEBAPP_DEV_MODE=1`), and the dev server is reachable from the Mac (e.g. via Tailscale).
 
