@@ -1,12 +1,12 @@
 import qbittorrentapi
 
-from config import ALLOWED, DONE_STATES
+from config import ALLOWED, DONE_STATES, APP_VERSION
 from store import (
     t, load_cats, load_states, save_states,
     get_config, set_qb_status, get_qb_status,
     has_notified_update, mark_update_notified,
 )
-from api import jf, qb, invalidate_qb, remote_version
+from api import jf, qb, invalidate_qb, gh_latest_release_tag
 from parser import create_flat_hardlinks, process_torrent_rename
 import keyboards as kb
 from ._utils import _notify_admins, log
@@ -77,11 +77,11 @@ async def job_check_done(ctx):
 
 
 async def job_check_update(ctx):
-    remote = remote_version()
-    if remote and remote != APP_VERSION and not has_notified_update(remote):
-        mark_update_notified(remote)
+    latest = gh_latest_release_tag()
+    if latest and latest != APP_VERSION and not has_notified_update(latest):
+        mark_update_notified(latest)
         for uid in ALLOWED:
             try:
-                await ctx.bot.send_message(uid, t("update_notify", v=remote), parse_mode="Markdown")
+                await ctx.bot.send_message(uid, t("update_notify", v=latest), parse_mode="Markdown")
             except Exception:
                 pass

@@ -1,7 +1,6 @@
 import json
 import socket
 import struct
-import tomllib
 import urllib.request
 import urllib.parse
 import qbittorrentapi
@@ -9,8 +8,7 @@ from config import (
     JF_URL, QB_HOST,
     JACKETT_URL,
     SEARCH_RESULTS_LIMIT, SEARCH_CATEGORIES,
-    WATCHTOWER_TOKEN, WATCHTOWER_URL,
-    REPO_SLUG,
+    REPO_SLUG, BOT_IMAGE, BOT_CONTAINER,
 )
 from store import get_config, get_creds, set_config
 
@@ -246,29 +244,130 @@ def jackett_download_torrent(link: str) -> bytes | None:
 
 # --- Updates ---
 
-def remote_version():
+def gh_latest_release_tag() -> str | None:
+    """Latest published GitHub Release tag (e.g. 'v1.5.0'), or None on error.
+
+    Unauthenticated call against the public repo — the tag on the Release IS
+    the version, replacing the old pyproject.toml-on-GitHub poll.
+    """
+    url = f"https://api.github.com/repos/{REPO_SLUG}/releases/latest"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "MediaServerBot/1.0",
+        "Accept": "application/vnd.github+json",
+    })
     try:
-        url = f"https://raw.githubusercontent.com/{REPO_SLUG}/main/pyproject.toml"
-        req = urllib.request.Request(url, headers={"User-Agent": "MediaServerBot/1.0"})
         with urllib.request.urlopen(req, timeout=8) as r:
-            return tomllib.loads(r.read().decode())["project"]["version"]
+            return json.loads(r.read()).get("tag_name") or None
     except Exception:
         return None
 
 
-def trigger_update() -> bool:
-    """Returns True if Watchtower received the request, False if unreachable."""
-    req = urllib.request.Request(
-        f"{WATCHTOWER_URL}/v1/update",
-        method="POST",
-        headers={"Authorization": f"Bearer {WATCHTOWER_TOKEN}"},
-    )
+def self_update(tag: str) -> bool | str:
+    """Replace the running bot container with `tag` via the Docker Engine API.
+
+    Blue/green, new-before-old: pulls the image, starts a replacement container
+    from a clone of this container's live config, confirms it is healthy, and
+    only then retires the old one. A bad pull/start never leaves the user with
+    no bot. Returns True on success, or an error string on failure (in which
+    case the original bot keeps running untouched).
+
+    Runs via asyncio.to_thread; the current process is replaced at the very end,
+    so on success this may not return at all — the new container reports done.
+    """
+    import time
     try:
-        urllib.request.urlopen(req, timeout=90)
-        return True
-    except urllib.error.HTTPError:
-        return True  # got a response — Watchtower received and processed the request
-    except urllib.error.URLError:
-        return False  # connection refused — Watchtower not reachable
+        import docker
+    except Exception as e:
+        return f"docker SDK unavailable: {e}"
+    try:
+        client = docker.from_env()
+    except Exception as e:
+        return f"cannot reach Docker socket: {e}"
+
+    image_ref = f"{BOT_IMAGE}:{tag}"
+    try:
+        client.images.pull(BOT_IMAGE, tag=tag)
+    except Exception as e:
+        return f"pull failed: {e}"
+
+    # Our own container ID is the hostname inside the container.
+    try:
+        me = client.containers.get(socket.gethostname())
+    except Exception as e:
+        return f"self-inspect failed: {e}"
+
+    cfg      = me.attrs
+    host_cfg = cfg.get("HostConfig", {}) or {}
+    conf     = cfg.get("Config", {}) or {}
+
+    # Clone the live env, but drop APP_VERSION so the NEW image's baked-in value
+    # (from its build ARG) wins — otherwise the replacement would report the old
+    # version. Everything else (BOT_TOKEN, QB_HOST, proxy, …) is carried over.
+    env = [e for e in (conf.get("Env") or []) if not e.startswith("APP_VERSION=")]
+    run_kwargs = {
+        "image":       image_ref,
+        "detach":      True,
+        "environment": env,
+        "volumes":     host_cfg.get("Binds") or [],
+        "labels":      conf.get("Labels") or {},
+    }
+    net_mode = host_cfg.get("NetworkMode")
+    if net_mode and net_mode not in ("default", "bridge"):
+        run_kwargs["network"] = net_mode
+    rp = host_cfg.get("RestartPolicy") or {}
+    if rp.get("Name"):
+        run_kwargs["restart_policy"] = {
+            "Name": rp["Name"],
+            "MaximumRetryCount": rp.get("MaximumRetryCount", 0),
+        }
+
+    new_name = f"{BOT_CONTAINER}-new"
+    old_name = f"{BOT_CONTAINER}-old"
+    # Clear any leftovers from a previous interrupted update.
+    for stale in (new_name, old_name):
+        try:
+            client.containers.get(stale).remove(force=True)
+        except Exception:
+            pass
+
+    try:
+        new = client.containers.run(name=new_name, **run_kwargs)
+    except Exception as e:
+        return f"start replacement failed: {e}"
+
+    # Confirm the replacement stays up (a broken image would exit immediately).
+    time.sleep(6)
+    try:
+        new.reload()
+    except Exception as e:
+        try: new.remove(force=True)
+        except Exception: pass
+        return f"replacement health check failed: {e}"
+    if new.status != "running":
+        logs = ""
+        try: logs = new.logs(tail=20).decode(errors="ignore")
+        except Exception: pass
+        try: new.remove(force=True)
+        except Exception: pass
+        return f"replacement not running (status={new.status}). Old bot kept.\n{logs[-400:]}"
+
+    # Healthy. Put everything in its final state BEFORE stopping ourselves, so
+    # even if this process dies mid-teardown the new bot already owns the
+    # canonical name and is running.
+    try:
+        me.rename(old_name)
+        new.rename(BOT_CONTAINER)
+    except Exception as e:
+        # Naming failed but the new container is alive; report so the maintainer
+        # can reconcile with `docker compose up -d` on next cold start.
+        return f"replacement running but rename failed: {e}"
+
+    set_config("bot_image_tag", tag)
+
+    # Retire the old container last. This stops our own process; anything after
+    # the stop call is not guaranteed to run, which is fine — state is final.
+    try:
+        me.remove(force=True)
     except Exception:
-        return True  # timeout means Watchtower is processing (pulling image)
+        pass
+    return True

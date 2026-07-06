@@ -13,8 +13,16 @@
 | `JELLYFIN_PORT` | No | `8096` | Jellyfin web UI port |
 | `QB_PORT` | No | `8080` | qBittorrent web UI port |
 | `JACKETT_PORT` | No | `9117` | Jackett web UI port |
+| `BOT_IMAGE_TAG` | No | `stable` | Bot image tag used at cold start (`docker compose up -d`) |
 
 Generate `WATCHTOWER_TOKEN`: `openssl rand -hex 16`
+
+**`BOT_IMAGE_TAG`** selects which bot image `docker compose` pulls at container
+creation: `stable` (latest release, the default), `edge` (unreleased `main`), or
+a pinned `vX.Y.Z`. It's only read on cold starts; runtime switches happen via the
+bot's `/settings` → Update, which writes the tag to the DB (`bot_image_tag`).
+`install.sh`/`update.sh` resolve the DB value into this variable so the two never
+drift. See `docs/releases.md`.
 
 ---
 
@@ -33,7 +41,8 @@ Stored in `/app/data/media_server.db` (host bind-mount: `./bot-data/media_server
 | `qb_conn_status` | `"unknown"` / `"ok"` / `"error"` — connection health |
 | `rename_mode` | `"flat"` (original structure) or `"pretty"` (smart Jellyfin names) — controls what happens on download completion |
 | `cats_init` | `"1"` once categories table is initialized with defaults |
-| `update_pending` | `"1"` between Watchtower trigger and bot restart |
+| `bot_image_tag` | Image tag the bot last self-updated to (`stable` / `edge` / `vX.Y.Z`); source of truth for `BOT_IMAGE_TAG` |
+| `update_pending` | `"1"` while a self-update restart is in flight; the new container clears it and reports success |
 
 ---
 

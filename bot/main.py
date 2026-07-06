@@ -14,7 +14,6 @@ from config import BOT_TOKEN, APP_VERSION, ALLOWED
 import store
 import handlers as h
 import keyboards as kb
-from api import remote_version
 
 
 async def _post_init(app):
@@ -26,15 +25,11 @@ async def _post_init(app):
         BotCommand("settings", "Настройки"),
     ])
 
+    # Set when a self-update kicked off the restart of the *previous* container.
+    # We're the freshly-started replacement, so confirm we're up and running.
     if store.get_config("update_pending"):
         store.set_config("update_pending", "")
-        remote = remote_version()
-        if remote is None:
-            msg = store.t("update_success_nocheck", v=APP_VERSION)
-        elif APP_VERSION == remote:
-            msg = store.t("update_success", v=APP_VERSION)
-        else:
-            msg = store.t("update_failed_ver", v=APP_VERSION)
+        msg = store.t("update_success", v=APP_VERSION)
         for uid in ALLOWED:
             try:
                 await app.bot.send_message(uid, msg, parse_mode="Markdown")

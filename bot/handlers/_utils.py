@@ -11,7 +11,7 @@ from config import ALLOWED, ICONS, INCOMING_DIR
 import store
 from store import t, load_cats
 import keyboards as kb
-from api import jf, qb, trigger_update, jackett_search, jackett_get_api_key
+from api import jf, qb, self_update, jackett_search, jackett_get_api_key
 from parser import process_torrent_rename, delete_torrent_links
 
 log = logging.getLogger(__name__)
@@ -97,14 +97,23 @@ async def _run_pretty_parse(query, ctx, tor):
         )
 
 
-async def _do_trigger_update(message):
-    ok = await asyncio.to_thread(trigger_update)
-    if not ok:
-        store.set_config("update_pending", "")
-        try:
-            await message.reply_text(t("update_error"))
-        except Exception:
-            pass
+async def _do_self_update(message, tag: str):
+    """Pull `tag` and blue/green-replace this container.
+
+    On success the old process (this one) is killed mid-call as the new
+    container takes over, so control never returns here — the new container's
+    startup hook (`_post_init`) sends the success message. Reaching the code
+    after `self_update` therefore means the update failed and the old bot is
+    still running; clear the pending flag and report why.
+    """
+    result = await asyncio.to_thread(self_update, tag)
+    if result is True:
+        return
+    store.set_config("update_pending", "")
+    try:
+        await message.reply_text(t("update_failed_self", err=str(result)[:300]))
+    except Exception:
+        pass
 
 
 async def _do_search(message, uid: int, query: str):

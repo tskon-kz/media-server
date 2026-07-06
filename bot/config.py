@@ -25,6 +25,9 @@ DATA_DIR       = "/app/data"
 INCOMING_DIR   = "/media/.downloads"
 WATCHTOWER_URL = "http://watchtower:8080"
 REPO_SLUG      = "tskon-kz/media-server"
+REPO_OWNER     = REPO_SLUG.split("/")[0]
+BOT_IMAGE      = f"ghcr.io/{REPO_OWNER}/media-server-bot"
+BOT_CONTAINER  = "media-server-telegram-bot"
 
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
