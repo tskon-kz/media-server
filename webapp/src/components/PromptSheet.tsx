@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Modal } from "@telegram-apps/telegram-ui";
+import { useTranslation } from "react-i18next";
 
 export function PromptSheet({
   title, label, placeholder, password, submitText, open, onSubmit, onClose,
@@ -13,6 +14,7 @@ export function PromptSheet({
   onSubmit: (value: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState("");
 
   useEffect(() => {
@@ -31,10 +33,10 @@ export function PromptSheet({
           onKeyDown={(e) => e.key === "Enter" && value.trim() && onSubmit(value.trim())}
         />
         <Button stretched disabled={!value.trim()} onClick={() => onSubmit(value.trim())}>
-          {submitText ?? "Save"}
+          {submitText ?? t("btn_save")}
         </Button>
         <Button stretched mode="bezeled" onClick={onClose}>
-          Cancel
+          {t("btn_cancel")}
         </Button>
       </div>
     </Modal>

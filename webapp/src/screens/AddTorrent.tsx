@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Button, FileInput, List, Section, Textarea, Title } from "@telegram-apps/telegram-ui";
+import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
@@ -7,6 +8,7 @@ import type { Category } from "../types";
 
 export function AddTorrent({ onAdded }: { onAdded: () => void }) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [magnet, setMagnet] = useState("");
   const [cats, setCats] = useState<Category[]>([]);
   const [busy, setBusy] = useState(false);
@@ -18,7 +20,7 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
 
   const submitMagnet = () => {
     const m = magnet.trim();
-    if (!m.startsWith("magnet:")) { toast("Enter a valid magnet link", "err"); return; }
+    if (!m.startsWith("magnet:")) { toast(t("add.invalidMagnet"), "err"); return; }
     if (cats.length === 0) addNow({ magnet: m });
     else setPick({ magnet: m });
   };
@@ -35,7 +37,7 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
     try {
       if (what.magnet) await api.addMagnet(what.magnet, cat?.id);
       else if (what.file) await api.addTorrentFile(what.file, cat?.id);
-      toast("Added");
+      toast(t("common.added"));
       setMagnet("");
       setFileKey((k) => k + 1);
       onAdded();
@@ -49,10 +51,10 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
   return (
     <div>
       <div style={{ padding: "16px 16px 4px" }}>
-        <Title>Add torrent</Title>
+        <Title>{t("add.title")}</Title>
       </div>
       <List>
-        <Section header="Magnet link">
+        <Section header={t("add.magnetSection")}>
           <Textarea
             ref={textareaRef}
             placeholder="magnet:?xt=urn:btih:…"
@@ -61,15 +63,15 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
           />
           <div style={{ padding: "0 16px 12px" }}>
             <Button stretched disabled={busy || !magnet.trim()} onClick={submitMagnet}>
-              Add magnet
+              {t("add.addMagnet")}
             </Button>
           </div>
         </Section>
 
-        <Section header=".torrent file">
+        <Section header={t("add.fileSection")}>
           <FileInput
             key={fileKey}
-            label="Upload .torrent file"
+            label={t("add.uploadLabel")}
             accept=".torrent"
             onChange={(e) => onFile(e.target.files?.[0])}
           />
@@ -79,7 +81,7 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
       <CategoryPicker
         categories={cats}
         open={!!pick}
-        title="Choose category"
+        title={t("common.chooseCategory")}
         onPick={(c) => pick && addNow(pick, c)}
         onClose={() => setPick(null)}
       />
