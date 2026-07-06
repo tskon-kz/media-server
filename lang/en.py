@@ -142,4 +142,5 @@ M = {
     "jackett_pass_changed":     "✅ Jackett password updated. Jackett restarted.",
     "jackett_pass_error":       "❌ Failed to update Jackett password. Check that the container is running.",
     "webapp_menu_button":       "🎬 Open App",
+    "webapp_open_button":       "🚀 Open App",
 }

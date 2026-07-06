@@ -1,7 +1,7 @@
 import re
 from functools import lru_cache
 from html import escape
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from guessit import guessit
 from config import JF_PORT, QB_PORT, JACKETT_PORT, ICONS, SEARCH_PAGE_SIZE
 import store
@@ -360,6 +360,15 @@ def jackett_view():
     has_password = jackett_has_password()
     pass_status = t("jackett_pass_set") if has_password else t("jackett_pass_not_set")
     return t("jackett_settings_title", api_status=api_status, pass_status=pass_status), jackett_settings_kb(has_password)
+
+
+def start_kb() -> InlineKeyboardMarkup | None:
+    url = store.get_config("webapp_url")
+    if not url:
+        return None
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(t("webapp_open_button"), web_app=WebAppInfo(url=url))
+    ]])
 
 
 def list_text(torrents, page=0):

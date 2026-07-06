@@ -6,7 +6,7 @@ from ._utils import guard, _show_list, _do_search
 
 @guard
 async def cmd_start(update, ctx):
-    await update.message.reply_text(t("start"), parse_mode="Markdown")
+    await update.message.reply_text(t("start"), parse_mode="Markdown", reply_markup=kb.start_kb())
 
 
 @guard
