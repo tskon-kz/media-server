@@ -144,8 +144,7 @@ export default {
     password: "Password",
     userCreated: "User created",
 
-    // Web UIs section
-    webUIs: "Web UIs",
+    openWebUI: "Open web UI",
 
     // Footer
     version: "version {{version}}",

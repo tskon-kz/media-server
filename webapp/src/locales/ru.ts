@@ -144,8 +144,7 @@ export default {
     password: "Пароль",
     userCreated: "Пользователь создан",
 
-    // Web UIs section
-    webUIs: "Веб-интерфейсы",
+    openWebUI: "Открыть веб-интерфейс",
 
     // Footer
     version: "версия {{version}}",

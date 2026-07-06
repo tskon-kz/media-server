@@ -219,6 +219,11 @@ export function Settings() {
             <Button fullWidth variant="light" onClick={() => setDialog("qbPass")}>{t("settings.changePass")}</Button>
             {!settingsData.qbittorrent.is_perm && <Button fullWidth variant="light" onClick={qbTemp}>{t("settings.getTemp")}</Button>}
             <Button fullWidth variant="light" onClick={qbRestart}>{t("settings.restart")}</Button>
+            {cfg.quick_links && (
+              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>
+                {t("settings.openWebUI")}
+              </Button>
+            )}
           </Stack>
         </Collapse>
 
@@ -239,23 +244,25 @@ export function Settings() {
                 {t("settings.removePass")}
               </Button>
             )}
+            {cfg.quick_links && (
+              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>
+                {t("settings.openWebUI")}
+              </Button>
+            )}
           </Stack>
         </Collapse>
 
         {settingsData.jellyfin.has_key && (
           <Collapse className="mb-12" title={t("settings.jellyfin")}>
-            <Button fullWidth variant="light" leftSection={<Users size={18} />} onClick={openUsers}>
-              {t("settings.manageUsers")}
-            </Button>
-          </Collapse>
-        )}
-
-        {cfg.quick_links && (
-          <Collapse className="mb-12" title={t("settings.webUIs")}>
             <Stack gap={8}>
-              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</Button>
-              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</Button>
-              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>Jackett</Button>
+              <Button fullWidth variant="light" leftSection={<Users size={18} />} onClick={openUsers}>
+                {t("settings.manageUsers")}
+              </Button>
+              {cfg.quick_links && (
+                <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>
+                  {t("settings.openWebUI")}
+                </Button>
+              )}
             </Stack>
           </Collapse>
         )}
