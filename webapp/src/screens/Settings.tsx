@@ -16,6 +16,7 @@ import { setAppLanguage } from "../i18n";
 import { Collapse } from "../components/Collapse";
 import { PromptSheet } from "../components/PromptSheet";
 import type { AppConfig, Category, JellyfinUser, Settings as SettingsData } from "../types";
+import AppSection from "../components/AppSection.tsx";
 
 const DEL_COLOR = "var(--tgui--destructive_text_color)";
 
@@ -141,18 +142,16 @@ export function Settings() {
           </Cell>
         </Section>
 
-        {/* Language picker */}
-        <Section header={t("settings.language")}>
+        <AppSection title={t("settings.language")}>
           <div style={{ padding: "8px 16px 12px" }}>
             <SegmentedControl>
               <SegmentedControl.Item selected={st.lang === "ru"} onClick={() => setLang("ru")}>RU</SegmentedControl.Item>
               <SegmentedControl.Item selected={st.lang === "en"} onClick={() => setLang("en")}>EN</SegmentedControl.Item>
             </SegmentedControl>
           </div>
-        </Section>
+        </AppSection>
 
-        {/* Appearance picker */}
-        <Section header={t("settings.appearance")}>
+        <AppSection title={t("settings.appearance")}>
           <div style={{ padding: "8px 16px 12px" }}>
             <SegmentedControl>
               <SegmentedControl.Item selected={themeMode === "auto"} onClick={() => setThemeMode("auto" as ThemeMode)}>{t("settings.auto")}</SegmentedControl.Item>
@@ -160,7 +159,7 @@ export function Settings() {
               <SegmentedControl.Item selected={themeMode === "dark"} onClick={() => setThemeMode("dark" as ThemeMode)}>{t("settings.dark")}</SegmentedControl.Item>
             </SegmentedControl>
           </div>
-        </Section>
+        </AppSection>
 
         {/* Categories */}
         <Collapse title={t("settings.categories")}>
