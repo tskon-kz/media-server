@@ -38,12 +38,23 @@ else
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG" >> .env
 fi
 
+_curl_fetch() {  # _curl_fetch <url> <output_path>  — downloads with timeouts and retries
+    local url="$1" out="$2"
+    curl -fsSL \
+        --connect-timeout 10 \
+        --max-time 60 \
+        --retry 3 \
+        --retry-delay 2 \
+        --retry-all-errors \
+        -o "$out" "$url"
+}
+
 echo "⬇  Downloading latest files..."
-curl -fsSL "$RAW/docker-compose.yml" -o docker-compose.new.yml
-curl -fsSL "$RAW/update.sh"          -o update.sh && chmod +x update.sh
+_curl_fetch "$RAW/docker-compose.yml" docker-compose.new.yml
+_curl_fetch "$RAW/update.sh"          update.sh && chmod +x update.sh
 mkdir -p lang
-curl -fsSL "$RAW/lang/en.sh"         -o lang/en.sh
-curl -fsSL "$RAW/lang/ru.sh"         -o lang/ru.sh
+_curl_fetch "$RAW/lang/en.sh"         lang/en.sh
+_curl_fetch "$RAW/lang/ru.sh"         lang/ru.sh
 
 echo "⏹  Stopping containers..."
 docker compose down
@@ -52,7 +63,16 @@ echo "📄  Applying new docker-compose.yml..."
 mv docker-compose.new.yml docker-compose.yml
 
 echo "📦  Pulling latest images..."
-docker compose pull
+_pull_attempt=1; _pull_max=3
+until docker compose pull; do
+    if [ "$_pull_attempt" -ge "$_pull_max" ]; then
+        echo "  ✗ docker compose pull failed after $_pull_max attempts" >&2
+        exit 1
+    fi
+    echo "  retrying pull (attempt $((_pull_attempt+1))/$_pull_max)..."
+    sleep $((_pull_attempt * 3))
+    _pull_attempt=$((_pull_attempt + 1))
+done
 
 echo "▶  Starting containers..."
 docker compose up -d
