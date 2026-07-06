@@ -49,10 +49,35 @@ _pull_progress() {  # pulls images one by one, shows [████░░░] n/t
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
         printf "\r  %s %d/%d  %s...\033[K" "$(_bar "$i" "$total")" "$i" "$total" "$svc"
-        docker compose pull "$svc" >&3 2>&3
+        _docker_pull_retry "$svc"
     done
     printf "\r  %s %d/%d  done\033[K\n" "$(_bar "$total" "$total")" "$total" "$total"
 }
+
+_docker_pull_retry() {  # _docker_pull_retry <service>  — retries docker compose pull up to 3×
+    local svc="$1" attempt=1 max=3
+    until docker compose pull "$svc" >&3 2>&3; do
+        if [ "$attempt" -ge "$max" ]; then
+            printf "\r  ✗ pull failed: %s (see %s)\n" "$svc" "$LOG_FILE"
+            return 1
+        fi
+        echo "  retrying pull of $svc (attempt $((attempt+1))/$max)..." >&3
+        sleep $((attempt * 3))
+        attempt=$((attempt + 1))
+    done
+}
+
+_curl_fetch() {  # _curl_fetch <url> <output_path>  — downloads with timeouts and retries
+    local url="$1" out="$2"
+    curl -fsSL \
+        --connect-timeout 10 \
+        --max-time 60 \
+        --retry 3 \
+        --retry-delay 2 \
+        --retry-all-errors \
+        -o "$out" "$url"
+}
+export -f _curl_fetch
 
 # Write a key=value pair to the bot's SQLite DB.
 # Safe for arbitrary values: passed as sys.argv, not interpolated into Python source.
@@ -110,8 +135,8 @@ read -r LANG_CHOICE
 TMP_LANG=$(mktemp -d)
 trap 'rm -rf "$TMP_LANG"' EXIT
 
-curl -fsSL "$RAW/lang/en.sh" -o "$TMP_LANG/en.sh"
-curl -fsSL "$RAW/lang/ru.sh" -o "$TMP_LANG/ru.sh"
+_curl_fetch "$RAW/lang/en.sh" "$TMP_LANG/en.sh"
+_curl_fetch "$RAW/lang/ru.sh" "$TMP_LANG/ru.sh"
 
 case "$LANG_CHOICE" in
     2) source "$TMP_LANG/ru.sh" ;;
@@ -147,13 +172,13 @@ cd "$INSTALL_DIR"
 export BOT_IMAGE_TAG="$(_db_get bot_image_tag stable)"
 
 _spin "$MSG_DOWNLOADING" bash -c "
-    curl -fsSL '$RAW/docker-compose.yml'  -o docker-compose.yml
+    _curl_fetch '$RAW/docker-compose.yml'  docker-compose.yml
     mkdir -p lang
-    curl -fsSL '$RAW/lang/en.sh'          -o lang/en.sh
-    curl -fsSL '$RAW/lang/ru.sh'          -o lang/ru.sh
-    curl -fsSL '$RAW/update.sh'           -o update.sh        && chmod +x update.sh
-    curl -fsSL '$RAW/teardown.sh'         -o teardown.sh      && chmod +x teardown.sh
-    curl -fsSL '$RAW/migrate-media.sh'    -o migrate-media.sh && chmod +x migrate-media.sh
+    _curl_fetch '$RAW/lang/en.sh'          lang/en.sh
+    _curl_fetch '$RAW/lang/ru.sh'          lang/ru.sh
+    _curl_fetch '$RAW/update.sh'           update.sh        && chmod +x update.sh
+    _curl_fetch '$RAW/teardown.sh'         teardown.sh      && chmod +x teardown.sh
+    _curl_fetch '$RAW/migrate-media.sh'    migrate-media.sh && chmod +x migrate-media.sh
 "
 
 if [ -f "$INSTALL_DIR/.env" ]; then
