@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, Cell, List, Modal, Placeholder, Progress, Section, Spinner, Title } from "@telegram-apps/telegram-ui";
+import { Box, Button, Drawer, Loader, Progress, Stack, Title } from "@mantine/core";
 import { Clapperboard, Folder, FolderInput, Layers, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
@@ -8,9 +8,10 @@ import { haptic } from "../telegram";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { TorrentIcon } from "../icons";
+import { ListItem, ListPlaceholder, ListSection } from "../components/ui";
 import type { Category, Torrent } from "../types";
 
-const DEL_COLOR = "var(--tgui--destructive_text_color)";
+const DEL_COLOR = "var(--tg-theme-destructive-text-color)";
 
 export function TorrentList() {
   const toast = useToast();
@@ -82,84 +83,108 @@ export function TorrentList() {
   };
 
   if (torrents === null) {
-    return <Spinner size="m" style={{ display: "block", margin: "40px auto" }} />;
+    return (
+      <Box style={{ textAlign: "center", paddingTop: 60 }}>
+        <Loader size="md" />
+      </Box>
+    );
   }
 
   return (
-    <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 4px" }}>
-        <Title>{t("torrents.title")}</Title>
-        <Button mode="plain" onClick={load}><RefreshCw size={20} /></Button>
-      </div>
+    <Box onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <Box style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 4px" }}>
+        <Title order={3} style={{ color: "var(--tg-theme-text-color)" }}>
+          {t("torrents.title")}
+        </Title>
+        <Button variant="subtle" px={8} onClick={load}>
+          <RefreshCw size={20} />
+        </Button>
+      </Box>
 
       {pull > 0 && (
-        <div style={{ textAlign: "center", height: pull, color: "var(--tgui--hint_color)", fontSize: 14 }}>
+        <Box style={{ textAlign: "center", height: pull, color: "var(--tg-theme-hint-color)", fontSize: 14 }}>
           {t("torrents.pull")}
-        </div>
+        </Box>
       )}
 
-      {torrents.length === 0 ? (
-        <Placeholder header={t("torrents.empty")} description={t("torrents.emptyHint")} />
-      ) : (
-        <List>
-          <Section>
+      <Box px={16}>
+        {torrents.length === 0 ? (
+          <ListPlaceholder header={t("torrents.empty")} description={t("torrents.emptyHint")} />
+        ) : (
+          <ListSection>
             {torrents.map((tor) => (
-              <Cell
+              <ListItem
                 key={tor.hash}
                 before={<TorrentIcon state={tor.state} />}
                 subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${bytes(tor.size)}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}`}
-                description={tor.progress < 1 ? <Progress value={tor.progress * 100} style={{ marginTop: 6 }} /> : undefined}
+                description={
+                  tor.progress < 1
+                    ? <Progress value={tor.progress * 100} size="xs" mt={6} />
+                    : undefined
+                }
                 onClick={() => setSelected(tor)}
                 multiline
               >
                 {tor.name}
-              </Cell>
+              </ListItem>
             ))}
-          </Section>
-        </List>
-      )}
+          </ListSection>
+        )}
+      </Box>
 
       {/* Torrent action sheet */}
-      <Modal
-        open={!!selected}
-        onOpenChange={(o) => !o && setSelected(null)}
-        header={<Modal.Header>{selected?.name}</Modal.Header>}
+      <Drawer
+        opened={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.name}
+        position="bottom"
+        radius="lg"
+        overlayProps={{ blur: 2 }}
       >
-        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <Stack gap={8} pb={16} px={4}>
           {cats.length > 0 && (
-            <Button stretched mode="bezeled" before={<FolderInput size={18} />} onClick={() => { setMoving(selected); setSelected(null); }}>
+            <Button fullWidth variant="light" leftSection={<FolderInput size={18} />}
+              onClick={() => { setMoving(selected); setSelected(null); }}>
               {t("torrents.move")}
             </Button>
           )}
           {selected?.renameable && (
-            <Button stretched mode="bezeled" before={<Layers size={18} />} onClick={() => { setStructFor(selected); setSelected(null); }}>
+            <Button fullWidth variant="light" leftSection={<Layers size={18} />}
+              onClick={() => { setStructFor(selected); setSelected(null); }}>
               {t("torrents.structure")}
             </Button>
           )}
-          <Button stretched mode="bezeled" before={<Trash2 size={18} />} style={{ color: DEL_COLOR }} onClick={() => { setConfirmDel(selected); setSelected(null); }}>
+          <Button fullWidth variant="light" leftSection={<Trash2 size={18} />}
+            style={{ color: DEL_COLOR }}
+            onClick={() => { setConfirmDel(selected); setSelected(null); }}>
             {t("common.delete")}
           </Button>
-        </div>
-      </Modal>
+        </Stack>
+      </Drawer>
 
       {/* Delete confirmation */}
-      <Modal
-        open={!!confirmDel}
-        onOpenChange={(o) => !o && setConfirmDel(null)}
-        header={<Modal.Header>{t("torrents.deleteTitle")}</Modal.Header>}
+      <Drawer
+        opened={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        title={t("torrents.deleteTitle")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{ blur: 2 }}
       >
-        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ color: "var(--tgui--hint_color)", fontSize: 14, marginBottom: 4 }}>
+        <Stack gap={8} pb={16} px={4}>
+          <Box style={{ color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4 }}>
             {t("torrents.deleteBody", { name: confirmDel?.name })}
-          </div>
-          <Button stretched mode="bezeled" before={<Trash2 size={18} />} style={{ color: DEL_COLOR }} onClick={() => confirmDel && doDelete(confirmDel)}>
+          </Box>
+          <Button fullWidth variant="light" leftSection={<Trash2 size={18} />}
+            style={{ color: DEL_COLOR }}
+            onClick={() => confirmDel && doDelete(confirmDel)}>
             {t("common.delete")}
           </Button>
-          <Button stretched mode="bezeled" onClick={() => setConfirmDel(null)}>
+          <Button fullWidth variant="light" onClick={() => setConfirmDel(null)}>
             {t("common.cancel")}
           </Button>
-        </div>
-      </Modal>
+        </Stack>
+      </Drawer>
 
       {/* Move to category */}
       <CategoryPicker
@@ -171,17 +196,30 @@ export function TorrentList() {
       />
 
       {/* Structure mode picker */}
-      <Modal
-        open={!!structFor}
-        onOpenChange={(o) => !o && setStructFor(null)}
-        header={<Modal.Header>{t("torrents.structure")}</Modal.Header>}
+      <Drawer
+        opened={!!structFor}
+        onClose={() => setStructFor(null)}
+        title={t("torrents.structure")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{ blur: 2 }}
       >
-        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <Button stretched mode="bezeled" before={<Clapperboard size={18} />} onClick={() => structFor && doStructure(structFor, "pretty")}>{t("torrents.pretty")}</Button>
-          <Button stretched mode="bezeled" before={<Folder size={18} />} onClick={() => structFor && doStructure(structFor, "flat")}>{t("torrents.original")}</Button>
-          <Button stretched mode="bezeled" before={<Trash2 size={18} />} style={{ color: DEL_COLOR }} onClick={() => structFor && doStructure(structFor, "delete")}>{t("torrents.delLinks")}</Button>
-        </div>
-      </Modal>
-    </div>
+        <Stack gap={8} pb={16} px={4}>
+          <Button fullWidth variant="light" leftSection={<Clapperboard size={18} />}
+            onClick={() => structFor && doStructure(structFor, "pretty")}>
+            {t("torrents.pretty")}
+          </Button>
+          <Button fullWidth variant="light" leftSection={<Folder size={18} />}
+            onClick={() => structFor && doStructure(structFor, "flat")}>
+            {t("torrents.original")}
+          </Button>
+          <Button fullWidth variant="light" leftSection={<Trash2 size={18} />}
+            style={{ color: DEL_COLOR }}
+            onClick={() => structFor && doStructure(structFor, "delete")}>
+            {t("torrents.delLinks")}
+          </Button>
+        </Stack>
+      </Drawer>
+    </Box>
   );
 }

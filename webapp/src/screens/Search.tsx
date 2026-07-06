@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Button, Cell, Input, List, Placeholder, Section, Spinner, Title } from "@telegram-apps/telegram-ui";
+import { Box, Button, Loader, Stack, TextInput, Title } from "@mantine/core";
 import { Search as SearchIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { bytes } from "../format";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { ListItem, ListPlaceholder, ListSection } from "../components/ui";
 import type { Category, SearchResult } from "../types";
 
 export function Search() {
@@ -46,47 +47,60 @@ export function Search() {
   };
 
   return (
-    <div>
-      <div style={{ padding: "16px 16px 4px" }}>
-        <Title>{t("search.title")}</Title>
-      </div>
-      <List>
-        <Section>
-          <Input
-            header={t("search.inputHeader")}
+    <Box>
+      <Box style={{ padding: "16px 16px 4px" }}>
+        <Title order={3} style={{ color: "var(--tg-theme-text-color)" }}>
+          {t("search.title")}
+        </Title>
+      </Box>
+
+      <Box p={16}>
+        <Stack gap={8}>
+          <TextInput
             placeholder={t("search.placeholder")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
-            after={
-              <Button mode="plain" size="s" onClick={run} disabled={loading || !q.trim()}>
-                <SearchIcon size={20} />
+            rightSection={
+              <Button
+                variant="subtle"
+                size="compact-sm"
+                px={4}
+                onClick={run}
+                disabled={loading || !q.trim()}
+              >
+                <SearchIcon size={18} />
               </Button>
             }
+            rightSectionWidth={40}
           />
-        </Section>
 
-        {loading && <Spinner size="m" style={{ display: "block", margin: "24px auto" }} />}
+          {loading && (
+            <Box style={{ textAlign: "center", padding: "24px 0" }}>
+              <Loader size="md" />
+            </Box>
+          )}
 
-        {results !== null && !loading && results.length === 0 && (
-          <Placeholder header={t("search.empty")} description={t("search.emptyHint")} />
-        )}
+          {results !== null && !loading && results.length === 0 && (
+            <ListPlaceholder header={t("search.empty")} description={t("search.emptyHint")} />
+          )}
 
-        {results && results.length > 0 && (
-          <Section>
-            {results.map((r, i) => (
-              <Cell
-                key={i}
-                subtitle={`${t("search.seeders", { n: r.seeders })} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
-                onClick={() => choose(r)}
-                multiline
-              >
-                {r.title}
-              </Cell>
-            ))}
-          </Section>
-        )}
-      </List>
+          {results && results.length > 0 && (
+            <ListSection>
+              {results.map((r, i) => (
+                <ListItem
+                  key={i}
+                  subtitle={`${t("search.seeders", { n: r.seeders })} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
+                  onClick={() => choose(r)}
+                  multiline
+                >
+                  {r.title}
+                </ListItem>
+              ))}
+            </ListSection>
+          )}
+        </Stack>
+      </Box>
 
       <CategoryPicker
         categories={cats}
@@ -95,6 +109,6 @@ export function Search() {
         onPick={(c) => pick && addNow(pick, c)}
         onClose={() => setPick(null)}
       />
-    </div>
+    </Box>
   );
 }

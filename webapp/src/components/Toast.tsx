@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { Snackbar } from "@telegram-apps/telegram-ui";
+import { Box, Notification } from "@mantine/core";
 import { haptic } from "../telegram";
 
-type ToastEntry = { id: number; text: string };
+type ToastEntry = { id: number; text: string; kind: "ok" | "err" };
 const ToastCtx = createContext<(text: string, kind?: "ok" | "err") => void>(() => {});
 
 export function useToast() {
@@ -14,16 +14,35 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((text: string, kind: "ok" | "err" = "ok") => {
     haptic(kind === "err" ? "error" : "success");
-    setToast({ id: Date.now(), text });
+    setToast({ id: Date.now(), text, kind });
   }, []);
 
   return (
     <ToastCtx.Provider value={show}>
       {children}
       {toast && (
-        <Snackbar key={toast.id} onClose={() => setToast(null)} duration={2600}>
-          {toast.text}
-        </Snackbar>
+        <Box
+          key={toast.id}
+          style={{
+            position: "fixed",
+            bottom: 90,
+            left: 16,
+            right: 16,
+            zIndex: 1000,
+            maxWidth: 480,
+            margin: "0 auto",
+          }}
+        >
+          <Notification
+            color={toast.kind === "err" ? "red" : "tgBlue"}
+            withCloseButton
+            onClose={() => setToast(null)}
+            withBorder
+            style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}
+          >
+            {toast.text}
+          </Notification>
+        </Box>
       )}
     </ToastCtx.Provider>
   );

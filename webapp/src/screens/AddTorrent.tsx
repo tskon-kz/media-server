@@ -1,9 +1,10 @@
 import { useRef, useEffect, useState } from "react";
-import { Button, FileInput, List, Section, Textarea, Title } from "@telegram-apps/telegram-ui";
+import { Box, Button, FileInput, Stack, Textarea, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useToast } from "../components/Toast";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { ListSection } from "../components/ui";
 import type { Category } from "../types";
 
 export function AddTorrent({ onAdded }: { onAdded: () => void }) {
@@ -25,7 +26,7 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
     else setPick({ magnet: m });
   };
 
-  const onFile = (f: File | undefined) => {
+  const onFile = (f: File | null) => {
     if (!f) return;
     if (cats.length === 0) addNow({ file: f });
     else setPick({ file: f });
@@ -49,34 +50,48 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
   };
 
   return (
-    <div>
-      <div style={{ padding: "16px 16px 4px" }}>
-        <Title>{t("add.title")}</Title>
-      </div>
-      <List>
-        <Section header={t("add.magnetSection")}>
-          <Textarea
-            ref={textareaRef}
-            placeholder="magnet:?xt=urn:btih:…"
-            value={magnet}
-            onChange={(e) => setMagnet(e.target.value)}
-          />
-          <div style={{ padding: "0 16px 12px" }}>
-            <Button stretched disabled={busy || !magnet.trim()} onClick={submitMagnet}>
-              {t("add.addMagnet")}
-            </Button>
-          </div>
-        </Section>
+    <Box>
+      <Box style={{ padding: "16px 16px 4px" }}>
+        <Title order={3} style={{ color: "var(--tg-theme-text-color)" }}>
+          {t("add.title")}
+        </Title>
+      </Box>
 
-        <Section header={t("add.fileSection")}>
-          <FileInput
-            key={fileKey}
-            label={t("add.uploadLabel")}
-            accept=".torrent"
-            onChange={(e) => onFile(e.target.files?.[0])}
-          />
-        </Section>
-      </List>
+      <Box p={16}>
+        <Stack gap={8}>
+          <ListSection header={t("add.magnetSection")}>
+            <Box p={12}>
+              <Textarea
+                ref={textareaRef}
+                placeholder="magnet:?xt=urn:btih:…"
+                value={magnet}
+                onChange={(e) => setMagnet(e.target.value)}
+                autosize
+                minRows={2}
+              />
+            </Box>
+          </ListSection>
+          <Button
+            fullWidth
+            disabled={busy || !magnet.trim()}
+            onClick={submitMagnet}
+          >
+            {t("add.addMagnet")}
+          </Button>
+
+          <ListSection header={t("add.fileSection")}>
+            <Box p={12}>
+              <FileInput
+                key={fileKey}
+                label={t("add.uploadLabel")}
+                accept=".torrent"
+                onChange={onFile}
+                clearable
+              />
+            </Box>
+          </ListSection>
+        </Stack>
+      </Box>
 
       <CategoryPicker
         categories={cats}
@@ -85,6 +100,6 @@ export function AddTorrent({ onAdded }: { onAdded: () => void }) {
         onPick={(c) => pick && addNow(pick, c)}
         onClose={() => setPick(null)}
       />
-    </div>
+    </Box>
   );
 }

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Tabbar } from "@telegram-apps/telegram-ui";
 import { Activity, Inbox, Plus, Search, Settings2, type LucideProps } from "lucide-react";
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,18 +33,19 @@ export default function App() {
         {tab === "status"   && <Status />}
         {tab === "settings" && <Settings />}
       </div>
-      <Tabbar>
+
+      <nav className={styles.tabbar}>
         {TABS.map(({ key, Icon, label }) => (
-          <Tabbar.Item
+          <button
             key={key}
-            text={label}
-            selected={tab === key}
+            className={`${styles.tabItem} ${tab === key ? styles.tabItemActive : ""}`}
             onClick={() => setTab(key)}
           >
-            <Icon size={28} />
-          </Tabbar.Item>
+            <Icon size={24} />
+            <span>{label}</span>
+          </button>
         ))}
-      </Tabbar>
+      </nav>
     </ToastProvider>
   );
 }

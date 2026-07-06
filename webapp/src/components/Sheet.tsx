@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Modal } from "@telegram-apps/telegram-ui";
+import { Drawer } from "@mantine/core";
 
 export function Sheet({
   title, open, onClose, children,
@@ -10,14 +10,17 @@ export function Sheet({
   children: ReactNode;
 }) {
   return (
-    <Modal
-      open={open}
-      onOpenChange={(o) => !o && onClose()}
-      header={title ? <Modal.Header>{title}</Modal.Header> : undefined}
+    <Drawer
+      opened={open}
+      onClose={onClose}
+      title={title}
+      position="bottom"
+      radius="lg"
+      overlayProps={{ blur: 2 }}
     >
-      <div style={{ padding: "0 16px 16px" }}>
+      <div style={{ padding: "0 4px 16px" }}>
         {children}
       </div>
-    </Modal>
+    </Drawer>
   );
 }

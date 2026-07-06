@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button, Cell, List, Section, Spinner, Title } from "@telegram-apps/telegram-ui";
+import { Box, Button, Loader, Title } from "@mantine/core";
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { speed } from "../format";
 import { useToast } from "../components/Toast";
+import { ListItem, ListSection } from "../components/ui";
 
 export function Status() {
   const toast = useToast();
@@ -33,31 +34,42 @@ export function Status() {
 
   const statusIcon = st
     ? st.connected
-      ? <CheckCircle2 size={16} color="var(--tgui--accent_text_color)" />
-      : <XCircle size={16} color="var(--tgui--destructive_text_color)" />
-    : <Spinner size="s" />;
+      ? <CheckCircle2 size={16} color="var(--tg-theme-link-color)" />
+      : <XCircle size={16} color="var(--tg-theme-destructive-text-color)" />
+    : <Loader size={16} />;
 
   return (
-    <div>
-      <div style={{ padding: "16px 16px 4px" }}>
-        <Title>{t("status.title")}</Title>
-      </div>
-      <List>
-        <Section header={t("status.services")}>
-          <Cell after={statusIcon}>qBittorrent</Cell>
-        </Section>
+    <Box>
+      <Box style={{ padding: "16px 16px 4px" }}>
+        <Title order={3} style={{ color: "var(--tg-theme-text-color)" }}>
+          {t("status.title")}
+        </Title>
+      </Box>
 
-        <Section header={t("status.transfer")}>
-          <Cell after={st?.connected ? speed(st.dl ?? 0) : "—"}>{t("status.download")}</Cell>
-          <Cell after={st?.connected ? speed(st.ul ?? 0) : "—"}>{t("status.upload")}</Cell>
-        </Section>
-      </List>
+      <Box p={16} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <ListSection header={t("status.services")}>
+          <ListItem after={statusIcon}>qBittorrent</ListItem>
+        </ListSection>
 
-      <div style={{ padding: "0 16px" }}>
-        <Button stretched mode="bezeled" before={<RefreshCw size={18} />} onClick={scan} disabled={scanning}>
+        <ListSection header={t("status.transfer")}>
+          <ListItem after={st?.connected ? speed(st.dl ?? 0) : "—"}>
+            {t("status.download")}
+          </ListItem>
+          <ListItem after={st?.connected ? speed(st.ul ?? 0) : "—"}>
+            {t("status.upload")}
+          </ListItem>
+        </ListSection>
+
+        <Button
+          fullWidth
+          variant="light"
+          leftSection={<RefreshCw size={18} />}
+          onClick={scan}
+          disabled={scanning}
+        >
           {t("status.scan")}
         </Button>
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }

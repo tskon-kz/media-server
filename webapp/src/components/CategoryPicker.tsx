@@ -1,4 +1,5 @@
-import { Cell, List, Modal, Section } from "@telegram-apps/telegram-ui";
+import { Drawer } from "@mantine/core";
+import { ListItem, ListSection } from "./ui";
 import type { Category } from "../types";
 
 export function CategoryPicker({
@@ -11,20 +12,21 @@ export function CategoryPicker({
   onClose: () => void;
 }) {
   return (
-    <Modal
-      open={open}
-      onOpenChange={(o) => !o && onClose()}
-      header={<Modal.Header>{title ?? "Category"}</Modal.Header>}
+    <Drawer
+      opened={open}
+      onClose={onClose}
+      title={title ?? "Category"}
+      position="bottom"
+      radius="lg"
+      overlayProps={{ blur: 2 }}
     >
-      <List>
-        <Section>
-          {categories.map((c) => (
-            <Cell key={c.id} onClick={() => onPick(c)}>
-              {c.name}
-            </Cell>
-          ))}
-        </Section>
-      </List>
-    </Modal>
+      <ListSection style={{ marginBottom: 16 }}>
+        {categories.map((c) => (
+          <ListItem key={c.id} onClick={() => onPick(c)}>
+            {c.name}
+          </ListItem>
+        ))}
+      </ListSection>
+    </Drawer>
   );
 }
