@@ -3,20 +3,21 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 8px 16px 4px;
+  padding: 0 16px;
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--tg-theme-link-color);
-  font-size: 13px;
-  font-weight: 500;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  text-transform: uppercase;
   text-align: left;
 }
 
 .chevron {
   flex-shrink: 0;
   transition: transform 0.28s ease;
-  color: var(--tg-theme-link-color);
+  color: var(--tg-theme-hint-color);
 }
 
 .chevronOpen {

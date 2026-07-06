@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 import styles from "./Collapse.module.scss";
 
 interface Props {
+  className?: string
   title: string;
   children: ReactNode | ReactNode[];
   defaultOpen?: boolean;
@@ -12,7 +13,7 @@ export function Collapse(props: Props) {
   const [open, setOpen] = useState(props.defaultOpen ?? false);
 
   return (
-    <div>
+    <div className={props.className}>
       <button className={styles.header} onClick={() => setOpen((o) => !o)}>
         <span>{props.title}</span>
         <ChevronDown size={15} className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} />

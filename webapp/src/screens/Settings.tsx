@@ -171,8 +171,7 @@ export function Settings() {
             />
         </Section>
 
-        {/* Categories */}
-        <Collapse title={t("settings.categories")}>
+        <Collapse className="mb-12" title={t("settings.categories")}>
           <ListSection>
             {cats.map((c) => (
               <ListItem
@@ -206,8 +205,7 @@ export function Settings() {
           </Button>
         </Collapse>
 
-        {/* qBittorrent */}
-        <Collapse title={t("settings.qb")}>
+        <Collapse className="mb-12" title={t("settings.qb")}>
           <ListSection>
             <ListItem
               subtitle={t("settings.userSub", { user: settingsData.qbittorrent.user })}
@@ -224,8 +222,7 @@ export function Settings() {
           </Stack>
         </Collapse>
 
-        {/* Jackett */}
-        <Collapse title={t("settings.jackett")}>
+        <Collapse className="mb-12" title={t("settings.jackett")}>
           <ListSection>
             <ListItem
               subtitle={t("settings.apiKey", { status: t(settingsData.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing") })}
@@ -245,18 +242,16 @@ export function Settings() {
           </Stack>
         </Collapse>
 
-        {/* Jellyfin */}
         {settingsData.jellyfin.has_key && (
-          <Collapse title={t("settings.jellyfin")}>
+          <Collapse className="mb-12" title={t("settings.jellyfin")}>
             <Button fullWidth variant="light" leftSection={<Users size={18} />} onClick={openUsers}>
               {t("settings.manageUsers")}
             </Button>
           </Collapse>
         )}
 
-        {/* Web UIs */}
         {cfg.quick_links && (
-          <Collapse title={t("settings.webUIs")}>
+          <Collapse className="mb-12" title={t("settings.webUIs")}>
             <Stack gap={8}>
               <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</Button>
               <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</Button>
