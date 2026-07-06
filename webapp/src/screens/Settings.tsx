@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Box, Button, Drawer, Loader, SegmentedControl, Stack, Switch, Text, Title,
+  Box, Button, Drawer, Loader, SegmentedControl, Stack, Text, Title,
 } from "@mantine/core";
 import {
   Clapperboard, Film, Lock, Music, Package, Plus,
@@ -59,13 +59,6 @@ export function Settings() {
     { key: "music",   label: t("settings.music"),   Icon: Music },
     { key: "mixed",   label: t("settings.other"),   Icon: Package },
   ];
-
-  const toggleRename = () => guard(async () => {
-    const mode = settingsData.rename_mode === "flat" ? "pretty" : "flat";
-    await api.setRenameMode(mode);
-    toast(mode === "pretty" ? t("settings.smartOn") : t("settings.originalOn"));
-    reload();
-  });
 
   const setLang = (lang: string) => guard(async () => {
     await api.setLanguage(lang);
@@ -140,143 +133,144 @@ export function Settings() {
       </Box>
 
       <Box p={16}>
-        <Stack gap={8}>
-          {/* Auto-structure toggle */}
-          <AppSection className={"mb-12"} title={t("settings.autoStructure")}>
-            <Switch
-              labelPosition="right"
-              label={settingsData.rename_mode === "pretty" ? t("settings.smartSub") : t("settings.originalSub")}
-              checked={settingsData.rename_mode === "pretty"}
-              onChange={toggleRename}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </AppSection>
+        <AppSection title={t("settings.autoStructure")} className="mb-16">
+          <SegmentedControl
+            fullWidth
+            value={settingsData.rename_mode}
+            onChange={(v) => guard(async () => {
+              await api.setRenameMode(v as "flat" | "pretty");
+              toast(v === "pretty" ? t("settings.smartOn") : t("settings.originalOn"));
+              reload();
+            })}
+            data={[
+              { value: "flat",   label: t("settings.originalSub") },
+              { value: "pretty", label: t("settings.smartSub") },
+            ]}
+          />
+        </AppSection>
 
-          {/* Language */}
-          <AppSection className="mb-12" title={t("settings.language")}>
-              <SegmentedControl
-                fullWidth
-                value={settingsData.lang}
-                onChange={setLang}
-                data={[
-                  { value: "ru", label: "RU" },
-                  { value: "en", label: "EN" },
-                ]}
-              />
-          </AppSection>
-
-          {/* Appearance */}
-          <AppSection className="mb-12" title={t("settings.appearance")}>
-              <SegmentedControl
-                fullWidth
-                value={themeMode}
-                onChange={(v) => setThemeMode(v as ThemeMode)}
-                data={[
-                  { value: "auto",  label: t("settings.auto") },
-                  { value: "light", label: t("settings.light") },
-                  { value: "dark",  label: t("settings.dark") },
-                ]}
-              />
-          </AppSection>
-
-          {/* Categories */}
-          <Collapse title={t("settings.categories")}>
-            <ListSection>
-              {cats.map((c) => (
-                <ListItem
-                  key={c.id}
-                  subtitle={c.path.replace("/media/", "")}
-                  after={
-                    <Button
-                      variant="subtle"
-                      size="compact-sm"
-                      px={4}
-                      style={{ color: DEL_COLOR }}
-                      onClick={(e) => { e.stopPropagation(); delCat(c); }}
-                    >
-                      <Trash2 size={18} />
-                    </Button>
-                  }
-                  onClick={() => { setRenameCat(c); setDialog("renameCat"); }}
-                  multiline
-                >
-                  {c.name}
-                </ListItem>
-              ))}
-            </ListSection>
-            <Button
+        <AppSection className="mb-16" title={t("settings.language")}>
+            <SegmentedControl
               fullWidth
-              variant="light"
-              leftSection={<Plus size={18} />}
-              onClick={() => setDialog("newCat")}
+              value={settingsData.lang}
+              onChange={setLang}
+              data={[
+                { value: "ru", label: "RU" },
+                { value: "en", label: "EN" },
+              ]}
+            />
+        </AppSection>
+
+        <AppSection className="mb-16" title={t("settings.appearance")}>
+            <SegmentedControl
+              fullWidth
+              value={themeMode}
+              onChange={(v) => setThemeMode(v as ThemeMode)}
+              data={[
+                { value: "auto",  label: t("settings.auto") },
+                { value: "light", label: t("settings.light") },
+                { value: "dark",  label: t("settings.dark") },
+              ]}
+            />
+        </AppSection>
+
+        {/* Categories */}
+        <Collapse title={t("settings.categories")}>
+          <ListSection>
+            {cats.map((c) => (
+              <ListItem
+                key={c.id}
+                subtitle={c.path.replace("/media/", "")}
+                after={
+                  <Button
+                    variant="subtle"
+                    size="compact-sm"
+                    px={4}
+                    style={{ color: DEL_COLOR }}
+                    onClick={(e) => { e.stopPropagation(); delCat(c); }}
+                  >
+                    <Trash2 size={18} />
+                  </Button>
+                }
+                onClick={() => { setRenameCat(c); setDialog("renameCat"); }}
+                multiline
+              >
+                {c.name}
+              </ListItem>
+            ))}
+          </ListSection>
+          <Button
+            fullWidth
+            variant="light"
+            leftSection={<Plus size={18} />}
+            onClick={() => setDialog("newCat")}
+          >
+            {t("settings.addCategory")}
+          </Button>
+        </Collapse>
+
+        {/* qBittorrent */}
+        <Collapse title={t("settings.qb")}>
+          <ListSection>
+            <ListItem
+              subtitle={t("settings.userSub", { user: settingsData.qbittorrent.user })}
+              after={settingsData.qbittorrent.is_perm ? <Lock size={16} /> : undefined}
+              multiline
             >
-              {t("settings.addCategory")}
+              {t("settings.credentials")}
+            </ListItem>
+          </ListSection>
+          <Stack gap={8}>
+            <Button fullWidth variant="light" onClick={() => setDialog("qbPass")}>{t("settings.changePass")}</Button>
+            {!settingsData.qbittorrent.is_perm && <Button fullWidth variant="light" onClick={qbTemp}>{t("settings.getTemp")}</Button>}
+            <Button fullWidth variant="light" onClick={qbRestart}>{t("settings.restart")}</Button>
+          </Stack>
+        </Collapse>
+
+        {/* Jackett */}
+        <Collapse title={t("settings.jackett")}>
+          <ListSection>
+            <ListItem
+              subtitle={t("settings.apiKey", { status: t(settingsData.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing") })}
+              after={settingsData.jackett.has_password ? <Lock size={16} /> : <Unlock size={16} />}
+              multiline
+            >
+              {t("settings.jackett")}
+            </ListItem>
+          </ListSection>
+          <Stack gap={8}>
+            <Button fullWidth variant="light" onClick={() => setDialog("jackettPass")}>{t("settings.changePass")}</Button>
+            {settingsData.jackett.has_password && (
+              <Button fullWidth variant="light" style={{ color: DEL_COLOR }} onClick={jackettRemovePass}>
+                {t("settings.removePass")}
+              </Button>
+            )}
+          </Stack>
+        </Collapse>
+
+        {/* Jellyfin */}
+        {settingsData.jellyfin.has_key && (
+          <Collapse title={t("settings.jellyfin")}>
+            <Button fullWidth variant="light" leftSection={<Users size={18} />} onClick={openUsers}>
+              {t("settings.manageUsers")}
             </Button>
           </Collapse>
+        )}
 
-          {/* qBittorrent */}
-          <Collapse title={t("settings.qb")}>
-            <ListSection>
-              <ListItem
-                subtitle={t("settings.userSub", { user: settingsData.qbittorrent.user })}
-                after={settingsData.qbittorrent.is_perm ? <Lock size={16} /> : undefined}
-                multiline
-              >
-                {t("settings.credentials")}
-              </ListItem>
-            </ListSection>
+        {/* Web UIs */}
+        {cfg.quick_links && (
+          <Collapse title={t("settings.webUIs")}>
             <Stack gap={8}>
-              <Button fullWidth variant="light" onClick={() => setDialog("qbPass")}>{t("settings.changePass")}</Button>
-              {!settingsData.qbittorrent.is_perm && <Button fullWidth variant="light" onClick={qbTemp}>{t("settings.getTemp")}</Button>}
-              <Button fullWidth variant="light" onClick={qbRestart}>{t("settings.restart")}</Button>
+              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</Button>
+              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</Button>
+              <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>Jackett</Button>
             </Stack>
           </Collapse>
+        )}
 
-          {/* Jackett */}
-          <Collapse title={t("settings.jackett")}>
-            <ListSection>
-              <ListItem
-                subtitle={t("settings.apiKey", { status: t(settingsData.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing") })}
-                after={settingsData.jackett.has_password ? <Lock size={16} /> : <Unlock size={16} />}
-                multiline
-              >
-                {t("settings.jackett")}
-              </ListItem>
-            </ListSection>
-            <Stack gap={8}>
-              <Button fullWidth variant="light" onClick={() => setDialog("jackettPass")}>{t("settings.changePass")}</Button>
-              {settingsData.jackett.has_password && (
-                <Button fullWidth variant="light" style={{ color: DEL_COLOR }} onClick={jackettRemovePass}>
-                  {t("settings.removePass")}
-                </Button>
-              )}
-            </Stack>
-          </Collapse>
-
-          {/* Jellyfin */}
-          {settingsData.jellyfin.has_key && (
-            <Collapse title={t("settings.jellyfin")}>
-              <Button fullWidth variant="light" leftSection={<Users size={18} />} onClick={openUsers}>
-                {t("settings.manageUsers")}
-              </Button>
-            </Collapse>
-          )}
-
-          {/* Web UIs */}
-          {cfg.quick_links && (
-            <Collapse title={t("settings.webUIs")}>
-              <Stack gap={8}>
-                <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>qBittorrent</Button>
-                <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>Jellyfin</Button>
-                <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>Jackett</Button>
-              </Stack>
-            </Collapse>
-          )}
-
-          <Text size="xs" c="dimmed" ta="center">
-            {t("settings.version", { version: cfg.version })}
-          </Text>
-        </Stack>
+        <Text size="xs" c="dimmed" ta="center">
+          {t("settings.version", { version: cfg.version })}
+        </Text>
       </Box>
 
       {/* New category modal */}
