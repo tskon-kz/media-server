@@ -1,7 +1,11 @@
 import os
 
 BOT_TOKEN        = os.environ["BOT_TOKEN"]
-ALLOWED          = frozenset(int(x) for x in os.environ["ALLOWED_USER"].split(","))
+# Filter blanks so an empty/missing ALLOWED_USER yields an empty set (bot starts
+# but admits no one) instead of crash-looping the whole process on int("").
+ALLOWED          = frozenset(
+    int(x) for x in os.environ.get("ALLOWED_USER", "").split(",") if x.strip()
+)
 QB_HOST          = os.environ["QB_HOST"]
 JF_URL           = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096")
 JF_PORT          = os.environ.get("JELLYFIN_PORT", "8096")
