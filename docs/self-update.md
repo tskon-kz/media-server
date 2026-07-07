@@ -1,7 +1,7 @@
 # In-bot stack updates (updater container)
 
-How the Telegram "Update" / "Force update" buttons (and the Mini App update
-action) bring a real install to a new release — including compose topology
+How the `/settings → Update` channel switcher (and the Mini App update
+action) brings a real install to a new release — including compose topology
 changes (new sidecars like `cloudflared`), not just the bot image.
 
 ## The problem

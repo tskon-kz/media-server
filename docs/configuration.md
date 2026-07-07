@@ -14,6 +14,9 @@
 | `QB_PORT` | No | `8080` | qBittorrent web UI port |
 | `JACKETT_PORT` | No | `9117` | Jackett web UI port |
 | `BOT_IMAGE_TAG` | No | `stable` | Bot image tag used at cold start (`docker compose up -d`) |
+| `WATCHTOWER_PORT` | No | `9080` | Watchtower HTTP API port (bound to `127.0.0.1` only) |
+| `CLOUDFLARE_TUNNEL_TOKEN` | No | — | Named Cloudflare tunnel token (leave empty for ephemeral quick-tunnel) |
+| `WEBAPP_URL` | No | — | Static Mini App URL for named tunnel (leave empty when using quick-tunnel) |
 
 Generate `WATCHTOWER_TOKEN`: `openssl rand -hex 16`
 
@@ -43,6 +46,7 @@ Stored in `/app/data/media_server.db` (host bind-mount: `./bot-data/media_server
 | `cats_init` | `"1"` once categories table is initialized with defaults |
 | `bot_image_tag` | Image tag the bot last self-updated to (`stable` / `edge` / `vX.Y.Z`); source of truth for `BOT_IMAGE_TAG` |
 | `update_pending` | `"1"` while a self-update restart is in flight; the new container clears it and reports success |
+| `webapp_url` | The current cloudflared `trycloudflare.com` URL; written by the background `job_check_webapp_url` job; used to set the Telegram Menu Button |
 
 ---
 
