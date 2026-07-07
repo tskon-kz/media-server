@@ -67,6 +67,14 @@ export default {
     transfer: "Transfer",
     download: "↓ Download",
     upload: "↑ Upload",
+    session: "Session",
+    sessionDl: "Downloaded",
+    sessionUl: "Uploaded",
+    diskFree: "Free disk space",
+    torrentsSection: "Torrents",
+    downloading: "Downloading",
+    seeding: "Seeding",
+    total: "Total",
   },
 
   // Settings screen

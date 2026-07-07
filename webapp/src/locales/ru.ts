@@ -67,6 +67,14 @@ export default {
     transfer: "Передача",
     download: "↓ Загрузка",
     upload: "↑ Отдача",
+    session: "За сессию",
+    sessionDl: "Скачано",
+    sessionUl: "Отдано",
+    diskFree: "Свободно на диске",
+    torrentsSection: "Торренты",
+    downloading: "Скачивается",
+    seeding: "Раздаётся",
+    total: "Всего",
   },
 
   // Settings screen

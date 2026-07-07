@@ -285,16 +285,38 @@ async def torrent_structure(request):
 
 # ---- status / scan ----
 
+_DOWNLOADING = {"downloading", "stalledDL", "checkingDL", "forcedDL", "metaDL", "queuedDL"}
+_SEEDING = {"uploading", "stalledUP", "checkingUP", "forcedUP", "queuedUP"}
+
+
 @routes.get("/api/status")
 async def status(request):
     try:
         info = await _thread(lambda: qb().transfer_info())
     except Exception:
         return web.json_response({"connected": False})
+
+    jf_connected = await _thread(jf, "GET", "/System/Info") is not None
+
+    try:
+        tors = await _qb_info()
+        torrents_total = len(tors)
+        torrents_downloading = sum(1 for t in tors if t.state in _DOWNLOADING)
+        torrents_seeding = sum(1 for t in tors if t.state in _SEEDING)
+    except Exception:
+        torrents_total = torrents_downloading = torrents_seeding = 0
+
     return web.json_response({
         "connected": True,
+        "jf_connected": jf_connected,
         "dl": info.dl_info_speed,
         "ul": info.up_info_speed,
+        "dl_data": info.dl_info_data,
+        "ul_data": info.up_info_data,
+        "free_space": info.free_space_on_disk,
+        "torrents_total": torrents_total,
+        "torrents_downloading": torrents_downloading,
+        "torrents_seeding": torrents_seeding,
     })
 
 

@@ -54,7 +54,18 @@ export const api = {
       "POST", `/api/torrents/${hash}/structure`, { mode },
     ),
 
-  status: () => req<{ connected: boolean; dl?: number; ul?: number }>("GET", "/api/status"),
+  status: () => req<{
+    connected: boolean
+    jf_connected?: boolean
+    dl?: number
+    ul?: number
+    dl_data?: number
+    ul_data?: number
+    free_space?: number
+    torrents_total?: number
+    torrents_downloading?: number
+    torrents_seeding?: number
+  }>("GET", "/api/status"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
   search: (q: string, page = 1, pageSize = 5) =>
