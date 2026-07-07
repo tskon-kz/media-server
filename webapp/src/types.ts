@@ -58,3 +58,10 @@ export interface JellyfinUser {
   id: string;
   name: string;
 }
+
+export interface UpdateInfo {
+  current: string;
+  latest: string | null;
+  has_update: boolean;
+  channel: "stable" | "edge";
+}

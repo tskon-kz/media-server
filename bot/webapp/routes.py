@@ -582,10 +582,12 @@ async def jellyfin_user_delete(request):
 @routes.get("/api/update")
 async def update_get(request):
     latest = await _thread(gh_latest_release_tag)
+    channel = "edge" if (get_config("bot_image_tag") or "") == "edge" else "stable"
     return web.json_response({
         "current": APP_VERSION,
         "latest": latest,
-        "has_update": bool(latest and latest != APP_VERSION),
+        "has_update": bool(latest and latest != APP_VERSION and channel == "stable"),
+        "channel": channel,
     })
 
 

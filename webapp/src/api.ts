@@ -1,6 +1,6 @@
 import { initData } from "./telegram";
 import type {
-  AppConfig, Category, JellyfinUser, SearchResult, Settings, Torrent,
+  AppConfig, Category, JellyfinUser, SearchResult, Settings, Torrent, UpdateInfo,
 } from "./types";
 
 // All requests carry the Telegram initData in the Authorization header
@@ -97,6 +97,10 @@ export const api = {
   restartQb: () => req<{ ok: boolean }>("POST", "/api/settings/qb/restart"),
   setJackettPassword: (password: string) =>
     req<{ ok: boolean; has_password: boolean }>("POST", "/api/settings/jackett_password", { password }),
+
+  update: () => req<UpdateInfo>("GET", "/api/update"),
+  triggerUpdate: (tag: "stable" | "edge") =>
+    req<{ started: boolean; tag: string }>("POST", "/api/update", { tag }),
 
   jellyfinUsers: () => req<{ users: JellyfinUser[] }>("GET", "/api/settings/jellyfin/users"),
   createJellyfinUser: (name: string, password: string) =>
