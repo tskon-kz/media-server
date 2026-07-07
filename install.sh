@@ -225,14 +225,17 @@ fi
 JF_PORT=8096
 QB_PORT=8080
 JACKETT_PORT=9117
+WATCHTOWER_PORT=9080
 printf "%s" "$MSG_ASK_PORTS"; read -r CUSTOM_PORTS
 if [[ "$CUSTOM_PORTS" =~ ^[Yy]$ ]]; then
-    printf "%s" "$MSG_ASK_JF_PORT";      read -r _JF_PORT
-    printf "%s" "$MSG_ASK_QB_PORT";      read -r _QB_PORT
-    printf "%s" "$MSG_ASK_JACKETT_PORT"; read -r _JACKETT_PORT
-    [ -n "$_JF_PORT"      ] && JF_PORT="$_JF_PORT"
-    [ -n "$_QB_PORT"      ] && QB_PORT="$_QB_PORT"
-    [ -n "$_JACKETT_PORT" ] && JACKETT_PORT="$_JACKETT_PORT"
+    printf "%s" "$MSG_ASK_JF_PORT";         read -r _JF_PORT
+    printf "%s" "$MSG_ASK_QB_PORT";         read -r _QB_PORT
+    printf "%s" "$MSG_ASK_JACKETT_PORT";    read -r _JACKETT_PORT
+    printf "%s" "$MSG_ASK_WATCHTOWER_PORT"; read -r _WATCHTOWER_PORT
+    [ -n "$_JF_PORT"         ] && JF_PORT="$_JF_PORT"
+    [ -n "$_QB_PORT"         ] && QB_PORT="$_QB_PORT"
+    [ -n "$_JACKETT_PORT"    ] && JACKETT_PORT="$_JACKETT_PORT"
+    [ -n "$_WATCHTOWER_PORT" ] && WATCHTOWER_PORT="$_WATCHTOWER_PORT"
 else
     echo "$MSG_PORTS_DEFAULT"
 fi
@@ -247,9 +250,10 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     echo "ALLOWED_USER=$ALLOWED_USER"
     echo "WATCHTOWER_TOKEN=$WATCHTOWER_TOKEN"
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG"
-    [ "$JF_PORT"      != "8096"   ] && echo "JELLYFIN_PORT=$JF_PORT"
-    [ "$QB_PORT"      != "8080"   ] && echo "QB_PORT=$QB_PORT"
-    [ "$JACKETT_PORT" != "9117"   ] && echo "JACKETT_PORT=$JACKETT_PORT"
+    [ "$JF_PORT"         != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
+    [ "$QB_PORT"         != "8080" ] && echo "QB_PORT=$QB_PORT"
+    [ "$JACKETT_PORT"    != "9117" ] && echo "JACKETT_PORT=$JACKETT_PORT"
+    [ "$WATCHTOWER_PORT" != "9080" ] && echo "WATCHTOWER_PORT=$WATCHTOWER_PORT"
     [ "$MEDIA_PATH"   != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
     [ -n "$CF_TUNNEL_TOKEN" ] && echo "CLOUDFLARE_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN"
     [ -n "$CF_WEBAPP_URL"   ] && echo "WEBAPP_URL=$CF_WEBAPP_URL"

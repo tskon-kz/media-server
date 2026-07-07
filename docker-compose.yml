@@ -53,7 +53,6 @@ services:
       - JACKETT_URL=${JACKETT_URL:-http://jackett:9117}
       - JACKETT_PORT=${JACKETT_PORT:-9117}
       - WATCHTOWER_TOKEN=${WATCHTOWER_TOKEN}
-      - WEBAPP_PORT=${WEBAPP_PORT:-8081}
       - WEBAPP_URL=${WEBAPP_URL:-}
       - PYTHONUNBUFFERED=1
     volumes:
@@ -77,7 +76,7 @@ services:
     # instead of scraping ephemeral trycloudflare.com URLs from logs.
     # Leave CLOUDFLARE_TUNNEL_TOKEN empty to use the default quick tunnel.
     entrypoint: ["sh", "-c"]
-    command: '[ -n "$$CLOUDFLARE_TUNNEL_TOKEN" ] && exec cloudflared tunnel --no-autoupdate run --token "$$CLOUDFLARE_TUNNEL_TOKEN" || exec cloudflared tunnel --no-autoupdate --url http://telegram-bot:${WEBAPP_PORT:-8081}'
+    command: '[ -n "$$CLOUDFLARE_TUNNEL_TOKEN" ] && exec cloudflared tunnel --no-autoupdate run --token "$$CLOUDFLARE_TUNNEL_TOKEN" || exec cloudflared tunnel --no-autoupdate --url http://telegram-bot:8081'
     environment:
       - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
@@ -88,7 +87,7 @@ services:
     container_name: media-server-watchtower
     restart: unless-stopped
     ports:
-      - "127.0.0.1:9080:8080"
+      - "127.0.0.1:${WATCHTOWER_PORT:-9080}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:

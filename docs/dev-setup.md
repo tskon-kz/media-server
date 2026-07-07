@@ -162,7 +162,7 @@ The `VERSION` build arg sets the `APP_VERSION` env var inside the container. Bot
 │   │   └── _utils.py   # guard decorator, shared helpers
 │   ├── api.py          # Jellyfin + qBittorrent + Watchtower + Docker socket calls; get_cloudflared_url()
 │   ├── keyboards.py    # Inline keyboard builders and text renderers
-│   ├── config.py       # Env vars and constants (WEBAPP_PORT, WEBAPP_URL, WEBAPP_DEV_MODE, ...)
+│   ├── config.py       # Env vars and constants (WEBAPP_URL, WEBAPP_DEV_MODE, ...)
 │   ├── store.py        # SQLite persistence
 │   ├── parser/         # Package: filenames, naming, fsops, linker (+ __init__ re-exports)
 │   ├── webapp/         # aiohttp server: server.py (runner), auth.py (initData HMAC), routes.py (REST API)
