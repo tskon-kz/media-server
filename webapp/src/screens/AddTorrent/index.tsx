@@ -1,153 +1,152 @@
-import {useEffect, useRef, useState} from "react";
-import {Box, Button, Drawer, FileInput, Loader, Stack, Text, Textarea, TextInput,} from "@mantine/core";
-import {Clapperboard, Film, Music, Package, Plus, Search as SearchIcon, Trash2, Tv} from "lucide-react";
-import {useTranslation} from "react-i18next";
-import {api} from "../api";
-import {bytes} from "../format";
-import {useToast} from "../components/Toast";
-import {CategoryPicker} from "../components/CategoryPicker";
-import {Collapse} from "../components/Collapse";
-import {PromptSheet} from "../components/PromptSheet";
-import {ListItem, ListPlaceholder, ListSection} from "../components/ui";
-import PageHeader from "../components/PageHeader";
-import type {Category, SearchResult} from "../types";
+import {useEffect, useRef, useState} from "react"
+import {Box, Button, Drawer, FileInput, Loader, Stack, Text, Textarea, TextInput,} from "@mantine/core"
+import {Clapperboard, Film, Music, Package, Plus, Search as SearchIcon, Trash2, Tv} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {api} from "../../api"
+import {bytes} from "../../format"
+import {useToast} from "../../components/Toast"
+import {CategoryPicker} from "../../components/CategoryPicker"
+import {Collapse} from "../../components/Collapse"
+import {PromptSheet} from "../../components/PromptSheet"
+import {ListItem, ListPlaceholder, ListSection} from "../../components/ui"
+import PageHeader from "../../components/PageHeader"
+import type {Category, SearchResult} from "../../types"
 
-const DEL_COLOR = "var(--tg-theme-destructive-text-color)";
+const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
 
 export function AddTorrent({onAdded}: { onAdded: () => void }) {
-  const toast = useToast();
-  const {t} = useTranslation();
-  const [cats, setCats] = useState<Category[]>([]);
+  const toast = useToast()
+  const {t} = useTranslation()
+  const [cats, setCats] = useState<Category[]>([])
 
   // magnet / file
-  const [magnet, setMagnet] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [fileKey, setFileKey] = useState(0);
-  const [pick, setPick] = useState<null | { magnet?: string; file?: File }>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [magnet, setMagnet] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [fileKey, setFileKey] = useState(0)
+  const [pick, setPick] = useState<null | { magnet?: string; file?: File }>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // search
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState<SearchResult[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [searchPick, setSearchPick] = useState<SearchResult | null>(null);
+  const [q, setQ] = useState("")
+  const [results, setResults] = useState<SearchResult[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchPick, setSearchPick] = useState<SearchResult | null>(null)
 
   // categories
-  const [catDialog, setCatDialog] = useState<string | null>(null);
-  const [newCatName, setNewCatName] = useState("");
-  const [renameCat, setRenameCat] = useState<Category | null>(null);
+  const [catDialog, setCatDialog] = useState<string | null>(null)
+  const [newCatName, setNewCatName] = useState("")
+  const [renameCat, setRenameCat] = useState<Category | null>(null)
 
   const JF_TYPES: { key: string; label: string; Icon: typeof Clapperboard }[] = [
     {key: "movies", label: t("settings.movies"), Icon: Film},
     {key: "tvshows", label: t("settings.tvShows"), Icon: Tv},
     {key: "music", label: t("settings.music"), Icon: Music},
     {key: "mixed", label: t("settings.other"), Icon: Package},
-  ];
+  ]
 
-  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {
-  });
+  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {})
   useEffect(() => {
-    loadCats();
-  }, []); // eslint-disable-line
+    loadCats()
+  }, []) // eslint-disable-line
 
   const guard = async (fn: () => Promise<void>) => {
     try {
-      await fn();
+      await fn()
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast((e as Error).message, "err")
     }
-  };
+  }
 
   // ── magnet / file ──────────────────────────────────────────────────────────
 
   const submitMagnet = () => {
-    const m = magnet.trim();
+    const m = magnet.trim()
     if (!m.startsWith("magnet:")) {
-      toast(t("add.invalidMagnet"), "err");
-      return;
+      toast(t("add.invalidMagnet"), "err")
+      return
     }
-    if (cats.length === 0) addNow({magnet: m});
-    else setPick({magnet: m});
-  };
+    if (cats.length === 0) addNow({magnet: m})
+    else setPick({magnet: m})
+  }
 
   const onFile = (f: File | null) => {
-    if (!f) return;
-    if (cats.length === 0) addNow({file: f});
-    else setPick({file: f});
-  };
+    if (!f) return
+    if (cats.length === 0) addNow({file: f})
+    else setPick({file: f})
+  }
 
   const addNow = async (what: { magnet?: string; file?: File }, cat?: Category) => {
-    setPick(null);
-    setBusy(true);
+    setPick(null)
+    setBusy(true)
     try {
-      if (what.magnet) await api.addMagnet(what.magnet, cat?.id);
-      else if (what.file) await api.addTorrentFile(what.file, cat?.id);
-      toast(t("common.added"));
-      setMagnet("");
-      setFileKey((k) => k + 1);
-      onAdded();
+      if (what.magnet) await api.addMagnet(what.magnet, cat?.id)
+      else if (what.file) await api.addTorrentFile(what.file, cat?.id)
+      toast(t("common.added"))
+      setMagnet("")
+      setFileKey((k) => k + 1)
+      onAdded()
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast((e as Error).message, "err")
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
-  };
+  }
 
   // ── search ─────────────────────────────────────────────────────────────────
 
   const runSearch = async () => {
-    const query = q.trim();
-    if (!query) return;
-    setSearching(true);
+    const query = q.trim()
+    if (!query) return
+    setSearching(true)
     try {
-      const r = await api.search(query);
-      setResults(r.results);
+      const r = await api.search(query)
+      setResults(r.results)
     } catch (e) {
-      toast((e as Error).message, "err");
-      setResults([]);
+      toast((e as Error).message, "err")
+      setResults([])
     } finally {
-      setSearching(false);
+      setSearching(false)
     }
-  };
+  }
 
   const choose = (r: SearchResult) => {
-    if (cats.length === 0) searchAddNow(r);
-    else setSearchPick(r);
-  };
+    if (cats.length === 0) searchAddNow(r)
+    else setSearchPick(r)
+  }
 
   const searchAddNow = async (r: SearchResult, cat?: Category) => {
-    setSearchPick(null);
+    setSearchPick(null)
     try {
-      await api.searchAdd(r, cat?.id);
-      toast(t("common.added"));
-      onAdded();
+      await api.searchAdd(r, cat?.id)
+      toast(t("common.added"))
+      onAdded()
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast((e as Error).message, "err")
     }
-  };
+  }
 
   // ── categories ─────────────────────────────────────────────────────────────
 
   const createCat = (type: string) => guard(async () => {
-    await api.createCategory(newCatName, type);
-    setCatDialog(null);
-    setNewCatName("");
-    toast(t("settings.catAdded"));
-    loadCats();
-  });
+    await api.createCategory(newCatName, type)
+    setCatDialog(null)
+    setNewCatName("")
+    toast(t("settings.catAdded"))
+    loadCats()
+  })
 
   const doRenameCat = (name: string) => guard(async () => {
-    if (renameCat) await api.renameCategory(renameCat.id, name);
-    setRenameCat(null);
-    setCatDialog(null);
-    loadCats();
-  });
+    if (renameCat) await api.renameCategory(renameCat.id, name)
+    setRenameCat(null)
+    setCatDialog(null)
+    loadCats()
+  })
 
   const delCat = (c: Category) => guard(async () => {
-    await api.deleteCategory(c.id);
-    toast(t("settings.catDeleted"));
-    loadCats();
-  });
+    await api.deleteCategory(c.id)
+    toast(t("settings.catDeleted"))
+    loadCats()
+  })
 
   return (
     <div className="mb-16">
@@ -244,16 +243,16 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
                       px={4}
                       style={{color: DEL_COLOR}}
                       onClick={(e) => {
-                        e.stopPropagation();
-                        delCat(c);
+                        e.stopPropagation()
+                        delCat(c)
                       }}
                     >
                       <Trash2 size={18}/>
                     </Button>
                   }
                   onClick={() => {
-                    setRenameCat(c);
-                    setCatDialog("rename");
+                    setRenameCat(c)
+                    setCatDialog("rename")
                   }}
                   multiline
                 >
@@ -271,7 +270,6 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
             </Button>
           </Stack>
         </Collapse>
-
 
         <Drawer
           opened={catDialog === "new"}
@@ -311,8 +309,8 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           open={catDialog === "rename" && !!renameCat}
           onSubmit={doRenameCat}
           onClose={() => {
-            setRenameCat(null);
-            setCatDialog(null);
+            setRenameCat(null)
+            setCatDialog(null)
           }}
         />
 
@@ -333,5 +331,5 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
         />
       </div>
     </div>
-  );
+  )
 }
