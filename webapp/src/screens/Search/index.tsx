@@ -2,12 +2,12 @@ import {useState, useEffect} from "react"
 import {Box, Button, Loader, Stack, TextInput, Title} from "@mantine/core"
 import {Search as SearchIcon} from "lucide-react"
 import {useTranslation} from "react-i18next"
-import {api} from "../../api"
-import {bytes} from "../../format"
-import {useToast} from "../../components/Toast"
-import {CategoryPicker} from "../../components/CategoryPicker"
-import {ListItem, ListPlaceholder, ListSection} from "../../components/ui"
-import type {Category, SearchResult} from "../../types"
+import {api} from "@/api"
+import {bytes} from "@/format"
+import {useToast} from "@/components/Toast"
+import {CategoryPicker} from "@/components/CategoryPicker"
+import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
+import type {Category, SearchResult} from "@/types"
 
 export function Search() {
   const toast = useToast()

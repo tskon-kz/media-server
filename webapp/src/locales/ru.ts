@@ -93,6 +93,8 @@ export default {
     libraryType: "Тип библиотеки",
     catAdded: "Категория добавлена",
     catDeleted: "Категория удалена",
+    deleteCatTitle: "Удалить категорию?",
+    deleteCatBody: "Категория «{{name}}» будет удалена.",
     renameCategory: "Переименовать категорию",
     newName: "Новое название",
     // Jellyfin library type labels

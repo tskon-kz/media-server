@@ -2,9 +2,9 @@ import {useEffect, useState} from "react"
 import {Box, Loader, Title} from "@mantine/core"
 import {CheckCircle2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
-import {api} from "../../api"
-import {speed} from "../../format"
-import {ListItem, ListSection} from "../../components/ui"
+import {api} from "@/api"
+import {speed} from "@/format"
+import {ListItem, ListSection} from "@/components/ui"
 
 export function Status() {
   const {t} = useTranslation()

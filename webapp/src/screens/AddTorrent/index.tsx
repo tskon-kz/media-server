@@ -1,16 +1,16 @@
 import {useEffect, useRef, useState} from "react"
 import {Box, Button, Drawer, Loader, Stack, Text, TextInput,} from "@mantine/core"
-import {Clapperboard, Film, Music, Package, Search as SearchIcon, Tv} from "lucide-react"
+import {Clapperboard, Film, Music, Package, Search as SearchIcon, Trash2, Tv} from "lucide-react"
 import {useTranslation} from "react-i18next"
-import {api} from "../../api"
-import {bytes} from "../../format"
-import {useToast} from "../../components/Toast"
-import {CategoryPicker} from "../../components/CategoryPicker"
-import {Collapse} from "../../components/Collapse"
-import {PromptSheet} from "../../components/PromptSheet"
-import {ListItem, ListPlaceholder, ListSection} from "../../components/ui"
-import PageHeader from "../../components/PageHeader"
-import type {Category, SearchResult} from "../../types"
+import {api} from "@/api"
+import {bytes} from "@/format"
+import {useToast} from "@/components/Toast"
+import {CategoryPicker} from "@/components/CategoryPicker"
+import {Collapse} from "@/components/Collapse"
+import {PromptSheet} from "@/components/PromptSheet"
+import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
+import PageHeader from "@/components/PageHeader"
+import type {Category, SearchResult} from "@/types"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
 
@@ -36,6 +36,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const [catDialog, setCatDialog] = useState<string | null>(null)
   const [newCatName, setNewCatName] = useState("")
   const [renameCat, setRenameCat] = useState<Category | null>(null)
+  const [confirmDelCat, setConfirmDelCat] = useState<Category | null>(null)
 
   const JF_TYPES: { key: string; label: string; Icon: typeof Clapperboard }[] = [
     {key: "movies", label: t("settings.movies"), Icon: Film},
@@ -143,6 +144,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   })
 
   const delCat = (c: Category) => guard(async () => {
+    setConfirmDelCat(null)
     await api.deleteCategory(c.id)
     toast(t("settings.catDeleted"))
     loadCats()
@@ -213,7 +215,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
         <Collapse title={t("settings.categories")}>
           <CategoriesContent
             cats={cats}
-            onDelete={delCat}
+            onDelete={(c) => setConfirmDelCat(c)}
             onRename={(c) => {
               setRenameCat(c)
               setCatDialog("rename")
@@ -264,6 +266,31 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
             setCatDialog(null)
           }}
         />
+
+        <Drawer
+          opened={!!confirmDelCat}
+          onClose={() => setConfirmDelCat(null)}
+          title={t("settings.deleteCatTitle")}
+          position="bottom"
+          radius="lg"
+          overlayProps={{blur: 2}}
+        >
+          <Stack gap={8} pb={16} px={4}>
+            <Text size="sm" c="dimmed">{t("settings.deleteCatBody", {name: confirmDelCat?.name})}</Text>
+            <Button
+              fullWidth
+              variant="light"
+              leftSection={<Trash2 size={18}/>}
+              style={{color: "var(--tg-theme-destructive-text-color)"}}
+              onClick={() => confirmDelCat && delCat(confirmDelCat)}
+            >
+              {t("common.delete")}
+            </Button>
+            <Button fullWidth variant="light" onClick={() => setConfirmDelCat(null)}>
+              {t("common.cancel")}
+            </Button>
+          </Stack>
+        </Drawer>
 
         <CategoryPicker
           categories={cats}

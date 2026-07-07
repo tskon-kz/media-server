@@ -1,8 +1,8 @@
 import {Button} from "@mantine/core"
 import {Plus, Trash2} from "lucide-react"
 import {useTranslation} from "react-i18next"
-import {ListItem, ListSection} from "../../../components/ui"
-import type {Category} from "../../../types"
+import {ListItem, ListSection} from "@/components/ui"
+import type {Category} from "@/types"
 import styles from "./CategoriesContent.module.scss"
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"

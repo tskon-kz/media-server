@@ -1,9 +1,9 @@
 import {Button} from "@mantine/core"
 import {Lock, Unlock} from "lucide-react"
 import {useTranslation} from "react-i18next"
-import {openExternal} from "../../../telegram"
-import type {AppConfig, Settings as SettingsData} from "../../../types"
-import styles from "../Settingstyles.module.scss"
+import {openExternal} from "@/telegram"
+import type {AppConfig, Settings as SettingsData} from "@/types"
+import styles from "../Settings.module.scss"
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
 
@@ -20,9 +20,9 @@ export function JackettContent({data, cfg, onChangePass, onRemovePass}: JackettC
     <>
       <div className={styles.infoRow}>
         <div className={styles.infoText}>
-          <span className={styles.infoLabel}>{t("settingstyles.jackett")}</span>
+          <span className={styles.infoLabel}>{t("settings.jackett")}</span>
           <span className={styles.infoHint}>
-            {t("settingstyles.apiKey", {status: t(data.jackett.has_key ? "settingstyles.keyAvailable" : "settingstyles.keyMissing")})}
+            {t("settings.apiKey", {status: t(data.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing")})}
           </span>
         </div>
         {data.jackett.has_password
@@ -31,15 +31,15 @@ export function JackettContent({data, cfg, onChangePass, onRemovePass}: JackettC
         }
       </div>
       <div className={styles.buttonStack}>
-        <Button fullWidth variant="light" onClick={onChangePass}>{t("settingstyles.changePass")}</Button>
+        <Button fullWidth variant="light" onClick={onChangePass}>{t("settings.changePass")}</Button>
         {data.jackett.has_password && (
           <Button fullWidth variant="light" style={{color: DEL_COLOR}} onClick={onRemovePass}>
-            {t("settingstyles.removePass")}
+            {t("settings.removePass")}
           </Button>
         )}
         {cfg.quick_links && (
           <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>
-            {t("settingstyles.openWebUI")}
+            {t("settings.openWebUI")}
           </Button>
         )}
       </div>
