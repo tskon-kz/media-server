@@ -14,6 +14,15 @@ JACKETT_URL      = os.environ.get("JACKETT_URL", "http://jackett:9117")
 JACKETT_PORT     = os.environ.get("JACKETT_PORT", "9117")
 APP_VERSION      = os.environ.get("APP_VERSION", "dev")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_TOKEN", "")
+
+
+def current_channel() -> str:
+    """Channel of the ACTUALLY-running image, read from the baked-in APP_VERSION
+    (edge builds → `edge-<sha>`, releases → `vX.Y.Z`). This is the source of
+    truth for the UI, immune to `bot_image_tag` drift when the image was switched
+    from the host (`.env` + `docker compose up -d`) instead of via the bot.
+    """
+    return "edge" if APP_VERSION.startswith("edge") else "stable"
 WEBAPP_PORT      = 8081  # internal-only (compose network); never published to the host
 WEBAPP_URL       = os.environ.get("WEBAPP_URL", "")  # static override for named CF tunnel
 # Dev-only auth bypass for the Mini App API. When enabled, /api/* skips Telegram
