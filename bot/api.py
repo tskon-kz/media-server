@@ -361,11 +361,19 @@ def gh_latest_release_tag() -> str | None:
 
 
 def _project_dir_from_mounts(me) -> str | None:
-    """Derive the host compose project directory from our own bind mounts.
+    """Derive the host compose project directory for the updater's bind mount.
 
-    The `/app/data` mount is always `./bot-data` under the project dir, so the
-    host side of that bind, minus its `bot-data` leaf, is the project dir.
+    Prefer the compose-set label `com.docker.compose.project.working_dir`, which
+    records the true absolute host project dir. It is immune to bind-path
+    corruption — unlike deriving it from our own `/app/data` mount, which a prior
+    buggy updater run could have rewritten to `/project/bot-data` (making every
+    later update mount the wrong dir and pick the wrong project name).
+
+    Fall back to the `/app/data` bind heuristic only if the label is absent.
     """
+    workdir = (me.labels or {}).get("com.docker.compose.project.working_dir")
+    if workdir:
+        return workdir
     for bind in (me.attrs.get("HostConfig", {}) or {}).get("Binds") or []:
         parts = bind.split(":")
         if len(parts) >= 2 and parts[1] == DATA_DIR:
@@ -403,7 +411,11 @@ def stack_update(tag: str):
     project_dir = _project_dir_from_mounts(me)
     if not project_dir:
         return "could not locate the host project directory; run update.sh on the host once"
-    project_name = os.path.basename(project_dir) or "media-server"
+    # Use the compose-assigned project name so `docker compose up` reconciles the
+    # EXISTING containers (which have hardcoded container_names) instead of trying
+    # to create duplicates under a mismatched project → name conflicts.
+    project_name = (me.labels or {}).get("com.docker.compose.project") \
+        or os.path.basename(project_dir) or "media-server"
 
     # The updater script is baked into the bot image; pass it inline so there is
     # a single source of truth and nothing to deliver to the host separately.
