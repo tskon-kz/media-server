@@ -15,7 +15,7 @@ import re
 from aiohttp import web
 
 from config import (
-    ICONS, INCOMING_DIR, APP_VERSION,
+    ICONS, INCOMING_DIR, APP_VERSION, current_channel,
     QB_PORT, JF_PORT, JACKETT_PORT,
 )
 import store
@@ -594,7 +594,7 @@ async def jellyfin_user_delete(request):
 @routes.get("/api/update")
 async def update_get(request):
     latest = await _thread(gh_latest_release_tag)
-    channel = "edge" if (get_config("bot_image_tag") or "") == "edge" else "stable"
+    channel = current_channel()
     return web.json_response({
         "current": APP_VERSION,
         "latest": latest,

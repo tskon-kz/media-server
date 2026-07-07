@@ -2,7 +2,7 @@ import asyncio
 import os
 from html import escape
 
-from config import ALLOWED, APP_VERSION
+from config import ALLOWED, APP_VERSION, current_channel
 from store import (
     t, set_lang, load_cats, save_cats,
     get_user_state, set_user_state, clear_user_state,
@@ -76,8 +76,7 @@ async def on_callback(update, ctx):
                 case "jf_users":
                     await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
                 case "update":
-                    channel = "edge" if get_config("bot_image_tag") == "edge" else "stable"
-                    await _edit(query, *kb.update_view(APP_VERSION, gh_latest_release_tag(), channel))
+                    await _edit(query, *kb.update_view(APP_VERSION, gh_latest_release_tag(), current_channel()))
                 case "media":
                     await _edit(query, t("media_mgmt_title"), kb.global_structure_menu_kb())
                 case "jackett":

@@ -11,7 +11,7 @@ from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
     CommandHandler, MessageHandler, filters,
 )
-from config import BOT_TOKEN, APP_VERSION, ALLOWED
+from config import BOT_TOKEN, APP_VERSION, ALLOWED, current_channel
 import store
 import handlers as h
 import keyboards as kb
@@ -32,6 +32,14 @@ async def _post_init(app):
     # Report a completed update FIRST — before anything that could fail — so a
     # Mini App startup hiccup can never swallow the success notification. The flag
     # was set by the previous container's self_update swap; we're the fresh one.
+    # Self-heal the persisted channel tag when running an :edge image: a host-side
+    # switch (.env + docker compose up -d) doesn't touch the DB, leaving cold
+    # starts / update.sh resolving the wrong tag. Only the edge case is healed —
+    # a released image (vX.Y.Z) could be a deliberate rollback pin we must not
+    # clobber back to "stable".
+    if current_channel() == "edge" and store.get_config("bot_image_tag") != "edge":
+        store.set_config("bot_image_tag", "edge")
+
     if store.get_config("update_pending"):
         store.set_config("update_pending", "")
         msg = store.t("update_success", v=APP_VERSION)
