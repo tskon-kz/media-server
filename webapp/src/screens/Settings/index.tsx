@@ -3,7 +3,7 @@ import {Box, Button, Drawer, Loader, SegmentedControl, Stack, Text,} from "@mant
 import {Trash2, UserPlus,} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
-import {useToast} from "@/components/Toast"
+import {toast} from "@/components/Toast"
 import {type ThemeMode, useTheme} from "@/theme"
 import {setAppLanguage} from "@/i18n"
 import {Collapse} from "@/components/Collapse"
@@ -19,7 +19,6 @@ import {JellyfinContent} from "./components/JellyfinContent"
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
 
 export function Settings() {
-  const toast = useToast()
   const {t} = useTranslation()
   const {mode: themeMode, setMode: setThemeMode} = useTheme()
   const [cfg, setCfg] = useState<AppConfig | null>(null)

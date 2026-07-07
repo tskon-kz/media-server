@@ -1,62 +1,56 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { tg } from "./telegram";
+import { useCallback, useEffect, useRef } from "react"
+import { tg } from "./telegram"
+import { useAppDispatch, useAppSelector } from "./store"
+import { setMode, setAppearance, type Appearance, type ThemeMode } from "./store/slices/themeSlice"
 
-export type Appearance = "light" | "dark";
-export type ThemeMode = "auto" | "light" | "dark";
+export type { Appearance, ThemeMode }
 
 function telegramAppearance(): Appearance {
-  return (tg?.colorScheme ?? "light") as Appearance;
+  return (tg?.colorScheme ?? "light") as Appearance
 }
 
 function applyToDOM(a: Appearance) {
-  document.documentElement.dataset.theme = a;
+  document.documentElement.dataset.theme = a
 }
 
-interface ThemeCtxValue {
-  appearance: Appearance;
-  mode: ThemeMode;
-  setMode: (m: ThemeMode) => void;
-}
-
-const ThemeCtx = createContext<ThemeCtxValue>({ appearance: "light", mode: "auto", setMode: () => {} });
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const savedMode = localStorage.getItem("theme-mode") as ThemeMode | null;
-  const initialMode: ThemeMode = savedMode === "light" || savedMode === "dark" ? savedMode : "auto";
-  const initialAppearance: Appearance = initialMode === "auto" ? telegramAppearance() : initialMode;
-
-  const [mode, setModeState] = useState<ThemeMode>(initialMode);
-  const [appearance, setAppearance] = useState<Appearance>(initialAppearance);
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-
-  const setMode = useCallback((m: ThemeMode) => {
-    localStorage.setItem("theme-mode", m);
-    const a = m === "auto" ? telegramAppearance() : m;
-    setModeState(m);
-    setAppearance(a);
-    applyToDOM(a);
-  }, []);
+export function ThemeSync() {
+  const dispatch = useAppDispatch()
+  const modeRef = useRef(useAppSelector((s) => s.theme.mode))
 
   useEffect(() => {
-    applyToDOM(appearance);
-  }, [appearance]);
+    const a = modeRef.current === "auto" ? telegramAppearance() : modeRef.current
+    dispatch(setAppearance(a))
+    applyToDOM(a)
+  }, [dispatch])
 
   useEffect(() => {
     const handler = () => {
       if (modeRef.current === "auto") {
-        const a = telegramAppearance();
-        setAppearance(a);
-        applyToDOM(a);
+        const a = telegramAppearance()
+        dispatch(setAppearance(a))
+        applyToDOM(a)
       }
-    };
-    tg?.onEvent("themeChanged", handler);
-    return () => tg?.offEvent("themeChanged", handler);
-  }, []);
+    }
+    tg?.onEvent("themeChanged", handler)
+    return () => tg?.offEvent("themeChanged", handler)
+  }, [dispatch])
 
-  return <ThemeCtx.Provider value={{ appearance, mode, setMode }}>{children}</ThemeCtx.Provider>;
+  return null
 }
 
 export function useTheme() {
-  return useContext(ThemeCtx);
+  const dispatch = useAppDispatch()
+  const mode = useAppSelector((s) => s.theme.mode)
+  const appearance = useAppSelector((s) => s.theme.appearance)
+
+  const setThemeMode = useCallback(
+    (m: ThemeMode) => {
+      const a = m === "auto" ? telegramAppearance() : m
+      dispatch(setMode({ mode: m, appearance: a }))
+      applyToDOM(a)
+    },
+    [dispatch],
+  )
+
+  return { mode, appearance, setMode: setThemeMode }
 }

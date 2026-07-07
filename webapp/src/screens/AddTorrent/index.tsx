@@ -4,19 +4,21 @@ import {Clapperboard, Film, Music, Package, Search as SearchIcon, Trash2, Tv, X}
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes} from "@/format"
-import {useToast} from "@/components/Toast"
+import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {Collapse} from "@/components/Collapse"
 import {PromptSheet} from "@/components/PromptSheet"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
 import PageHeader from "@/components/PageHeader"
 import type {Category, SearchResult} from "@/types"
+import {useAppDispatch, useAppSelector} from "@/store"
+import {setQuery, setLoading, setResults, clearSearch} from "@/store/slices/searchSlice"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
 
 export function AddTorrent({onAdded}: { onAdded: () => void }) {
-  const toast = useToast()
   const {t} = useTranslation()
+  const dispatch = useAppDispatch()
   const [cats, setCats] = useState<Category[]>([])
 
   // magnet / file
@@ -26,14 +28,15 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const [pick, setPick] = useState<null | { magnet?: string; file?: File }>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // search
-  const [q, setQ] = useState("")
-  const [results, setResults] = useState<SearchResult[] | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [searchPick, setSearchPick] = useState<SearchResult | null>(null)
-  const [searchPage, setSearchPage] = useState(1)
-  const [searchTotal, setSearchTotal] = useState(0)
+  // search state from Redux
+  const query = useAppSelector((s) => s.search.query)
+  const results = useAppSelector((s) => s.search.results)
+  const searching = useAppSelector((s) => s.search.loading)
+  const searchPage = useAppSelector((s) => s.search.page)
+  const searchTotal = useAppSelector((s) => s.search.total)
   const PAGE_SIZE = 10
+
+  const [searchPick, setSearchPick] = useState<SearchResult | null>(null)
 
   // categories
   const [catDialog, setCatDialog] = useState<string | null>(null)
@@ -48,8 +51,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
     {key: "mixed", label: t("settings.other"), Icon: Package},
   ]
 
-  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {
-  })
+  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {})
   useEffect(() => {
     loadCats()
   }, []) // eslint-disable-line
@@ -100,28 +102,18 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   // ── search ─────────────────────────────────────────────────────────────────
 
   const runSearch = async (page = 1) => {
-    const query = q.trim()
-    if (!query) return
-    setSearching(true)
-    setSearchPage(page)
+    const q = query.trim()
+    if (!q) return
+    dispatch(setLoading(true))
     try {
-      const r = await api.search(query, page, PAGE_SIZE)
-      setResults(r.results)
-      setSearchTotal(r.total)
+      const r = await api.search(q, page, PAGE_SIZE)
+      dispatch(setResults({results: r.results, total: r.total, page}))
     } catch (e) {
       toast((e as Error).message, "err")
-      setResults([])
-      setSearchTotal(0)
+      dispatch(setResults({results: [], total: 0, page}))
     } finally {
-      setSearching(false)
+      dispatch(setLoading(false))
     }
-  }
-
-  const clearSearch = () => {
-    setQ("")
-    setResults(null)
-    setSearchTotal(0)
-    setSearchPage(1)
   }
 
   const choose = (r: SearchResult) => {
@@ -174,12 +166,12 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           radius="lg"
           className="mb-8"
           placeholder={t("search.placeholder")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={query}
+          onChange={(e) => dispatch(setQuery(e.target.value))}
           onKeyDown={(e) => e.key === "Enter" && runSearch(1)}
           rightSection={
             results !== null ? (
-              <Button variant="subtle" size="compact-sm" px={4} onClick={clearSearch}>
+              <Button variant="subtle" size="compact-sm" px={4} onClick={() => dispatch(clearSearch())}>
                 <X size={18}/>
               </Button>
             ) : (
@@ -188,7 +180,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
                 size="compact-sm"
                 px={4}
                 onClick={() => runSearch(1)}
-                disabled={searching || !q.trim()}
+                disabled={searching || !query.trim()}
               >
                 <SearchIcon size={18}/>
               </Button>

@@ -4,13 +4,12 @@ import {Search as SearchIcon} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes} from "@/format"
-import {useToast} from "@/components/Toast"
+import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
 import type {Category, SearchResult} from "@/types"
 
 export function Search() {
-  const toast = useToast()
   const {t} = useTranslation()
   const [q, setQ] = useState("")
   const [results, setResults] = useState<SearchResult[] | null>(null)

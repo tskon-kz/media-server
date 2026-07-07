@@ -5,7 +5,7 @@ import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
 import {haptic} from "@/telegram"
-import {useToast} from "@/components/Toast"
+import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
@@ -14,7 +14,6 @@ import type {Category, Torrent} from "@/types"
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
 
 export function TorrentList() {
-  const toast = useToast()
   const {t} = useTranslation()
   const [torrents, setTorrents] = useState<Torrent[] | null>(null)
   const [cats, setCats] = useState<Category[]>([])
