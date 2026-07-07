@@ -51,7 +51,9 @@ DEFAULT_CATS = [
     {"name": "Series", "path": "/media/series", "jf_type": "tvshows"},
 ]
 
-DONE_STATES = {"pausedUP", "uploading", "seeding", "stalledUP", "forcedUP"}
+# qBittorrent 5.x renamed pausedDL/pausedUP -> stoppedDL/stoppedUP. Keep both so
+# the bot works across qB 4.x and 5.x.
+DONE_STATES = {"pausedUP", "stoppedUP", "uploading", "seeding", "stalledUP", "forcedUP"}
 
 ICONS = {
     "downloading": "⬇️", "forcedDL": "⬇️",
@@ -62,5 +64,6 @@ ICONS = {
     "uploading": "⬆️", "forcedUP": "⬆️",
     "stalledUP": "🌱", "seeding": "🌱",
     "pausedDL": "⏸", "pausedUP": "✅",
+    "stoppedDL": "⏸", "stoppedUP": "✅",
     "moving": "📦", "missingFiles": "⚠️", "error": "❌", "unknown": "❓",
 }

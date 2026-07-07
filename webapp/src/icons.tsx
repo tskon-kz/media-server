@@ -22,6 +22,9 @@ const STATE_ICONS: Record<string, ComponentType<LucideProps>> = {
   seeding: Leaf,
   pausedDL: Pause,
   pausedUP: CheckCircle2,
+  // qBittorrent 5.x renamed pausedDL/pausedUP -> stoppedDL/stoppedUP
+  stoppedDL: Pause,
+  stoppedUP: CheckCircle2,
   moving: Package,
   missingFiles: AlertTriangle,
   error: XCircle,
