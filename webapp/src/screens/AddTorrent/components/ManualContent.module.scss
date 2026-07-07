@@ -1,0 +1,15 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  margin-bottom: 4px;
+  color: var(--mantine-color-dimmed)
+}

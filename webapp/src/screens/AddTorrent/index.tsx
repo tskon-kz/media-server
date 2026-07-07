@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
-import {Box, Button, Drawer, FileInput, Loader, Stack, Text, Textarea, TextInput,} from "@mantine/core"
-import {Clapperboard, Film, Music, Package, Plus, Search as SearchIcon, Trash2, Tv} from "lucide-react"
+import {Box, Button, Drawer, Loader, Stack, Text, TextInput,} from "@mantine/core"
+import {Clapperboard, Film, Music, Package, Search as SearchIcon, Tv} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "../../api"
 import {bytes} from "../../format"
@@ -11,8 +11,8 @@ import {PromptSheet} from "../../components/PromptSheet"
 import {ListItem, ListPlaceholder, ListSection} from "../../components/ui"
 import PageHeader from "../../components/PageHeader"
 import type {Category, SearchResult} from "../../types"
-
-const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
+import {ManualContent} from "./components/ManualContent"
+import {CategoriesContent} from "./components/CategoriesContent"
 
 export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const toast = useToast()
@@ -199,76 +199,27 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
       </div>
       <div>
         <Collapse title={t("add.manual")} className="mb-8">
-          <Stack gap={8} pt={4}>
-            <ListSection header={t("add.magnetSection")}>
-              <Box p={12}>
-                <Textarea
-                  ref={textareaRef}
-                  placeholder="magnet:?xt=urn:btih:…"
-                  value={magnet}
-                  onChange={(e) => setMagnet(e.target.value)}
-                  autosize
-                  minRows={2}
-                />
-              </Box>
-            </ListSection>
-            <Button fullWidth disabled={busy || !magnet.trim()} onClick={submitMagnet}>
-              {t("add.addMagnet")}
-            </Button>
-            <ListSection header={t("add.fileSection")}>
-              <Box p={12}>
-                <FileInput
-                  key={fileKey}
-                  label={t("add.uploadLabel")}
-                  accept=".torrent"
-                  onChange={onFile}
-                  clearable
-                />
-              </Box>
-            </ListSection>
-          </Stack>
+          <ManualContent
+            magnet={magnet}
+            onMagnetChange={setMagnet}
+            busy={busy}
+            fileKey={fileKey}
+            textareaRef={textareaRef}
+            onSubmitMagnet={submitMagnet}
+            onFile={onFile}
+          />
         </Collapse>
 
         <Collapse title={t("settings.categories")}>
-          <Stack gap={8} pt={4}>
-            <ListSection>
-              {cats.map((c) => (
-                <ListItem
-                  key={c.id}
-                  subtitle={c.path.replace("/media/", "")}
-                  after={
-                    <Button
-                      variant="subtle"
-                      size="compact-sm"
-                      px={4}
-                      style={{color: DEL_COLOR}}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        delCat(c)
-                      }}
-                    >
-                      <Trash2 size={18}/>
-                    </Button>
-                  }
-                  onClick={() => {
-                    setRenameCat(c)
-                    setCatDialog("rename")
-                  }}
-                  multiline
-                >
-                  {c.name}
-                </ListItem>
-              ))}
-            </ListSection>
-            <Button
-              fullWidth
-              variant="light"
-              leftSection={<Plus size={18}/>}
-              onClick={() => setCatDialog("new")}
-            >
-              {t("settings.addCategory")}
-            </Button>
-          </Stack>
+          <CategoriesContent
+            cats={cats}
+            onDelete={delCat}
+            onRename={(c) => {
+              setRenameCat(c)
+              setCatDialog("rename")
+            }}
+            onAdd={() => setCatDialog("new")}
+          />
         </Collapse>
 
         <Drawer

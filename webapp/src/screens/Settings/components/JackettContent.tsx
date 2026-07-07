@@ -3,7 +3,7 @@ import {Lock, Unlock} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {openExternal} from "../../../telegram"
 import type {AppConfig, Settings as SettingsData} from "../../../types"
-import s from "../Settings.module.scss"
+import styles from "../Settingstyles.module.scss"
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
 
@@ -18,28 +18,28 @@ export function JackettContent({data, cfg, onChangePass, onRemovePass}: JackettC
   const {t} = useTranslation()
   return (
     <>
-      <div className={s.infoRow}>
-        <div className={s.infoText}>
-          <span className={s.infoLabel}>{t("settings.jackett")}</span>
-          <span className={s.infoHint}>
-            {t("settings.apiKey", {status: t(data.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing")})}
+      <div className={styles.infoRow}>
+        <div className={styles.infoText}>
+          <span className={styles.infoLabel}>{t("settingstyles.jackett")}</span>
+          <span className={styles.infoHint}>
+            {t("settingstyles.apiKey", {status: t(data.jackett.has_key ? "settingstyles.keyAvailable" : "settingstyles.keyMissing")})}
           </span>
         </div>
         {data.jackett.has_password
-          ? <Lock size={16} className={s.infoIcon}/>
-          : <Unlock size={16} className={s.infoIcon}/>
+          ? <Lock size={16} className={styles.infoIcon}/>
+          : <Unlock size={16} className={styles.infoIcon}/>
         }
       </div>
-      <div className={s.buttonStack}>
-        <Button fullWidth variant="light" onClick={onChangePass}>{t("settings.changePass")}</Button>
+      <div className={styles.buttonStack}>
+        <Button fullWidth variant="light" onClick={onChangePass}>{t("settingstyles.changePass")}</Button>
         {data.jackett.has_password && (
           <Button fullWidth variant="light" style={{color: DEL_COLOR}} onClick={onRemovePass}>
-            {t("settings.removePass")}
+            {t("settingstyles.removePass")}
           </Button>
         )}
         {cfg.quick_links && (
           <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>
-            {t("settings.openWebUI")}
+            {t("settingstyles.openWebUI")}
           </Button>
         )}
       </div>
