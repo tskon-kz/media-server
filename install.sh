@@ -298,12 +298,27 @@ if ! _db_has "qb_pass"; then
     if [ -n "$TEMP_PASS" ]; then
         printf " ✓\n"
         _db_set "qb_user" "admin"
-        _db_set "qb_pass" "$TEMP_PASS"
-
+        # The temp password is per-session — it changes on every qBittorrent
+        # restart, so storing it directly means the first update breaks login and
+        # gets the IP banned. Promote it to a permanent password right away.
+        PERM_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))")
+        SID=$(curl -s -c - "http://localhost:$QB_PORT/api/v2/auth/login" \
+            --data-urlencode "username=admin" --data-urlencode "password=$TEMP_PASS" \
+            2>/dev/null | awk '/SID/{print $NF}')
+        if [ -n "$SID" ] && curl -s -f -b "SID=$SID" \
+            "http://localhost:$QB_PORT/api/v2/app/setPreferences" \
+            --data-urlencode "json={\"web_ui_password\":\"$PERM_PASS\"}" >/dev/null 2>&1; then
+            _db_set "qb_pass" "$PERM_PASS"
+            echo "QB creds saved: permanent password set" >&3
+        else
+            # Fallback: couldn't set a permanent one, keep the temp (better than nothing).
+            _db_set "qb_pass" "$TEMP_PASS"
+            echo "QB creds saved: temp password only (setPreferences failed)" >&3
+        fi
     else
         printf " ⚠️\n"
+        echo "QB creds: no temp password found" >&3
     fi
-    echo "QB creds saved: pass='$TEMP_PASS'" >&3
 fi
 
 # ---- Jellyfin setup ----

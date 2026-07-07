@@ -24,16 +24,19 @@ async def job_qb_restart_check(ctx):
 
 
 async def job_check_done(ctx):
-    if get_qb_status() == "error":
-        return
     known = load_states()
     try:
+        # qb() self-recovers from a stale temp password (see api._qb_login), so we
+        # keep retrying every run rather than latching on "error" forever — a fixed
+        # password or a qb restart heals on the next tick.
         torrents = qb().torrents_info()
     except qbittorrentapi.LoginFailed:
         invalidate_qb()
-        set_qb_status("error")
-        log.error("qBittorrent auth failed")
-        await _notify_admins(ctx.bot, t("qb_auth_error_notify"))
+        # Notify admins only on the transition into error, not every 30 s.
+        if get_qb_status() != "error":
+            set_qb_status("error")
+            log.error("qBittorrent auth failed")
+            await _notify_admins(ctx.bot, t("qb_auth_error_notify"))
         return
     except Exception:
         return
