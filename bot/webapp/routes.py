@@ -307,14 +307,23 @@ async def status(request):
     except Exception:
         torrents_total = torrents_downloading = torrents_seeding = 0
 
+    # free_space_on_disk is NOT part of /transfer/info (newer qBittorrent dropped
+    # it there); it lives in /sync/maindata → server_state. Fetch it separately and
+    # never let a missing field break the whole status response.
+    try:
+        server_state = (await _thread(lambda: qb().sync_maindata())).get("server_state", {})
+        free_space = server_state.get("free_space_on_disk", 0)
+    except Exception:
+        free_space = 0
+
     return web.json_response({
         "connected": True,
         "jf_connected": jf_connected,
-        "dl": info.dl_info_speed,
-        "ul": info.up_info_speed,
-        "dl_data": info.dl_info_data,
-        "ul_data": info.up_info_data,
-        "free_space": info.free_space_on_disk,
+        "dl": getattr(info, "dl_info_speed", 0),
+        "ul": getattr(info, "up_info_speed", 0),
+        "dl_data": getattr(info, "dl_info_data", 0),
+        "ul_data": getattr(info, "up_info_data", 0),
+        "free_space": free_space,
         "torrents_total": torrents_total,
         "torrents_downloading": torrents_downloading,
         "torrents_seeding": torrents_seeding,
