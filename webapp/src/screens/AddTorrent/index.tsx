@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react"
-import {Box, Button, Drawer, Loader, Pagination, Stack, Text, TextInput,} from "@mantine/core"
+import {ActionIcon, Box, Button, Drawer, Loader, Pagination, Stack, Text, TextInput,} from "@mantine/core"
 import {Clapperboard, Film, Music, Package, Plus, Search as SearchIcon, Trash2, Tv, X} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
@@ -15,6 +15,7 @@ import {useAppDispatch, useAppSelector} from "@/store"
 import {clearSearch, setLoading, setQuery, setResults} from "@/store/slices/searchSlice"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
+import {AppInput} from "@/components/AppInput.tsx";
 
 export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const {t} = useTranslation()
@@ -162,7 +163,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
       <PageHeader title={t("add.title")} className="mb-16"/>
 
       <div className="mb-16">
-        <TextInput
+        <AppInput
           size="lg"
           radius="lg"
           className="mb-8"
@@ -172,19 +173,21 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           onKeyDown={(e) => e.key === "Enter" && runSearch(1)}
           rightSection={
             results !== null ? (
-              <Button variant="subtle" size="compact-sm" px={4} onClick={() => dispatch(clearSearch())}>
+              <ActionIcon variant="transparent" color="gray" onClick={() => dispatch(clearSearch())}>
                 <X size={18}/>
-              </Button>
+              </ActionIcon>
             ) : (
-              <Button
-                variant="subtle"
-                size="compact-sm"
-                px={4}
+              <ActionIcon
+                variant="transparent"
+                color="gray"
                 onClick={() => runSearch(1)}
-                disabled={searching || !query.trim()}
+                style={{
+                  opacity: searching || !query.trim() ? 0.4 : 1,
+                  pointerEvents: searching || !query.trim() ? "none" : undefined,
+                }}
               >
                 <SearchIcon size={18}/>
-              </Button>
+              </ActionIcon>
             )
           }
           rightSectionWidth={40}
