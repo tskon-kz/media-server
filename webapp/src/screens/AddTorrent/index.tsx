@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
-import {Box, Button, Drawer, Loader, Stack, Text, TextInput,} from "@mantine/core"
-import {Clapperboard, Film, Music, Package, Search as SearchIcon, Trash2, Tv} from "lucide-react"
+import {Box, Button, Drawer, Loader, Pagination, Stack, Text, TextInput,} from "@mantine/core"
+import {Clapperboard, Film, Music, Package, Search as SearchIcon, Trash2, Tv, X} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes} from "@/format"
@@ -31,6 +31,9 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const [results, setResults] = useState<SearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchPick, setSearchPick] = useState<SearchResult | null>(null)
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchTotal, setSearchTotal] = useState(0)
+  const PAGE_SIZE = 10
 
   // categories
   const [catDialog, setCatDialog] = useState<string | null>(null)
@@ -45,7 +48,8 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
     {key: "mixed", label: t("settings.other"), Icon: Package},
   ]
 
-  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {})
+  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {
+  })
   useEffect(() => {
     loadCats()
   }, []) // eslint-disable-line
@@ -95,19 +99,29 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
 
   // ── search ─────────────────────────────────────────────────────────────────
 
-  const runSearch = async () => {
+  const runSearch = async (page = 1) => {
     const query = q.trim()
     if (!query) return
     setSearching(true)
+    setSearchPage(page)
     try {
-      const r = await api.search(query)
+      const r = await api.search(query, page, PAGE_SIZE)
       setResults(r.results)
+      setSearchTotal(r.total)
     } catch (e) {
       toast((e as Error).message, "err")
       setResults([])
+      setSearchTotal(0)
     } finally {
       setSearching(false)
     }
+  }
+
+  const clearSearch = () => {
+    setQ("")
+    setResults(null)
+    setSearchTotal(0)
+    setSearchPage(1)
   }
 
   const choose = (r: SearchResult) => {
@@ -156,20 +170,29 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
 
       <div className="mb-16">
         <TextInput
+          size="lg"
+          radius="lg"
+          className="mb-8"
           placeholder={t("search.placeholder")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && runSearch()}
+          onKeyDown={(e) => e.key === "Enter" && runSearch(1)}
           rightSection={
-            <Button
-              variant="subtle"
-              size="compact-sm"
-              px={4}
-              onClick={runSearch}
-              disabled={searching || !q.trim()}
-            >
-              <SearchIcon size={18}/>
-            </Button>
+            results !== null ? (
+              <Button variant="subtle" size="compact-sm" px={4} onClick={clearSearch}>
+                <X size={18}/>
+              </Button>
+            ) : (
+              <Button
+                variant="subtle"
+                size="compact-sm"
+                px={4}
+                onClick={() => runSearch(1)}
+                disabled={searching || !q.trim()}
+              >
+                <SearchIcon size={18}/>
+              </Button>
+            )
           }
           rightSectionWidth={40}
         />
@@ -185,18 +208,31 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
         )}
 
         {results && results.length > 0 && (
-          <ListSection>
-            {results.map((r, i) => (
-              <ListItem
-                key={i}
-                subtitle={`${t("search.seeders", {n: r.seeders})} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
-                onClick={() => choose(r)}
-                multiline
-              >
-                {r.title}
-              </ListItem>
-            ))}
-          </ListSection>
+          <>
+            <ListSection style={{borderRadius: 16, overflow: 'hidden'}}>
+              {results.map((r, i) => (
+                <ListItem
+                  key={i}
+                  subtitle={`${t("search.seeders", {n: r.seeders})} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
+                  onClick={() => choose(r)}
+                  multiline
+                >
+                  {r.title}
+                </ListItem>
+              ))}
+            </ListSection>
+            {searchTotal > PAGE_SIZE && (
+              <div style={{display: "flex", justifyContent: "center", padding: "8px 0"}}>
+                <Pagination
+                  total={Math.ceil(searchTotal / PAGE_SIZE)}
+                  value={searchPage}
+                  onChange={(page) => runSearch(page)}
+                  disabled={searching}
+                  size="sm"
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
       <div>

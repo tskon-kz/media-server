@@ -313,10 +313,18 @@ async def search(request):
         return _err("q required")
     if not jackett_get_api_key():
         return _err(t("jackett_no_key"), status=503)
-    results = await _thread(jackett_search, query)
-    if results is None:
+    try:
+        page = max(1, int(request.query.get("page") or 1))
+        page_size = max(1, min(50, int(request.query.get("page_size") or 10)))
+    except ValueError:
+        page, page_size = 1, 10
+    all_results = await _thread(jackett_search, query)
+    if all_results is None:
         return _err(t("jackett_error"), status=502)
-    return web.json_response({"query": query, "results": results})
+    total = len(all_results)
+    offset = (page - 1) * page_size
+    results = all_results[offset:offset + page_size]
+    return web.json_response({"query": query, "results": results, "total": total, "page": page, "page_size": page_size})
 
 
 @routes.post("/api/search/add")

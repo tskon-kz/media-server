@@ -57,8 +57,10 @@ export const api = {
   status: () => req<{ connected: boolean; dl?: number; ul?: number }>("GET", "/api/status"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
-  search: (q: string) =>
-    req<{ query: string; results: SearchResult[] }>("GET", `/api/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, page = 1, pageSize = 10) =>
+    req<{ query: string; results: SearchResult[]; total: number; page: number; page_size: number }>(
+      "GET", `/api/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}`
+    ),
   searchAdd: (result: SearchResult, categoryId?: number) =>
     req<{ added: boolean }>("POST", "/api/search/add", {
       magnet: result.magnet, link: result.link, category_id: categoryId,
