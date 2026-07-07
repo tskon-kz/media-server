@@ -16,8 +16,15 @@ import {QbContent} from "./components/QbContent"
 import {JackettContent} from "./components/JackettContent"
 import {JellyfinContent} from "./components/JellyfinContent"
 import {UpdateContent} from "./components/UpdateContent"
+import segmented from "./segmented.module.scss"
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
+
+const segmentedClassNames = {
+  root: segmented.root,
+  indicator: segmented.indicator,
+  label: segmented.label,
+}
 
 export function Settings() {
   const {t} = useTranslation()
@@ -134,6 +141,7 @@ export function Settings() {
           <Section title={t("settings.autoStructure")} className="mb-16">
             <SegmentedControl
               fullWidth
+              classNames={segmentedClassNames}
               value={settingsData.rename_mode}
               onChange={(v) => guard(async () => {
                 await api.setRenameMode(v as "flat" | "pretty")
@@ -150,6 +158,7 @@ export function Settings() {
           <Section className="mb-16" title={t("settings.language")}>
             <SegmentedControl
               fullWidth
+              classNames={segmentedClassNames}
               value={settingsData.lang}
               onChange={setLang}
               data={[
@@ -162,6 +171,7 @@ export function Settings() {
           <Section className="mb-16" title={t("settings.appearance")}>
             <SegmentedControl
               fullWidth
+              classNames={segmentedClassNames}
               value={themeMode}
               onChange={(v) => setThemeMode(v as ThemeMode)}
               data={[
