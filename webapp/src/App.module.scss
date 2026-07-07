@@ -1,5 +1,5 @@
 .content {
-  padding-bottom: 72px;
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   max-width: 640px;
   margin: 0 auto;
 }
@@ -11,11 +11,11 @@
   right: 0;
   display: flex;
   align-items: stretch;
-  height: 56px;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
   background: var(--tg-theme-section-bg-color);
   border-top: 1px solid rgba(128, 128, 128, 0.15);
   z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .tabItem {
