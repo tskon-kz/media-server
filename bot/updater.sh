@@ -44,9 +44,14 @@ else
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG" >> .env
 fi
 
-echo "[updater] pulling images"
+# Pull ONLY the bot image. jellyfin/qbittorrent/jackett/cloudflared are pinned to
+# :latest, so a blanket `docker compose pull` would silently upgrade and recreate
+# them on every bot update — breaking a working stack (e.g. a new jellyfin:latest
+# migrating its DB, or qBittorrent resetting its WebUI auth). `up -d` below still
+# creates new sidecars and applies our own compose changes without touching them.
+echo "[updater] pulling bot image"
 n=1
-until docker compose pull; do
+until docker compose pull telegram-bot; do
     if [ "$n" -ge 3 ]; then
         echo "[updater] ERROR: pull failed after 3 attempts" >&2
         exit 1

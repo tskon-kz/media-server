@@ -62,9 +62,11 @@ docker compose down
 echo "📄  Applying new docker-compose.yml..."
 mv docker-compose.new.yml docker-compose.yml
 
-echo "📦  Pulling latest images..."
+echo "📦  Pulling latest bot image..."
+# Only the bot image — the other services are pinned to :latest and must not be
+# silently upgraded/recreated by a bot update (see bot/updater.sh for the why).
 _pull_attempt=1; _pull_max=3
-until docker compose pull; do
+until docker compose pull telegram-bot; do
     if [ "$_pull_attempt" -ge "$_pull_max" ]; then
         echo "  ✗ docker compose pull failed after $_pull_max attempts" >&2
         exit 1
