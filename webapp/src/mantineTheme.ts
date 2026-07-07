@@ -37,8 +37,7 @@ export const mantineTheme = createTheme({
   },
 });
 
-export const cssVariablesResolver: CSSVariablesResolver = () => ({
-  variables: {},
+export const tgPalette = {
   light: {
     "--tg-theme-bg-color": "#efeff4",
     "--tg-theme-section-bg-color": "#ffffff",
@@ -51,9 +50,9 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
     "--tg-theme-destructive-text-color": "#e53935",
   },
   dark: {
-    "--tg-theme-bg-color": "#212121",
-    "--tg-theme-section-bg-color": "#2b2b2b",
-    "--tg-theme-secondary-bg-color": "#181818",
+    "--tg-theme-bg-color": "#17181c",
+    "--tg-theme-section-bg-color": "#202127",
+    "--tg-theme-secondary-bg-color": "#202127",
     "--tg-theme-text-color": "#ffffff",
     "--tg-theme-hint-color": "#aaaaaa",
     "--tg-theme-link-color": "#2990ff",
@@ -61,4 +60,10 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
     "--tg-theme-button-text-color": "#ffffff",
     "--tg-theme-destructive-text-color": "#ec3942",
   },
+} as const;
+
+export const cssVariablesResolver: CSSVariablesResolver = () => ({
+  variables: {},
+  light: { ...tgPalette.light },
+  dark: { ...tgPalette.dark },
 });

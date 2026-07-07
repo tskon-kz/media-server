@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react"
 import { tg } from "./telegram"
 import { useAppDispatch, useAppSelector } from "./store"
 import { setMode, setAppearance, type Appearance, type ThemeMode } from "./store/slices/themeSlice"
+import { tgPalette } from "./mantineTheme"
 
 export type { Appearance, ThemeMode }
 
@@ -11,6 +12,10 @@ function telegramAppearance(): Appearance {
 
 function applyToDOM(a: Appearance) {
   document.documentElement.dataset.theme = a
+  const style = document.documentElement.style
+  for (const [key, value] of Object.entries(tgPalette[a])) {
+    style.setProperty(key, value, "important")
+  }
 }
 
 export function ThemeSync() {
