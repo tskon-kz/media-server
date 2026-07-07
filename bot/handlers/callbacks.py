@@ -76,7 +76,8 @@ async def on_callback(update, ctx):
                 case "jf_users":
                     await _edit(query, *kb.jf_users_view(jf("GET", "/Users") or []))
                 case "update":
-                    await _edit(query, *kb.update_view(APP_VERSION, gh_latest_release_tag()))
+                    channel = "edge" if get_config("bot_image_tag") == "edge" else "stable"
+                    await _edit(query, *kb.update_view(APP_VERSION, gh_latest_release_tag(), channel))
                 case "media":
                     await _edit(query, t("media_mgmt_title"), kb.global_structure_menu_kb())
                 case "jackett":
