@@ -10,14 +10,12 @@ import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
 import type {Category, Torrent} from "@/types"
-
-const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
+import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
   const {t} = useTranslation()
   const [torrents, setTorrents] = useState<Torrent[] | null>(null)
   const [cats, setCats] = useState<Category[]>([])
-  const [selected, setSelected] = useState<Torrent | null>(null)
   const [moving, setMoving] = useState<Torrent | null>(null)
   const [structFor, setStructFor] = useState<Torrent | null>(null)
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
@@ -57,21 +55,18 @@ export function TorrentList() {
 
   const doDelete = async (tor: Torrent) => {
     setConfirmDel(null)
-    setSelected(null)
     try { await api.deleteTorrent(tor.hash); toast(t("torrents.deleted")); load() }
     catch (e) { toast((e as Error).message, "err") }
   }
 
   const doMove = async (tor: Torrent, cat: Category) => {
     setMoving(null)
-    setSelected(null)
     try { await api.moveTorrent(tor.hash, cat.id); toast(t("torrents.moved", {name: cat.name})); load() }
     catch (e) { toast((e as Error).message, "err") }
   }
 
   const doStructure = async (tor: Torrent, mode: "pretty" | "flat" | "delete") => {
     setStructFor(null)
-    setSelected(null)
     try {
       const r = await api.structure(tor.hash, mode)
       if (r.xdev) toast(t("torrents.xdev"), "err")
@@ -115,13 +110,41 @@ export function TorrentList() {
               <ListItem
                 key={tor.hash}
                 before={<TorrentIcon state={tor.state}/>}
+                after={
+                  <div className={s.iconActions}>
+                    {cats.length > 0 && (
+                      <button
+                        className={s.iconBtn}
+                        onClick={(e) => { e.stopPropagation(); setMoving(tor) }}
+                        title={t("torrents.move")}
+                      >
+                        <FolderInput size={18}/>
+                      </button>
+                    )}
+                    {tor.renameable && (
+                      <button
+                        className={s.iconBtn}
+                        onClick={(e) => { e.stopPropagation(); setStructFor(tor) }}
+                        title={t("torrents.structure")}
+                      >
+                        <Layers size={18}/>
+                      </button>
+                    )}
+                    <button
+                      className={`${s.iconBtn} ${s.danger}`}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDel(tor) }}
+                      title={t("common.delete")}
+                    >
+                      <Trash2 size={18}/>
+                    </button>
+                  </div>
+                }
                 subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${bytes(tor.size)}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}`}
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
                     : undefined
                 }
-                onClick={() => setSelected(tor)}
                 multiline
               >
                 {tor.name}
@@ -130,35 +153,6 @@ export function TorrentList() {
           </ListSection>
         )}
       </Box>
-
-      <Drawer
-        opened={!!selected}
-        onClose={() => setSelected(null)}
-        title={selected?.name}
-        position="bottom"
-        radius="lg"
-        overlayProps={{blur: 2}}
-      >
-        <Stack gap={8} pb={16} px={4}>
-          {cats.length > 0 && (
-            <Button fullWidth variant="light" leftSection={<FolderInput size={18}/>}
-              onClick={() => { setMoving(selected); setSelected(null) }}>
-              {t("torrents.move")}
-            </Button>
-          )}
-          {selected?.renameable && (
-            <Button fullWidth variant="light" leftSection={<Layers size={18}/>}
-              onClick={() => { setStructFor(selected); setSelected(null) }}>
-              {t("torrents.structure")}
-            </Button>
-          )}
-          <Button fullWidth variant="light" leftSection={<Trash2 size={18}/>}
-            style={{color: DEL_COLOR}}
-            onClick={() => { setConfirmDel(selected); setSelected(null) }}>
-            {t("common.delete")}
-          </Button>
-        </Stack>
-      </Drawer>
 
       <Drawer
         opened={!!confirmDel}
@@ -173,7 +167,7 @@ export function TorrentList() {
             {t("torrents.deleteBody", {name: confirmDel?.name})}
           </Box>
           <Button fullWidth variant="light" leftSection={<Trash2 size={18}/>}
-            style={{color: DEL_COLOR}}
+            className={s.deleteBtn}
             onClick={() => confirmDel && doDelete(confirmDel)}>
             {t("common.delete")}
           </Button>
@@ -209,7 +203,7 @@ export function TorrentList() {
             {t("torrents.original")}
           </Button>
           <Button fullWidth variant="light" leftSection={<Trash2 size={18}/>}
-            style={{color: DEL_COLOR}}
+            className={s.deleteBtn}
             onClick={() => structFor && doStructure(structFor, "delete")}>
             {t("torrents.delLinks")}
           </Button>
