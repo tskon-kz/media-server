@@ -1,5 +1,6 @@
 import {useState} from "react"
 import {Button, Drawer, Loader} from "@mantine/core"
+import {ArrowLeftRight, Download, RefreshCw} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {toast} from "@/components/Toast"
@@ -55,21 +56,45 @@ export function UpdateContent({info, onDone}: Props) {
       )}
       <div className={styles.buttonStack}>
         {info.has_update && (
-          <Button fullWidth variant="filled" disabled={updating} onClick={() => trigger("stable")}>
+          <Button
+            fullWidth
+            variant="filled"
+            disabled={updating}
+            leftSection={<Download size={16}/>}
+            onClick={() => trigger("stable")}
+          >
             {updating ? <Loader size="xs" color="white"/> : t("settings.updateBtn", {version: info.latest})}
           </Button>
         )}
         {info.channel === "edge" ? (
           <>
-            <Button fullWidth variant="filled" disabled={updating} onClick={() => trigger("edge")}>
+            <Button
+              fullWidth
+              variant="filled"
+              disabled={updating}
+              leftSection={<RefreshCw size={16}/>}
+              onClick={() => trigger("edge")}
+            >
               {updating ? <Loader size="xs" color="white"/> : t("settings.updateRefreshEdge")}
             </Button>
-            <Button fullWidth variant="dark" disabled={updating} onClick={() => trigger("stable")}>
+            <Button
+              fullWidth
+              variant="dark"
+              disabled={updating}
+              leftSection={<ArrowLeftRight size={16}/>}
+              onClick={() => trigger("stable")}
+            >
               {t("settings.updateSwitchToStable")}
             </Button>
           </>
         ) : (
-          <Button fullWidth variant="dark" disabled={updating} onClick={() => setConfirmEdge(true)}>
+          <Button
+            fullWidth
+            variant="dark"
+            disabled={updating}
+            leftSection={<ArrowLeftRight size={16}/>}
+            onClick={() => setConfirmEdge(true)}
+          >
             {t("settings.updateSwitchToEdge")}
           </Button>
         )}
