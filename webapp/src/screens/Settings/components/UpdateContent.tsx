@@ -60,9 +60,14 @@ export function UpdateContent({info, onDone}: Props) {
           </Button>
         )}
         {info.channel === "edge" ? (
-          <Button fullWidth variant="dark" disabled={updating} onClick={() => trigger("stable")}>
-            {t("settings.updateSwitchToStable")}
-          </Button>
+          <>
+            <Button fullWidth variant="filled" disabled={updating} onClick={() => trigger("edge")}>
+              {updating ? <Loader size="xs" color="white"/> : t("settings.updateRefreshEdge")}
+            </Button>
+            <Button fullWidth variant="dark" disabled={updating} onClick={() => trigger("stable")}>
+              {t("settings.updateSwitchToStable")}
+            </Button>
+          </>
         ) : (
           <Button fullWidth variant="dark" disabled={updating} onClick={() => setConfirmEdge(true)}>
             {t("settings.updateSwitchToEdge")}

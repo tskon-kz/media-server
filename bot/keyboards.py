@@ -191,6 +191,8 @@ def update_kb(has_update, remote=None, channel="stable"):
     # offer edge behind the beta warning (selfupdate:edge:confirm).
     if channel == "edge":
         buttons.append([InlineKeyboardButton(
+            t("update_refresh_edge_btn"), callback_data="selfupdate:edge:go")])
+        buttons.append([InlineKeyboardButton(
             t("channel_switch_stable_btn"), callback_data="selfupdate:stable")])
     else:
         buttons.append([InlineKeyboardButton(

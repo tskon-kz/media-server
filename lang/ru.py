@@ -77,6 +77,7 @@ M = {
                             "(тег `edge`). Он может быть нестабильным. Продолжить?",
     "update_force_yes_btn": "⚠️ Да, установить edge",
     "update_on_edge":            "🅱 Вы на канале *Edge* (бета)\n\nВерсия: `{v}`\n\nЭто неопубликованный код из `main`, возможна нестабильность.",
+    "update_refresh_edge_btn":   "🔄 Обновить Edge",
     "channel_switch_edge_btn":   "🔀 Перейти на Edge (бета)",
     "channel_switch_stable_btn": "🔀 Перейти на Stable",
     "cancel_btn":           "✖️ Отмена",
