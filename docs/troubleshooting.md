@@ -41,6 +41,11 @@ The bot starts the replacement container *before* stopping the old one, so a bad
 pull leaves the running bot untouched and reports the failure. On success it
 messages "Bot restarted and running …" once the new container boots.
 
+Only the **bot** container is swapped — qBittorrent/Jellyfin/cloudflared are never
+touched, so an update can't break `/list` or the tunnel. Infrastructure changes
+(compose file, new sidecars, service version bumps) are applied on the host with
+`update.sh` (above), not from the bot.
+
 The passive check polls the GitHub Releases API every 6h and notifies you when a
 newer release tag is available.
 

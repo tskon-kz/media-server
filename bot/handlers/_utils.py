@@ -7,13 +7,13 @@ from html import escape
 from telegram import Update, LinkPreviewOptions
 from telegram.ext import ContextTypes
 
-from config import ALLOWED, ICONS, INCOMING_DIR, APP_VERSION
+from config import ALLOWED, ICONS, INCOMING_DIR
 import store
 from store import t, load_cats
 import keyboards as kb
 from api import (
     jf, qb, jackett_search, jackett_get_api_key,
-    stack_update, updater_status, UPDATER_CONTAINER,
+    self_update,
 )
 from parser import process_torrent_rename, delete_torrent_links
 
@@ -100,51 +100,24 @@ async def _run_pretty_parse(query, ctx, tor):
         )
 
 
-async def _do_stack_update(message, tag: str):
-    """Launch the stack updater and report the outcome.
+async def _do_self_update(message, tag: str):
+    """Blue/green swap ONLY the bot container to `tag` (stable | edge) and report.
 
-    The updater reconciles the whole compose stack and recreates the bot with
-    `tag`. Two completion paths:
+    `api.self_update` starts the replacement, health-checks it, and — on success
+    — retires this container, which kills this process mid-flight. The fresh
+    bot's `_post_init` then reports success via the persisted `update_pending`
+    flag, so on success this coroutine simply never returns.
 
-    - Bot image changed → compose kills this process mid-flight; the fresh bot's
-      `_post_init` reports success via the persisted `update_pending` flag, so
-      this task simply dies and never finishes the loop below.
-    - Only sidecars changed (bot not recreated) → we stay alive, so we watch the
-      updater to completion and report success/failure ourselves.
-
-    A launch failure (returned as an error string) means nothing destructive
-    happened; the old bot keeps running and reports why.
+    On failure `self_update` returns an error string and nothing destructive
+    happened (the old bot keeps running); we clear the flag and report why.
+    Infrastructure/topology changes are out of scope here — they go through
+    update.sh on the host.
     """
-    name = await asyncio.to_thread(stack_update, tag)
-    if name != UPDATER_CONTAINER:
-        store.set_config("update_pending", "")
-        try:
-            await message.reply_text(t("update_failed_self", err=str(name)[:300]))
-        except Exception:
-            pass
-        return
-
-    for _ in range(150):  # watch up to ~5 min
-        await asyncio.sleep(2)
-        status = await asyncio.to_thread(updater_status, name)
-        if status.get("running"):
-            continue
-        # Reaching here means compose did NOT replace us (same bot image), so no
-        # new process will report — do it ourselves.
-        store.set_config("update_pending", "")
-        if status.get("exit_code") == 0:
-            reply = t("update_success", v=APP_VERSION)
-        else:
-            err = status.get("logs") or f"exit {status.get('exit_code')}"
-            reply = t("update_failed_self", err=str(err)[:300])
-        try:
-            await message.reply_text(reply)
-        except Exception:
-            pass
-        return
-
+    result = await asyncio.to_thread(self_update, tag)
+    # Reaching here means the swap did not replace us → it failed.
+    store.set_config("update_pending", "")
     try:
-        await message.reply_text(t("update_timeout"))
+        await message.reply_text(t("update_failed_self", err=str(result)[:300]))
     except Exception:
         pass
 

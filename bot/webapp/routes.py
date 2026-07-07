@@ -28,7 +28,7 @@ from api import (
     qb_temp_password, qb_restart, qb_set_password,
     jackett_get_api_key, jackett_has_password, jackett_set_password,
     jackett_search, jackett_download_torrent,
-    gh_latest_release_tag, stack_update, updater_status, UPDATER_CONTAINER,
+    gh_latest_release_tag, self_update,
 )
 from parser import (
     process_torrent_rename, create_flat_hardlinks,
@@ -605,11 +605,13 @@ async def update_get(request):
 
 @routes.post("/api/update")
 async def update_post(request):
-    """Trigger a full stack update via the updater container. tag: stable | edge.
+    """Blue/green swap ONLY the bot container to `tag` (stable | edge).
 
-    Fire-and-forget: if the bot image changes, this process is killed mid-flight
-    when compose recreates the bot, so the client should treat a dropped
-    connection after `started` as success and reconnect once the new URL is up.
+    Fire-and-forget: on success `self_update` retires this container, killing the
+    process mid-flight, so the client should treat a dropped connection after
+    `started` as success and reconnect once the bot is back. Only the bot is
+    touched — qBittorrent/Jellyfin/cloudflared are never recreated. Infra changes
+    go through update.sh on the host.
     """
     body = await _json(request)
     tag = body.get("tag", "stable")
@@ -618,17 +620,9 @@ async def update_post(request):
     set_config("update_pending", "1")
 
     async def _run():
-        name = await _thread(stack_update, tag)
-        if name != UPDATER_CONTAINER:
-            set_config("update_pending", "")
-            return
-        # Watch to completion so a sidecar-only update (bot not recreated) does
-        # not leave a stale update_pending flag. If the bot IS recreated, this
-        # task dies with the process and _post_init clears+notifies instead.
-        for _ in range(150):
-            await asyncio.sleep(2)
-            if not (await _thread(updater_status, name)).get("running"):
-                set_config("update_pending", "")
-                return
+        # On success this never returns (the process is replaced); the fresh
+        # bot's _post_init clears the flag and notifies. On failure we clear it.
+        await _thread(self_update, tag)
+        set_config("update_pending", "")
     asyncio.create_task(_run())
     return web.json_response({"started": True, "tag": tag})

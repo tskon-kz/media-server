@@ -1,94 +1,77 @@
-# In-bot stack updates (updater container)
+# In-bot updates (bot-only blue/green swap)
 
-How the `/settings → Update` channel switcher (and the Mini App update
-action) brings a real install to a new release — including compose topology
-changes (new sidecars like `cloudflared`), not just the bot image.
+How the `/settings → Update` channel switcher (Stable / Edge) and the Mini App
+update action bring an install to a new bot version — **without touching any other
+service**. Infrastructure/topology changes (compose file, new sidecars, bumping
+Jellyfin/qBittorrent versions) are deliberately **not** done in-bot; they go
+through `update.sh` on the host.
 
-## The problem
+## Why bot-only
 
-`docker compose` reconciliation must run on the host, but the bot runs in a
-container with only the Docker socket — no compose CLI, no compose file, no
-repo. The old `self_update` therefore only blue/green-swapped the **bot**
-container from its own live config; it could not create a brand-new service
-(e.g. `cloudflared`) or apply a changed `docker-compose.yml`.
+A routine update only needs a newer bot image. Recreating the whole compose stack
+on every update is what made earlier versions unstable:
 
-Naively shelling out to `update.sh` is impossible/unsafe:
+- `docker compose up -d` recreating **qBittorrent** churns its session temp
+  password → the bot's stored credentials stop matching → empty `/list`.
+- Recreating **cloudflared** (quick-tunnel) assigns a new `trycloudflare.com`
+  URL → a 502 window until the bot re-scrapes it.
 
-1. `update.sh` lives on the host; its files aren't mounted into the bot.
-2. `update.sh` runs `docker compose down`, which stops the bot — i.e. it would
-   SIGKILL the very process running the script, leaving the stack half-down.
+So the in-bot updater does the minimum: replace **only** the bot container. The
+canonical container name is preserved, so cloudflared keeps resolving
+`telegram-bot` and the tunnel never moves. qBittorrent/Jellyfin/Jackett are never
+restarted.
 
-The fix is a process that **outlives** the bot's recreation.
+## The mechanism (`api.self_update`)
 
-## The mechanism
+Blue/green, new-before-old, via the Docker socket the bot already mounts:
 
-The bot launches an **ephemeral updater container** via the Docker socket it
-already mounts. The updater is **not** part of the compose project, so
-`docker compose up -d` recreating the bot never touches it.
-
-- Image: `docker:cli` (ships the compose plugin; a `docker-cli-compose` apk
-  fallback is attempted if missing).
-- The bot passes the updater script inline (`sh -c <bot/updater.sh>`), so the
-  script is a single source of truth baked into the bot image — nothing to
-  deliver to the host separately.
-- Mounts: the Docker socket, and the **host project directory** at `/project`.
-  The bot derives the host project dir from its own `/app/data` bind mount
-  (host side of `./bot-data`, minus the `bot-data` leaf).
-- `COMPOSE_PROJECT_NAME` is passed explicitly (host project-dir basename) so
-  compose manages the **existing** stack rather than spawning a duplicate under
-  a different project name.
-
-The updater then mirrors `update.sh`: downloads the latest `docker-compose.yml`
-+ `lang/*.sh`, pins `BOT_IMAGE_TAG` in `.env`, `docker compose pull`, and
-`docker compose up -d --remove-orphans`.
-
-### BOT_IMAGE_TAG passing (chosen strategy)
-
-The bot reads the target tag in Python (it already has DB access) and passes it
-to the updater as the `BOT_IMAGE_TAG` env var; the updater writes it into
-`.env`. The `docker:cli` image has no python/sqlite, so the tag is **never**
-re-read from the DB container-side — a single authoritative read where DB
-access is native, no fragile duplication of the store logic in shell. The bot
-also persists the tag to `store.set_config("bot_image_tag", …)` so cold starts
-and `update.sh` agree.
+1. Pull `ghcr.io/<owner>/media-server-bot:<tag>` (`tag` = `stable` or `edge`).
+2. Inspect the running bot container (its ID is the in-container hostname) to
+   clone its live config: env (dropping `APP_VERSION` so the new image's baked-in
+   value wins), binds, labels, network, restart policy.
+3. Start a replacement under a temp name (`…-telegram-bot-new`) and confirm it
+   stays `running` for ~6 s. A bad pull/start never stops the healthy bot.
+4. Healthy → rename the old container aside (`…-telegram-bot-old`), rename the new
+   one to the canonical `media-server-telegram-bot`, persist the tag to the DB
+   (`bot_image_tag`), then remove the old container (this stops the current
+   process — state is already final).
+5. Unhealthy → remove the replacement, leave the old bot running, return an error
+   string that the still-alive bot reports.
 
 ## Success/failure notification
 
 `update_pending` is a flag in SQLite on the shared `bot-data` volume, so it
-survives any restart mechanism. Two completion cases:
+survives the swap.
 
-- **Bot image changed** → compose recreates the bot; the old process (and its
-  watcher task) dies mid-flight; the fresh bot's `_post_init` reads the flag and
-  reports success. `_post_init` sends this **before** `start_webapp()`, and
-  `start_webapp()` is wrapped so a Mini App startup hiccup can never swallow the
-  notification.
-- **Only sidecars changed** (bot not recreated) → the launching process stays
-  alive, watches the updater to completion, clears the flag and reports the
-  outcome itself.
+- **Success** → the old process is killed when its container is removed; the fresh
+  bot's `_post_init` reads the flag, clears it, and sends "Bot restarted and
+  running …". It is sent **before** `start_webapp()`, which is isolated so a Mini
+  App startup hiccup can't swallow the notification.
+- **Failure** → nothing destructive happened; `self_update` returns an error
+  string, the launching coroutine clears the flag and reports why (the old bot is
+  still running).
 
-On launch failure (can't reach Docker, can't locate the project dir, image
-pull fails) nothing destructive has happened: the old bot keeps running and
-reports the error.
+## Channels
 
-## One-time bootstrap (transition to this system)
+The switcher persists the chosen tag to `bot_image_tag` in the DB and pulls that
+tag. `install.sh` / `update.sh` resolve the DB value into `BOT_IMAGE_TAG` in
+`.env`, so cold starts and in-bot switches never drift.
 
-Existing installs don't yet have the bot code that launches the updater, so the
-**first** hop to the release that introduces this must be done by the only actor
-that exists on the host today:
+- **Stable** → `:stable` (latest published release).
+- **Edge** → `:edge` (latest `main`, unreleased) — behind a confirmation, for
+  beta-testing on your own server.
+
+## Infrastructure updates (host `update.sh`)
+
+Anything beyond the bot image — a new compose service (e.g. adding `cloudflared`),
+a changed `docker-compose.yml`, or a bumped Jellyfin/qBittorrent digest — is
+applied by running on the host:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh)
 ```
 
-That run delivers the new bot image (which carries the updater logic) and the
-new compose (with `cloudflared`). **After this one host-run, every subsequent
-update goes through the in-bot button** — the updater container handles the
-rest. Communicate this one-time step in the release notes for the release that
-ships the Mini App.
-
-### Named Cloudflare tunnel note
-
-The updater path is self-contained and works for both quick-tunnel (default)
-and named-tunnel installs, because it re-runs full `docker compose up -d`
-against the host's own `.env` — it does not need to know the tunnel token
-(unlike the old socket-only approach, which could not).
+`update.sh` fetches the latest compose + scripts, pulls the bot image, and runs
+`docker compose up -d`. This is deliberate and infrequent, done when you're
+watching — not something a routine in-bot update triggers. Releases that require
+it call it out in their notes.
