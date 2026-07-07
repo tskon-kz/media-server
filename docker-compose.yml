@@ -71,14 +71,15 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: media-server-cloudflared
     restart: unless-stopped
-    # Named tunnel (static URL): set CLOUDFLARE_TUNNEL_TOKEN in .env and also
-    # set WEBAPP_URL to your static domain — the bot will use it directly
-    # instead of scraping ephemeral trycloudflare.com URLs from logs.
-    # Leave CLOUDFLARE_TUNNEL_TOKEN empty to use the default quick tunnel.
-    entrypoint: ["sh", "-c"]
-    command: '[ -n "$$CLOUDFLARE_TUNNEL_TOKEN" ] && exec cloudflared tunnel --no-autoupdate run --token "$$CLOUDFLARE_TUNNEL_TOKEN" || exec cloudflared tunnel --no-autoupdate --url http://telegram-bot:8081'
-    environment:
-      - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    # Quick tunnel (default, no Cloudflare account needed) — assigns a random
+    # trycloudflare.com URL scraped automatically by the bot.
+    #
+    # Named tunnel (static URL): set WEBAPP_URL to your static domain in .env,
+    # then override the command in docker-compose.override.yml:
+    #   services:
+    #     cloudflared:
+    #       command: tunnel --no-autoupdate run --token YOUR_TOKEN
+    command: tunnel --no-autoupdate --url http://telegram-bot:8081
     depends_on:
       - telegram-bot
 

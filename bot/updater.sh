@@ -28,8 +28,10 @@ fetch() {  # fetch <url> <out> — download to a temp file, then swap in atomica
     wget -q -T 30 -O "$2.tmp" "$1" && mv "$2.tmp" "$2"
 }
 
-echo "[updater] downloading latest compose + lang"
+echo "[updater] downloading latest compose + scripts + lang"
 fetch "$RAW/docker-compose.yml" docker-compose.yml
+fetch "$RAW/update.sh"          update.sh  && chmod +x update.sh  || true
+fetch "$RAW/install.sh"         install.sh && chmod +x install.sh || true
 mkdir -p lang
 fetch "$RAW/lang/en.sh" lang/en.sh || true
 fetch "$RAW/lang/ru.sh" lang/ru.sh || true
