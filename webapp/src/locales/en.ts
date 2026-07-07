@@ -163,6 +163,7 @@ export default {
     updateEdge: "Edge (beta)",
     updateAvailable: "Available",
     updateBtn: "Update to {{version}}",
+    updateRefreshEdge: "🔄 Refresh Edge",
     updateSwitchToEdge: "Switch to Edge (beta)",
     updateSwitchToStable: "Switch to Stable",
     updateStarted: "Update started, bot will restart in ~1 min.",

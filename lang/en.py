@@ -77,6 +77,7 @@ M = {
                             "It may be unstable. Continue?",
     "update_force_yes_btn": "⚠️ Yes, install edge",
     "update_on_edge":            "🅱 You're on the *Edge* channel (beta)\n\nVersion: `{v}`\n\nThis is unreleased code from `main` and may be unstable.",
+    "update_refresh_edge_btn":   "🔄 Refresh Edge",
     "channel_switch_edge_btn":   "🔀 Switch to Edge (beta)",
     "channel_switch_stable_btn": "🔀 Switch to Stable",
     "cancel_btn":           "✖️ Cancel",
