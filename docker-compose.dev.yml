@@ -1,0 +1,18 @@
+# Dev-server override for Mini App frontend development.
+#
+# Usage (on the dev server only):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# This publishes the bot's Web App port on the host and turns on the dev-mode
+# auth bypass, so the React app running under Vite on your Mac can reach the API
+# at http://<dev-host>:8081 (set VITE_DEV_API_BASE to that in webapp/.env.local).
+#
+# NEVER apply this on a production install — it exposes /api without Telegram
+# initData validation. It is intentionally a separate file (not
+# docker-compose.override.yml) so it is never auto-merged.
+services:
+  telegram-bot:
+    ports:
+      - "8081:8081"
+    environment:
+      - WEBAPP_DEV_MODE=1

@@ -1,0 +1,35 @@
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+}
+
+.infoText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.infoLabel {
+  font-size: 15px;
+  color: var(--tg-theme-text-color);
+}
+
+.infoHint {
+  font-size: 13px;
+  color: var(--tg-theme-hint-color);
+}
+
+.infoIcon {
+  color: var(--tg-theme-hint-color);
+  flex-shrink: 0;
+}
+
+.buttonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}

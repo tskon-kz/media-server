@@ -44,7 +44,7 @@ _spin() {  # _spin "label" cmd [args...]
 }
 
 _pull_progress() {  # pulls images one by one, shows [████░░░] n/total
-    local -a svcs=(jellyfin qbittorrent jackett telegram-bot watchtower)
+    local -a svcs=(jellyfin qbittorrent jackett telegram-bot cloudflared watchtower)
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
@@ -214,17 +214,28 @@ printf "%s" "$MSG_ASK_JF_NAME";      read -r JF_NAME
 printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
 printf "%s" "$MSG_ASK_PROXY";        read -r PROXY_URL
 
+CF_TUNNEL_TOKEN=""
+CF_WEBAPP_URL=""
+printf "%s" "$MSG_ASK_CF_TUNNEL"; read -r _CF_ANSWER
+if [[ "$_CF_ANSWER" =~ ^[Yy]$ ]]; then
+    printf "%s" "$MSG_ASK_CF_TOKEN"; read -r CF_TUNNEL_TOKEN
+    printf "%s" "$MSG_ASK_CF_URL";   read -r CF_WEBAPP_URL
+fi
+
 JF_PORT=8096
 QB_PORT=8080
 JACKETT_PORT=9117
+WATCHTOWER_PORT=9080
 printf "%s" "$MSG_ASK_PORTS"; read -r CUSTOM_PORTS
 if [[ "$CUSTOM_PORTS" =~ ^[Yy]$ ]]; then
-    printf "%s" "$MSG_ASK_JF_PORT";      read -r _JF_PORT
-    printf "%s" "$MSG_ASK_QB_PORT";      read -r _QB_PORT
-    printf "%s" "$MSG_ASK_JACKETT_PORT"; read -r _JACKETT_PORT
-    [ -n "$_JF_PORT"      ] && JF_PORT="$_JF_PORT"
-    [ -n "$_QB_PORT"      ] && QB_PORT="$_QB_PORT"
-    [ -n "$_JACKETT_PORT" ] && JACKETT_PORT="$_JACKETT_PORT"
+    printf "%s" "$MSG_ASK_JF_PORT";         read -r _JF_PORT
+    printf "%s" "$MSG_ASK_QB_PORT";         read -r _QB_PORT
+    printf "%s" "$MSG_ASK_JACKETT_PORT";    read -r _JACKETT_PORT
+    printf "%s" "$MSG_ASK_WATCHTOWER_PORT"; read -r _WATCHTOWER_PORT
+    [ -n "$_JF_PORT"         ] && JF_PORT="$_JF_PORT"
+    [ -n "$_QB_PORT"         ] && QB_PORT="$_QB_PORT"
+    [ -n "$_JACKETT_PORT"    ] && JACKETT_PORT="$_JACKETT_PORT"
+    [ -n "$_WATCHTOWER_PORT" ] && WATCHTOWER_PORT="$_WATCHTOWER_PORT"
 else
     echo "$MSG_PORTS_DEFAULT"
 fi
@@ -239,10 +250,13 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     echo "ALLOWED_USER=$ALLOWED_USER"
     echo "WATCHTOWER_TOKEN=$WATCHTOWER_TOKEN"
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG"
-    [ "$JF_PORT"      != "8096"   ] && echo "JELLYFIN_PORT=$JF_PORT"
-    [ "$QB_PORT"      != "8080"   ] && echo "QB_PORT=$QB_PORT"
-    [ "$JACKETT_PORT" != "9117"   ] && echo "JACKETT_PORT=$JACKETT_PORT"
+    [ "$JF_PORT"         != "8096" ] && echo "JELLYFIN_PORT=$JF_PORT"
+    [ "$QB_PORT"         != "8080" ] && echo "QB_PORT=$QB_PORT"
+    [ "$JACKETT_PORT"    != "9117" ] && echo "JACKETT_PORT=$JACKETT_PORT"
+    [ "$WATCHTOWER_PORT" != "9080" ] && echo "WATCHTOWER_PORT=$WATCHTOWER_PORT"
     [ "$MEDIA_PATH"   != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
+    [ -n "$CF_TUNNEL_TOKEN" ] && echo "CLOUDFLARE_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN"
+    [ -n "$CF_WEBAPP_URL"   ] && echo "WEBAPP_URL=$CF_WEBAPP_URL"
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.
@@ -419,13 +433,40 @@ PYEOF
     fi
 fi
 
-_spin "$MSG_STARTING" docker compose up -d telegram-bot
+_spin "$MSG_STARTING" docker compose up -d telegram-bot cloudflared
+
+# ---- Mini App URL ----
+WEBAPP_URL=""
+if [ -n "$CF_WEBAPP_URL" ]; then
+    # Static named tunnel URL — available immediately, no need to poll.
+    WEBAPP_URL="$CF_WEBAPP_URL"
+else
+    # Ephemeral quick tunnel: bot scrapes trycloudflare.com URL from cloudflared
+    # logs and writes it to the DB within one polling cycle (~60 s).
+    printf "  %s" "$MSG_WEBAPP_WAIT"
+    for i in $(seq 1 30); do
+        WEBAPP_URL=$(_db_get webapp_url "")
+        [ -n "$WEBAPP_URL" ] && break
+        printf "."
+        sleep 3
+    done
+    [ -n "$WEBAPP_URL" ] && printf " ✓\n" || printf " ⚠️\n"
+fi
 
 echo ""
 echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
 echo "Jackett:     http://$SERVER_IP:$JACKETT_PORT"
+if [ -n "$CF_WEBAPP_URL" ]; then
+    echo "Mini App:    $WEBAPP_URL"
+    echo "$MSG_WEBAPP_HINT_STATIC"
+elif [ -n "$WEBAPP_URL" ]; then
+    echo "Mini App:    $WEBAPP_URL"
+    echo "$MSG_WEBAPP_HINT"
+else
+    echo "$MSG_WEBAPP_PENDING"
+fi
 echo ""
 echo "=== Install finished: $(date '+%Y-%m-%d %H:%M:%S') ===" >&3
 echo "Log: $LOG_FILE"

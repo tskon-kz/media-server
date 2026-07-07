@@ -81,6 +81,7 @@ M = {
     "update_started":       "🔄 Update started. Bot will restart in ~1 min.",
     "update_success":       "✅ Bot restarted and running `{v}`",
     "update_failed_self":   "❌ Update failed, previous bot kept running:\n`{err}`",
+    "update_timeout":       "⏳ Update is taking longer than expected — check the server if the bot doesn't come back.",
     "update_notify":    "🆕 Update `{v}` available! Open Settings → Update",
     "rename_failed_parse":      "⚠️ Could not parse filename `{filename}`\nPlease help rename this file:",
     "rename_manual_btn":        "✏️ Enter manually",
@@ -141,4 +142,6 @@ M = {
     "jackett_ask_pass":         "Enter new Jackett admin password (empty to remove password):",
     "jackett_pass_changed":     "✅ Jackett password updated. Jackett restarted.",
     "jackett_pass_error":       "❌ Failed to update Jackett password. Check that the container is running.",
+    "webapp_menu_button":       "🎬 Open App",
+    "webapp_open_button":       "🚀 Open App",
 }

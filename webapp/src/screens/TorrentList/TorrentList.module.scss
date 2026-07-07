@@ -1,0 +1,23 @@
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--tg-theme-hint-color);
+  flex-shrink: 0;
+  padding: 0;
+
+  &.danger {
+    color: var(--tg-theme-destructive-text-color);
+  }
+}
+
+.iconActions {
+  display: flex;
+  align-items: center;
+}

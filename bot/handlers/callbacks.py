@@ -19,7 +19,7 @@ from parser import (
 import keyboards as kb
 from ._utils import (
     _edit, _show_list, _show_torrent_actions, _run_pretty_parse,
-    _do_self_update, _dl_path, log,
+    _do_stack_update, _dl_path, log,
 )
 from .jobs import job_qb_restart_check
 
@@ -132,13 +132,13 @@ async def on_callback(update, ctx):
             if value == "stable":
                 set_config("update_pending", "1")
                 await _edit(query, t("update_started"))
-                asyncio.create_task(_do_self_update(query.message, "stable"))
+                asyncio.create_task(_do_stack_update(query.message, "stable"))
             elif value == "edge:confirm":
                 await _edit(query, t("update_force_warn"), kb.update_force_confirm_kb())
             elif value == "edge:go":
                 set_config("update_pending", "1")
                 await _edit(query, t("update_started"))
-                asyncio.create_task(_do_self_update(query.message, "edge"))
+                asyncio.create_task(_do_stack_update(query.message, "edge"))
 
         case "tor_action":
             await _show_torrent_actions(query, value)

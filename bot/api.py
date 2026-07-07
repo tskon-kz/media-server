@@ -1,4 +1,6 @@
 import json
+import os
+import re
 import socket
 import struct
 import urllib.request
@@ -8,7 +10,8 @@ from config import (
     JF_URL, QB_HOST,
     JACKETT_URL,
     SEARCH_RESULTS_LIMIT, SEARCH_CATEGORIES,
-    REPO_SLUG, BOT_IMAGE, BOT_CONTAINER,
+    REPO_SLUG, CLOUDFLARED_CONTAINER,
+    DATA_DIR, UPDATER_IMAGE, UPDATER_CONTAINER,
 )
 from store import get_config, get_creds, set_config
 
@@ -68,31 +71,83 @@ def invalidate_qb():
     _qb_client = None
 
 
-def qb_temp_password() -> str | None:
-    """Read current session temp password from qBittorrent container logs via Docker socket."""
+def _dechunk(body: bytes) -> bytes:
+    """Decode HTTP/1.1 chunked transfer-encoding into the raw payload.
+
+    Modern Docker daemons answer the /logs endpoint with chunked encoding even
+    for an HTTP/1.0 request; older ones send the body verbatim. If the body
+    doesn't parse as chunked, return it unchanged.
+    """
+    out, i = b"", 0
+    while i < len(body):
+        nl = body.find(b"\r\n", i)
+        if nl == -1:
+            break
+        try:
+            size = int(body[i:nl].split(b";", 1)[0], 16)
+        except ValueError:
+            return body  # not chunked — treat as raw
+        if size == 0:
+            return out
+        start = nl + 2
+        out += body[start:start + size]
+        i = start + size + 2  # skip data + trailing CRLF
+    return out or body
+
+
+def _docker_logs(container: str, tail: int = 100) -> str:
+    """Fetch a container's recent logs via the Docker socket, demultiplexed.
+
+    Returns the decoded log text (stdout+stderr interleaved), or "" on error.
+    Tolerant of the daemon holding the connection open (streams don't always
+    send Connection: close): a read timeout is expected, and whatever has been
+    received by then is parsed rather than discarded.
+    """
+    raw = b""
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(5)
         s.connect("/var/run/docker.sock")
-        req = b"GET /containers/media-server-qbittorrent/logs?stdout=1&stderr=1&tail=100 HTTP/1.0\r\nHost: localhost\r\n\r\n"
+        req = (
+            f"GET /containers/{container}/logs?stdout=1&stderr=1&tail={tail} "
+            "HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        ).encode()
         s.sendall(req)
-        raw = b""
         while chunk := s.recv(4096):
             raw += chunk
-        s.close()
-        body = raw.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in raw else raw
-        # Docker multiplexed log format: 8-byte header (1 byte stream, 3 zeros, 4-byte big-endian length)
-        lines, i = [], 0
-        while i + 8 <= len(body):
-            size = struct.unpack(">I", body[i+4:i+8])[0]
-            lines.append(body[i+8:i+8+size].decode(errors="ignore"))
-            i += 8 + size
-        for line in reversed("".join(lines).splitlines()):
-            if "temporary password" in line:
-                return line.split()[-1]
-        return None
+    except socket.timeout:
+        pass  # keep whatever streamed in before the timeout
     except Exception:
-        return None
+        return ""
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+    if b"\r\n\r\n" not in raw:
+        return ""
+    headers, body = raw.split(b"\r\n\r\n", 1)
+    if b"transfer-encoding: chunked" in headers.lower():
+        body = _dechunk(body)
+    # Docker multiplexed log format: 8-byte header (1 byte stream, 3 zeros, 4-byte big-endian length)
+    parts, i = [], 0
+    while i + 8 <= len(body):
+        size = struct.unpack(">I", body[i+4:i+8])[0]
+        if size == 0 or i + 8 + size > len(body):
+            break
+        parts.append(body[i+8:i+8+size].decode(errors="ignore"))
+        i += 8 + size
+    # Fall back to a raw decode if the stream wasn't multiplexed (TTY mode).
+    return "".join(parts) if parts else body.decode(errors="ignore")
+
+
+def qb_temp_password() -> str | None:
+    """Read current session temp password from qBittorrent container logs via Docker socket."""
+    for line in reversed(_docker_logs("media-server-qbittorrent").splitlines()):
+        if "temporary password" in line:
+            return line.split()[-1]
+    return None
 
 
 def qb_restart() -> bool:
@@ -242,6 +297,24 @@ def jackett_download_torrent(link: str) -> bytes | None:
         return None
 
 
+# --- Cloudflare Tunnel ---
+
+_TRYCLOUDFLARE_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+
+
+def get_cloudflared_url() -> str | None:
+    """Scrape the assigned quick-tunnel URL from cloudflared's container logs.
+
+    On start, `cloudflared tunnel --url ...` prints a banner containing the
+    randomly-assigned `https://<random>.trycloudflare.com` address. The URL is
+    ephemeral — it changes on every container restart — so callers must re-read
+    it rather than caching it across restarts. Returns None until the banner
+    appears (or if the container is unreachable).
+    """
+    m = _TRYCLOUDFLARE_RE.search(_docker_logs(CLOUDFLARED_CONTAINER, tail=200))
+    return m.group(0) if m else None
+
+
 # --- Updates ---
 
 def gh_latest_release_tag() -> str | None:
@@ -262,19 +335,31 @@ def gh_latest_release_tag() -> str | None:
         return None
 
 
-def self_update(tag: str) -> bool | str:
-    """Replace the running bot container with `tag` via the Docker Engine API.
+def _project_dir_from_mounts(me) -> str | None:
+    """Derive the host compose project directory from our own bind mounts.
 
-    Blue/green, new-before-old: pulls the image, starts a replacement container
-    from a clone of this container's live config, confirms it is healthy, and
-    only then retires the old one. A bad pull/start never leaves the user with
-    no bot. Returns True on success, or an error string on failure (in which
-    case the original bot keeps running untouched).
-
-    Runs via asyncio.to_thread; the current process is replaced at the very end,
-    so on success this may not return at all — the new container reports done.
+    The `/app/data` mount is always `./bot-data` under the project dir, so the
+    host side of that bind, minus its `bot-data` leaf, is the project dir.
     """
-    import time
+    for bind in (me.attrs.get("HostConfig", {}) or {}).get("Binds") or []:
+        parts = bind.split(":")
+        if len(parts) >= 2 and parts[1] == DATA_DIR:
+            return os.path.dirname(parts[0])
+    return None
+
+
+def stack_update(tag: str):
+    """Launch an ephemeral updater container that reconciles the whole compose
+    stack (mirrors update.sh) and recreates the bot with `tag`.
+
+    The updater runs OUTSIDE the compose project, so it survives `docker compose
+    up -d` recreating this bot. Returns the updater container name on a
+    successful launch, or an error string if the update could not even start (in
+    which case the old bot keeps running untouched). Success/failure once the
+    updater is running is reported by whichever bot process is alive afterwards —
+    see handlers/_utils._do_stack_update and main._post_init. Runs via
+    asyncio.to_thread. See docs/self-update.md.
+    """
     try:
         import docker
     except Exception as e:
@@ -284,90 +369,87 @@ def self_update(tag: str) -> bool | str:
     except Exception as e:
         return f"cannot reach Docker socket: {e}"
 
-    image_ref = f"{BOT_IMAGE}:{tag}"
-    try:
-        client.images.pull(BOT_IMAGE, tag=tag)
-    except Exception as e:
-        return f"pull failed: {e}"
-
     # Our own container ID is the hostname inside the container.
     try:
         me = client.containers.get(socket.gethostname())
     except Exception as e:
         return f"self-inspect failed: {e}"
 
-    cfg      = me.attrs
-    host_cfg = cfg.get("HostConfig", {}) or {}
-    conf     = cfg.get("Config", {}) or {}
+    project_dir = _project_dir_from_mounts(me)
+    if not project_dir:
+        return "could not locate the host project directory; run update.sh on the host once"
+    project_name = os.path.basename(project_dir) or "media-server"
 
-    # Clone the live env, but drop APP_VERSION so the NEW image's baked-in value
-    # (from its build ARG) wins — otherwise the replacement would report the old
-    # version. Everything else (BOT_TOKEN, QB_HOST, proxy, …) is carried over.
-    env = [e for e in (conf.get("Env") or []) if not e.startswith("APP_VERSION=")]
-    run_kwargs = {
-        "image":       image_ref,
-        "detach":      True,
-        "environment": env,
-        "volumes":     host_cfg.get("Binds") or [],
-        "labels":      conf.get("Labels") or {},
-    }
-    net_mode = host_cfg.get("NetworkMode")
-    if net_mode and net_mode not in ("default", "bridge"):
-        run_kwargs["network"] = net_mode
-    rp = host_cfg.get("RestartPolicy") or {}
-    if rp.get("Name"):
-        run_kwargs["restart_policy"] = {
-            "Name": rp["Name"],
-            "MaximumRetryCount": rp.get("MaximumRetryCount", 0),
-        }
-
-    new_name = f"{BOT_CONTAINER}-new"
-    old_name = f"{BOT_CONTAINER}-old"
-    # Clear any leftovers from a previous interrupted update.
-    for stale in (new_name, old_name):
-        try:
-            client.containers.get(stale).remove(force=True)
-        except Exception:
-            pass
-
+    # The updater script is baked into the bot image; pass it inline so there is
+    # a single source of truth and nothing to deliver to the host separately.
     try:
-        new = client.containers.run(name=new_name, **run_kwargs)
+        with open(os.path.join(os.path.dirname(__file__), "updater.sh")) as f:
+            script = f.read()
     except Exception as e:
-        return f"start replacement failed: {e}"
+        return f"updater script missing from image: {e}"
 
-    # Confirm the replacement stays up (a broken image would exit immediately).
-    time.sleep(6)
+    updater_tag = UPDATER_IMAGE.split(":", 1)[1] if ":" in UPDATER_IMAGE else "latest"
+    updater_repo = UPDATER_IMAGE.split(":", 1)[0]
     try:
-        new.reload()
+        client.images.pull(updater_repo, tag=updater_tag)
     except Exception as e:
-        try: new.remove(force=True)
-        except Exception: pass
-        return f"replacement health check failed: {e}"
-    if new.status != "running":
-        logs = ""
-        try: logs = new.logs(tail=20).decode(errors="ignore")
-        except Exception: pass
-        try: new.remove(force=True)
-        except Exception: pass
-        return f"replacement not running (status={new.status}). Old bot kept.\n{logs[-400:]}"
+        return f"updater image pull failed: {e}"
 
-    # Healthy. Put everything in its final state BEFORE stopping ourselves, so
-    # even if this process dies mid-teardown the new bot already owns the
-    # canonical name and is running.
+    # Clear any leftover updater from a previous interrupted run.
     try:
-        me.rename(old_name)
-        new.rename(BOT_CONTAINER)
-    except Exception as e:
-        # Naming failed but the new container is alive; report so the maintainer
-        # can reconcile with `docker compose up -d` on next cold start.
-        return f"replacement running but rename failed: {e}"
-
-    set_config("bot_image_tag", tag)
-
-    # Retire the old container last. This stops our own process; anything after
-    # the stop call is not guaranteed to run, which is fine — state is final.
-    try:
-        me.remove(force=True)
+        client.containers.get(UPDATER_CONTAINER).remove(force=True)
     except Exception:
         pass
-    return True
+
+    try:
+        client.containers.run(
+            UPDATER_IMAGE,
+            name=UPDATER_CONTAINER,
+            command=["sh", "-c", script],
+            detach=True,
+            working_dir="/project",
+            environment={
+                "BOT_IMAGE_TAG": tag,
+                "COMPOSE_PROJECT_NAME": project_name,
+                "REPO_SLUG": REPO_SLUG,
+            },
+            volumes={
+                "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
+                project_dir: {"bind": "/project", "mode": "rw"},
+            },
+        )
+    except Exception as e:
+        return f"failed to launch updater: {e}"
+
+    # Keep the DB tag in step with what the updater pins in .env, so cold starts
+    # and update.sh agree.
+    set_config("bot_image_tag", tag)
+    return UPDATER_CONTAINER
+
+
+def updater_status(name: str = UPDATER_CONTAINER) -> dict:
+    """Inspect the updater container. Returns {running, exit_code, logs?}."""
+    try:
+        import docker
+        c = docker.from_env().containers.get(name)
+        c.reload()
+        state = c.attrs.get("State", {}) or {}
+        running = bool(state.get("Running"))
+        out = {"running": running, "exit_code": state.get("ExitCode")}
+        if not running:
+            try:
+                out["logs"] = c.logs(tail=25).decode(errors="ignore")
+            except Exception:
+                out["logs"] = ""
+        return out
+    except Exception as e:
+        return {"running": False, "exit_code": -1, "logs": f"status check failed: {e}"}
+
+
+def remove_updater(name: str = UPDATER_CONTAINER) -> None:
+    """Remove the ephemeral updater container (best effort)."""
+    try:
+        import docker
+        docker.from_env().containers.get(name).remove(force=True)
+    except Exception:
+        pass

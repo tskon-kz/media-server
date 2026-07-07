@@ -53,6 +53,7 @@ services:
       - JACKETT_URL=${JACKETT_URL:-http://jackett:9117}
       - JACKETT_PORT=${JACKETT_PORT:-9117}
       - WATCHTOWER_TOKEN=${WATCHTOWER_TOKEN}
+      - WEBAPP_URL=${WEBAPP_URL:-}
       - PYTHONUNBUFFERED=1
     volumes:
       - ./bot-data:/app/data
@@ -66,12 +67,27 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: media-server-cloudflared
+    restart: unless-stopped
+    # Named tunnel (static URL): set CLOUDFLARE_TUNNEL_TOKEN in .env and also
+    # set WEBAPP_URL to your static domain — the bot will use it directly
+    # instead of scraping ephemeral trycloudflare.com URLs from logs.
+    # Leave CLOUDFLARE_TUNNEL_TOKEN empty to use the default quick tunnel.
+    entrypoint: ["sh", "-c"]
+    command: '[ -n "$$CLOUDFLARE_TUNNEL_TOKEN" ] && exec cloudflared tunnel --no-autoupdate run --token "$$CLOUDFLARE_TUNNEL_TOKEN" || exec cloudflared tunnel --no-autoupdate --url http://telegram-bot:8081'
+    environment:
+      - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - telegram-bot
+
   watchtower:
     image: containrrr/watchtower
     container_name: media-server-watchtower
     restart: unless-stopped
     ports:
-      - "127.0.0.1:9080:8080"
+      - "127.0.0.1:${WATCHTOWER_PORT:-9080}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:

@@ -1,12 +1,13 @@
 import qbittorrentapi
+from telegram import MenuButtonWebApp, WebAppInfo
 
-from config import ALLOWED, DONE_STATES, APP_VERSION
+from config import ALLOWED, DONE_STATES, APP_VERSION, WEBAPP_URL
 from store import (
     t, load_cats, load_states, save_states,
-    get_config, set_qb_status, get_qb_status,
+    get_config, set_config, set_qb_status, get_qb_status,
     has_notified_update, mark_update_notified,
 )
-from api import jf, qb, invalidate_qb, gh_latest_release_tag
+from api import jf, qb, invalidate_qb, gh_latest_release_tag, get_cloudflared_url
 from parser import create_flat_hardlinks, process_torrent_rename
 import keyboards as kb
 from ._utils import _notify_admins, log
@@ -74,6 +75,26 @@ async def job_check_done(ctx):
         if h not in active:
             del known[h]
     save_states(known)
+
+
+async def job_check_webapp_url(ctx):
+    """Keep the stored Mini App URL and each user's Menu Button in sync.
+
+    When WEBAPP_URL is set (named Cloudflare tunnel with a static domain), it is
+    used directly. Otherwise polls cloudflared container logs for the ephemeral
+    trycloudflare.com URL and updates on every change (new URL on each restart).
+    """
+    url = WEBAPP_URL or get_cloudflared_url()
+    if not url or url == get_config("webapp_url"):
+        return
+    set_config("webapp_url", url)
+    button = MenuButtonWebApp(text=t("webapp_menu_button"), web_app=WebAppInfo(url=url))
+    for uid in ALLOWED:
+        try:
+            await ctx.bot.set_chat_menu_button(chat_id=uid, menu_button=button)
+        except Exception:
+            pass
+    log.info("Web App URL updated: %s", url)
 
 
 async def job_check_update(ctx):

@@ -1,0 +1,12 @@
+# Keep the build context lean. The SPA is built inside the image (node stage),
+# so local build artifacts and deps must not be shipped into the context.
+webapp/node_modules
+webapp/dist
+webapp/.env.local
+**/__pycache__
+*.pyc
+.git
+bot-data
+data
+media
+install.log

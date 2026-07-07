@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from telegram import BotCommand
@@ -14,6 +15,9 @@ from config import BOT_TOKEN, APP_VERSION, ALLOWED
 import store
 import handlers as h
 import keyboards as kb
+from webapp import start_webapp, stop_webapp
+
+log = logging.getLogger(__name__)
 
 
 async def _post_init(app):
@@ -25,10 +29,16 @@ async def _post_init(app):
         BotCommand("settings", "Настройки"),
     ])
 
-    # Set when a self-update kicked off the restart of the *previous* container.
-    # We're the freshly-started replacement, so confirm we're up and running.
+    # Report a completed update FIRST — before anything that could fail — so a
+    # Mini App startup hiccup can never swallow the success notification. Set
+    # when the updater recreated the *previous* container; we're the fresh one.
     if store.get_config("update_pending"):
         store.set_config("update_pending", "")
+        try:
+            from api import remove_updater
+            await asyncio.to_thread(remove_updater)  # retire the ephemeral updater
+        except Exception:
+            pass
         msg = store.t("update_success", v=APP_VERSION)
         for uid in ALLOWED:
             try:
@@ -36,13 +46,30 @@ async def _post_init(app):
             except Exception:
                 pass
 
+    # Start the Mini App HTTP server in the same event loop. Non-blocking; the
+    # cloudflared sidecar reaches it over the compose network. Isolated so a
+    # failure here never crashes startup or blocks the notification above.
+    try:
+        await start_webapp()
+    except Exception:
+        log.exception("start_webapp failed; continuing without the Mini App")
+
+
+
+async def _post_shutdown(app):
+    await stop_webapp()
 
 
 def main():
     store.init()
 
     proxy_url = store.get_config("proxy_url")
-    builder = ApplicationBuilder().token(BOT_TOKEN).post_init(_post_init)
+    builder = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .post_init(_post_init)
+        .post_shutdown(_post_shutdown)
+    )
     if proxy_url:
         builder = builder.proxy(proxy_url).get_updates_proxy(proxy_url)
     app = builder.build()
@@ -59,6 +86,7 @@ def main():
     app.job_queue.run_repeating(h.job_check_done,   interval=30,     first=10)
     app.job_queue.run_once(h.job_check_update, when=30)
     app.job_queue.run_repeating(h.job_check_update, interval=6*3600, first=6*3600)
+    app.job_queue.run_repeating(h.job_check_webapp_url, interval=60, first=5)
 
     print(f"Bot started (v{APP_VERSION})")
     app.run_polling()
