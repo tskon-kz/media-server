@@ -1,0 +1,19 @@
+.content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+
+
+}
+
+.rowValue {
+  color: var(--tg-theme-hint-color);
+}

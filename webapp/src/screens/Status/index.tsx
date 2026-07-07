@@ -1,10 +1,12 @@
 import {useEffect, useState} from "react"
-import {Box, Loader, Title} from "@mantine/core"
+import {Divider, Loader} from "@mantine/core"
 import {CheckCircle2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {speed} from "@/format"
-import {ListItem, ListSection} from "@/components/ui"
+import PageHeader from "@/components/PageHeader"
+import Section from "@/components/Section"
+import styles from "./Status.module.scss"
 
 export function Status() {
   const {t} = useTranslation()
@@ -24,27 +26,29 @@ export function Status() {
     : <Loader size={16}/>
 
   return (
-    <Box>
-      <Box style={{padding: "16px 16px 4px"}}>
-        <Title order={3} style={{color: "var(--tg-theme-text-color)"}}>
-          {t("status.title")}
-        </Title>
-      </Box>
+    <div>
+      <PageHeader title={t("status.title")}/>
 
-      <Box p={16} style={{display: "flex", flexDirection: "column", gap: 8}}>
-        <ListSection header={t("status.services")}>
-          <ListItem after={statusIcon}>qBittorrent</ListItem>
-        </ListSection>
+      <div className={styles.content}>
+        <Section title={t("status.services")}>
+          <div className={styles.row}>
+            <span>qBittorrent</span>
+            {statusIcon}
+          </div>
+        </Section>
 
-        <ListSection header={t("status.transfer")}>
-          <ListItem after={st?.connected ? speed(st.dl ?? 0) : "—"}>
-            {t("status.download")}
-          </ListItem>
-          <ListItem after={st?.connected ? speed(st.ul ?? 0) : "—"}>
-            {t("status.upload")}
-          </ListItem>
-        </ListSection>
-      </Box>
-    </Box>
+        <Section title={t("status.transfer")}>
+          <div className={styles.row}>
+            <span>{t("status.download")}</span>
+            <span className={styles.rowValue}>{st?.connected ? speed(st.dl ?? 0) : "—"}</span>
+          </div>
+          <Divider/>
+          <div className={styles.row}>
+            <span>{t("status.upload")}</span>
+            <span className={styles.rowValue}>{st?.connected ? speed(st.ul ?? 0) : "—"}</span>
+          </div>
+        </Section>
+      </div>
+    </div>
   )
 }

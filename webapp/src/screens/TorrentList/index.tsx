@@ -48,21 +48,34 @@ export function TorrentList() {
     if (d > 0) setPull(Math.min(d, 80))
   }
   const onTouchEnd = () => {
-    if (pull > 55) { haptic("light"); load() }
+    if (pull > 55) {
+      haptic("light");
+      load()
+    }
     setPull(0)
     startY.current = null
   }
 
   const doDelete = async (tor: Torrent) => {
     setConfirmDel(null)
-    try { await api.deleteTorrent(tor.hash); toast(t("torrents.deleted")); load() }
-    catch (e) { toast((e as Error).message, "err") }
+    try {
+      await api.deleteTorrent(tor.hash);
+      toast(t("torrents.deleted"));
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
   }
 
   const doMove = async (tor: Torrent, cat: Category) => {
     setMoving(null)
-    try { await api.moveTorrent(tor.hash, cat.id); toast(t("torrents.moved", {name: cat.name})); load() }
-    catch (e) { toast((e as Error).message, "err") }
+    try {
+      await api.moveTorrent(tor.hash, cat.id);
+      toast(t("torrents.moved", {name: cat.name}));
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
   }
 
   const doStructure = async (tor: Torrent, mode: "pretty" | "flat" | "delete") => {
@@ -73,7 +86,9 @@ export function TorrentList() {
       else if (mode === "pretty") toast(t("torrents.linked", {n: r.linked, pending: r.pending}))
       else toast(t("common.done"))
       load()
-    } catch (e) { toast((e as Error).message, "err") }
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
   }
 
   if (torrents === null) {
@@ -86,8 +101,9 @@ export function TorrentList() {
 
   return (
     <Box onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <Box style={{display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 4px"}}>
-        <Title order={3} style={{color: "var(--tg-theme-text-color)"}}>
+      <Box style={{display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 4px"}}
+           className="mb-16">
+        <Title order={3} style={{color: "var(--tg-theme-text-color)", fontSize: 20}}>
           {t("torrents.title")}
         </Title>
         <Button variant="subtle" px={8} onClick={load}>
@@ -115,7 +131,10 @@ export function TorrentList() {
                     {cats.length > 0 && (
                       <button
                         className={s.iconBtn}
-                        onClick={(e) => { e.stopPropagation(); setMoving(tor) }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoving(tor)
+                        }}
                         title={t("torrents.move")}
                       >
                         <FolderInput size={18}/>
@@ -124,7 +143,10 @@ export function TorrentList() {
                     {tor.renameable && (
                       <button
                         className={s.iconBtn}
-                        onClick={(e) => { e.stopPropagation(); setStructFor(tor) }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStructFor(tor)
+                        }}
                         title={t("torrents.structure")}
                       >
                         <Layers size={18}/>
@@ -132,7 +154,10 @@ export function TorrentList() {
                     )}
                     <button
                       className={`${s.iconBtn} ${s.danger}`}
-                      onClick={(e) => { e.stopPropagation(); setConfirmDel(tor) }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDel(tor)
+                      }}
                       title={t("common.delete")}
                     >
                       <Trash2 size={18}/>
@@ -167,7 +192,7 @@ export function TorrentList() {
             {t("torrents.deleteBody", {name: confirmDel?.name})}
           </Box>
           <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
-            onClick={() => confirmDel && doDelete(confirmDel)}>
+                  onClick={() => confirmDel && doDelete(confirmDel)}>
             {t("common.delete")}
           </Button>
           <Button fullWidth variant="default" onClick={() => setConfirmDel(null)}>
@@ -194,15 +219,15 @@ export function TorrentList() {
       >
         <Stack gap={8} pb={16} px={4}>
           <Button fullWidth variant="dark" leftSection={<Clapperboard size={18}/>}
-            onClick={() => structFor && doStructure(structFor, "pretty")}>
+                  onClick={() => structFor && doStructure(structFor, "pretty")}>
             {t("torrents.pretty")}
           </Button>
           <Button fullWidth variant="dark" leftSection={<Folder size={18}/>}
-            onClick={() => structFor && doStructure(structFor, "flat")}>
+                  onClick={() => structFor && doStructure(structFor, "flat")}>
             {t("torrents.original")}
           </Button>
           <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
-            onClick={() => structFor && doStructure(structFor, "delete")}>
+                  onClick={() => structFor && doStructure(structFor, "delete")}>
             {t("torrents.delLinks")}
           </Button>
         </Stack>

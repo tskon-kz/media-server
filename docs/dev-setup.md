@@ -158,22 +158,26 @@ The `VERSION` build arg sets the `APP_VERSION` env var inside the container. Bot
 │   │   ├── commands.py # /start /list /status /scan /settings
 │   │   ├── messages.py # Magnet link and .torrent file handlers
 │   │   ├── callbacks.py# Inline keyboard callback dispatcher
-│   │   ├── jobs.py     # Background jobs (done-check, update-check, qb-restart-check, webapp-url-check)
+│   │   ├── jobs.py     # Background jobs (done-check, update-check, qb-restart-check, webapp-url-check — polls cloudflared logs for trycloudflare.com URL)
 │   │   └── _utils.py   # guard decorator, shared helpers
-│   ├── api.py          # Jellyfin + qBittorrent + Watchtower + Docker socket calls
+│   ├── api.py          # Jellyfin + qBittorrent + Watchtower + Docker socket calls; get_cloudflared_url()
 │   ├── keyboards.py    # Inline keyboard builders and text renderers
-│   ├── config.py       # Env vars and constants
+│   ├── config.py       # Env vars and constants (WEBAPP_PORT, WEBAPP_URL, WEBAPP_DEV_MODE, ...)
 │   ├── store.py        # SQLite persistence
 │   ├── parser/         # Package: filenames, naming, fsops, linker (+ __init__ re-exports)
-│   ├── webapp/         # aiohttp server: auth middleware, REST API routes, static SPA serving
+│   ├── webapp/         # aiohttp server: server.py (runner), auth.py (initData HMAC), routes.py (REST API)
 │   └── Dockerfile      # Multi-stage: node (SPA build) → python (final image)
 ├── webapp/             # React SPA (Vite + TypeScript) — built into the Docker image
 │   ├── src/
-│   │   ├── screens/    # TorrentList, AddTorrent, Search, Status, Settings
-│   │   ├── components/ # Toast, Sheet, CategoryPicker, PromptSheet
-│   │   ├── api.ts      # Typed fetch client (Authorization: tma <initData>)
-│   │   ├── telegram.ts # Thin wrapper over window.Telegram.WebApp
-│   │   └── styles.css  # Telegram-native styling (--tg-theme-* CSS vars)
+│   │   ├── screens/            # TorrentList, AddTorrent, Search, Status, Settings
+│   │   ├── components/         # Toast, Sheet, Collapse, Section, PageHeader, PromptSheet, CategoryPicker, ui.tsx
+│   │   ├── store/              # Redux Toolkit store; slices: searchSlice, themeSlice
+│   │   ├── locales/            # i18n strings: en.ts, ru.ts
+│   │   ├── api.ts              # Typed fetch client (Authorization: tma <initData>)
+│   │   ├── telegram.ts         # Thin wrapper over window.Telegram.WebApp
+│   │   ├── i18n.ts             # react-i18next setup
+│   │   ├── icons.tsx           # Lucide icon re-exports
+│   │   └── styles/globals.scss # Telegram-native CSS variables (--tg-theme-*)
 │   └── .env.example    # Copy to .env and set VITE_DEV_API_BASE
 ├── lang/
 │   ├── ru.py / en.py   # Bot message strings

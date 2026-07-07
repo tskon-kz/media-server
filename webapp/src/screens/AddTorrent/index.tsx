@@ -12,7 +12,7 @@ import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
 import PageHeader from "@/components/PageHeader"
 import type {Category, SearchResult} from "@/types"
 import {useAppDispatch, useAppSelector} from "@/store"
-import {setQuery, setLoading, setResults, clearSearch} from "@/store/slices/searchSlice"
+import {clearSearch, setLoading, setQuery, setResults} from "@/store/slices/searchSlice"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
 
@@ -51,7 +51,8 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
     {key: "mixed", label: t("settings.other"), Icon: Package},
   ]
 
-  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {})
+  const loadCats = () => api.categories().then((c) => setCats(c.categories)).catch(() => {
+  })
   useEffect(() => {
     loadCats()
   }, []) // eslint-disable-line
@@ -158,7 +159,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
 
   return (
     <div className="mb-16">
-      <PageHeader title={t("add.title")}/>
+      <PageHeader title={t("add.title")} className="mb-16"/>
 
       <div className="mb-16">
         <TextInput
@@ -214,7 +215,8 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
                   multiline
                 >
                   {r.details
-                    ? <a href={r.details} target="_blank" rel="noreferrer" style={{color: "inherit", textDecoration: "none"}}>{r.title}</a>
+                    ? <a href={r.details} target="_blank" rel="noreferrer"
+                         style={{color: "inherit", textDecoration: "none"}}>{r.title}</a>
                     : r.title}
                 </ListItem>
               ))}
