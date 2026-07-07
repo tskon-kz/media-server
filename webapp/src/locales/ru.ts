@@ -155,6 +155,20 @@ export default {
 
     openWebUI: "Открыть веб-интерфейс",
 
+    // Update section
+    update: "Обновление",
+    updateVersion: "Версия",
+    updateChannel: "Канал",
+    updateStable: "Stable",
+    updateEdge: "Edge (бета)",
+    updateAvailable: "Доступна",
+    updateBtn: "Обновить до {{version}}",
+    updateSwitchToEdge: "Перейти на Edge (бета)",
+    updateSwitchToStable: "Перейти на Stable",
+    updateStarted: "Обновление запущено, бот перезапустится через ~1 мин.",
+    updateEdgeWarning: "Edge — это неопубликованный код из ветки main. Может быть нестабильным.",
+    updateConfirmEdge: "Да, переключить на Edge",
+
     // Footer
     version: "версия {{version}}",
     smartOn: "Умная структура включена",

@@ -155,6 +155,20 @@ export default {
 
     openWebUI: "Open web UI",
 
+    // Update section
+    update: "Update",
+    updateVersion: "Version",
+    updateChannel: "Channel",
+    updateStable: "Stable",
+    updateEdge: "Edge (beta)",
+    updateAvailable: "Available",
+    updateBtn: "Update to {{version}}",
+    updateSwitchToEdge: "Switch to Edge (beta)",
+    updateSwitchToStable: "Switch to Stable",
+    updateStarted: "Update started, bot will restart in ~1 min.",
+    updateEdgeWarning: "Edge is unreleased code from the main branch and may be unstable.",
+    updateConfirmEdge: "Yes, switch to Edge",
+
     // Footer
     version: "version {{version}}",
     smartOn: "Smart structure on",

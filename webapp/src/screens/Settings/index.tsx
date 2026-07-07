@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {Box, Button, Drawer, Loader, SegmentedControl, Stack, Text,} from "@mantine/core"
+import {Box, Button, Drawer, Loader, SegmentedControl, Stack, Text} from "@mantine/core"
 import {Trash2, UserPlus,} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
@@ -10,11 +10,12 @@ import {Collapse} from "@/components/Collapse"
 import {PromptSheet} from "@/components/PromptSheet"
 import Section from "@/components/Section"
 import {ListItem, ListSection} from "@/components/ui"
-import type {AppConfig, JellyfinUser, Settings as SettingsData} from "@/types"
+import type {AppConfig, JellyfinUser, Settings as SettingsData, UpdateInfo} from "@/types"
 import PageHeader from "@/components/PageHeader"
 import {QbContent} from "./components/QbContent"
 import {JackettContent} from "./components/JackettContent"
 import {JellyfinContent} from "./components/JellyfinContent"
+import {UpdateContent} from "./components/UpdateContent"
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
 
@@ -24,6 +25,7 @@ export function Settings() {
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [settingsData, setSettingsData] = useState<SettingsData | null>(null)
   const [users, setUsers] = useState<JellyfinUser[] | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [dialog, setDialog] = useState<string | null>(null)
   const [newUserName, setNewUserName] = useState("")
   const [scanning, setScanning] = useState(false)
@@ -33,6 +35,8 @@ export function Settings() {
     setCfg(c)
     setSettingsData(settings)
     setAppLanguage(settings.lang)
+    // Update info involves a GitHub call — load without blocking the main render
+    api.update().then(setUpdateInfo).catch(() => {})
   }
 
   useEffect(() => {
@@ -192,6 +196,13 @@ export function Settings() {
               <JellyfinContent cfg={cfg} scanning={scanning} onScan={scan} onManageUsers={openUsers}/>
             </Collapse>
           )}
+
+          <Collapse className="mb-16" title={t("settings.update")}>
+            {updateInfo
+              ? <UpdateContent info={updateInfo} onDone={reload}/>
+              : <div style={{padding: "16px", textAlign: "center"}}><Loader size="sm"/></div>
+            }
+          </Collapse>
 
           <Text size="xs" c="dimmed" ta="center">
             {t("settings.version", {version: cfg.version})}
