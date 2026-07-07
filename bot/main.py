@@ -46,6 +46,14 @@ async def _post_init(app):
             except Exception:
                 pass
 
+    # Make sure qBittorrent's default save path is under /media (the hotio image
+    # defaults to an ephemeral in-container path → free_space -1 + lost downloads).
+    try:
+        from api import ensure_qb_save_path
+        await asyncio.to_thread(ensure_qb_save_path)
+    except Exception:
+        log.exception("ensure_qb_save_path failed; continuing")
+
     # Start the Mini App HTTP server in the same event loop. Non-blocking; the
     # cloudflared sidecar reaches it over the compose network. Isolated so a
     # failure here never crashes startup or blocks the notification above.

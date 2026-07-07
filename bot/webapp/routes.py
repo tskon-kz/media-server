@@ -312,7 +312,9 @@ async def status(request):
     # never let a missing field break the whole status response.
     try:
         server_state = (await _thread(lambda: qb().sync_maindata())).get("server_state", {})
-        free_space = server_state.get("free_space_on_disk", 0)
+        # qBittorrent reports -1 when it can't determine free space; show 0, not a
+        # negative byte count in the UI.
+        free_space = max(0, server_state.get("free_space_on_disk", 0))
     except Exception:
         free_space = 0
 
