@@ -16,7 +16,7 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN uv pip install --system --no-cache .
 
-COPY bot/main.py bot/config.py bot/store.py bot/api.py bot/keyboards.py ./
+COPY bot/main.py bot/config.py bot/store.py bot/api.py bot/keyboards.py bot/updater.sh ./
 COPY bot/parser/ ./parser/
 COPY bot/handlers/ ./handlers/
 COPY bot/webapp/ ./webapp/

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from telegram import BotCommand
@@ -16,6 +17,8 @@ import handlers as h
 import keyboards as kb
 from webapp import start_webapp, stop_webapp
 
+log = logging.getLogger(__name__)
+
 
 async def _post_init(app):
     await app.bot.set_my_commands([
@@ -26,21 +29,30 @@ async def _post_init(app):
         BotCommand("settings", "Настройки"),
     ])
 
-    # Start the Mini App HTTP server in the same event loop. Non-blocking; the
-    # cloudflared sidecar reaches it over the compose network. Always on — a
-    # fixed part of startup, no enable/disable flag.
-    await start_webapp()
-
-    # Set when a self-update kicked off the restart of the *previous* container.
-    # We're the freshly-started replacement, so confirm we're up and running.
+    # Report a completed update FIRST — before anything that could fail — so a
+    # Mini App startup hiccup can never swallow the success notification. Set
+    # when the updater recreated the *previous* container; we're the fresh one.
     if store.get_config("update_pending"):
         store.set_config("update_pending", "")
+        try:
+            from api import remove_updater
+            await asyncio.to_thread(remove_updater)  # retire the ephemeral updater
+        except Exception:
+            pass
         msg = store.t("update_success", v=APP_VERSION)
         for uid in ALLOWED:
             try:
                 await app.bot.send_message(uid, msg, parse_mode="Markdown")
             except Exception:
                 pass
+
+    # Start the Mini App HTTP server in the same event loop. Non-blocking; the
+    # cloudflared sidecar reaches it over the compose network. Isolated so a
+    # failure here never crashes startup or blocks the notification above.
+    try:
+        await start_webapp()
+    except Exception:
+        log.exception("start_webapp failed; continuing without the Mini App")
 
 
 
