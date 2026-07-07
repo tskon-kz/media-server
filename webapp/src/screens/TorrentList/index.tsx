@@ -166,12 +166,11 @@ export function TorrentList() {
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
             {t("torrents.deleteBody", {name: confirmDel?.name})}
           </Box>
-          <Button fullWidth variant="dark" leftSection={<Trash2 size={18}/>}
-            className={s.deleteBtn}
+          <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
             onClick={() => confirmDel && doDelete(confirmDel)}>
             {t("common.delete")}
           </Button>
-          <Button fullWidth variant="dark" onClick={() => setConfirmDel(null)}>
+          <Button fullWidth variant="default" onClick={() => setConfirmDel(null)}>
             {t("common.cancel")}
           </Button>
         </Stack>
@@ -202,8 +201,7 @@ export function TorrentList() {
             onClick={() => structFor && doStructure(structFor, "flat")}>
             {t("torrents.original")}
           </Button>
-          <Button fullWidth variant="dark" leftSection={<Trash2 size={18}/>}
-            className={s.deleteBtn}
+          <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
             onClick={() => structFor && doStructure(structFor, "delete")}>
             {t("torrents.delLinks")}
           </Button>
