@@ -1,7 +1,6 @@
 import {type RefObject} from "react"
 import {Button, FileInput, Textarea} from "@mantine/core"
 import {useTranslation} from "react-i18next"
-import {ListSection} from "../../../components/ui"
 import styles from "./ManualContent.module.scss"
 
 interface Props {
@@ -19,11 +18,8 @@ export function ManualContent(props: Props) {
   return (
     <div className={styles.root}>
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>
-          {t("add.magnetSection")}
-        </div>
-
         <Textarea
+          label={t("add.magnetSection")}
           ref={props.textareaRef}
           className="mb-12"
           placeholder="magnet:?xt=urn:btih:…"
@@ -38,7 +34,7 @@ export function ManualContent(props: Props) {
         </Button>
       </div>
 
-      <ListSection header={t("add.fileSection")}>
+      <div className={styles.section}>
         <FileInput
           key={props.fileKey}
           label={t("add.uploadLabel")}
@@ -46,7 +42,7 @@ export function ManualContent(props: Props) {
           onChange={props.onFile}
           clearable
         />
-      </ListSection>
+      </div>
     </div>
   )
 }

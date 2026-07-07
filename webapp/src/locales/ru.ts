@@ -44,7 +44,6 @@ export default {
     title: "Добавить торрент",
     magnetSection: "Magnet-ссылка",
     addMagnet: "Добавить magnet",
-    fileSection: ".torrent файл",
     uploadLabel: "Загрузить .torrent файл",
     invalidMagnet: "Введите корректную magnet-ссылку",
     manual: "Добавить вручную",
