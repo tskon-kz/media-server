@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 import {Box, Button, Drawer, Loader, Pagination, Stack, Text, TextInput,} from "@mantine/core"
-import {Clapperboard, Film, Music, Package, Search as SearchIcon, Trash2, Tv, X} from "lucide-react"
+import {Clapperboard, Film, Music, Package, Plus, Search as SearchIcon, Trash2, Tv, X} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes} from "@/format"
@@ -34,7 +34,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const searching = useAppSelector((s) => s.search.loading)
   const searchPage = useAppSelector((s) => s.search.page)
   const searchTotal = useAppSelector((s) => s.search.total)
-  const PAGE_SIZE = 10
+  const PAGE_SIZE = 5
 
   const [searchPick, setSearchPick] = useState<SearchResult | null>(null)
 
@@ -206,10 +206,16 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
                 <ListItem
                   key={i}
                   subtitle={`${t("search.seeders", {n: r.seeders})} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
-                  onClick={() => choose(r)}
+                  after={
+                    <Button variant="subtle" size="compact-sm" px={6} onClick={() => choose(r)}>
+                      <Plus size={20}/>
+                    </Button>
+                  }
                   multiline
                 >
-                  {r.title}
+                  {r.details
+                    ? <a href={r.details} target="_blank" rel="noreferrer" style={{color: "inherit", textDecoration: "none"}}>{r.title}</a>
+                    : r.title}
                 </ListItem>
               ))}
             </ListSection>

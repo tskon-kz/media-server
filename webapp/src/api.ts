@@ -57,7 +57,7 @@ export const api = {
   status: () => req<{ connected: boolean; dl?: number; ul?: number }>("GET", "/api/status"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
-  search: (q: string, page = 1, pageSize = 10) =>
+  search: (q: string, page = 1, pageSize = 5) =>
     req<{ query: string; results: SearchResult[]; total: number; page: number; page_size: number }>(
       "GET", `/api/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}`
     ),

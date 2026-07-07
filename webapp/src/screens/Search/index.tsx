@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import {Box, Button, Loader, Stack, TextInput, Title} from "@mantine/core"
-import {Search as SearchIcon} from "lucide-react"
+import {Plus, Search as SearchIcon} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes} from "@/format"
@@ -90,10 +90,16 @@ export function Search() {
                 <ListItem
                   key={i}
                   subtitle={`${t("search.seeders", {n: r.seeders})} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
-                  onClick={() => choose(r)}
+                  after={
+                    <Button variant="subtle" size="compact-sm" px={6} onClick={() => choose(r)}>
+                      <Plus size={20}/>
+                    </Button>
+                  }
                   multiline
                 >
-                  {r.title}
+                  {r.details
+                    ? <a href={r.details} target="_blank" rel="noreferrer" style={{color: "inherit", textDecoration: "none"}}>{r.title}</a>
+                    : r.title}
                 </ListItem>
               ))}
             </ListSection>
