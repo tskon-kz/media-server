@@ -294,6 +294,7 @@ async def status(request):
     try:
         info = await _thread(lambda: qb().transfer_info())
     except Exception:
+        invalidate_qb()  # force re-login on the next poll
         return web.json_response({"connected": False})
 
     jf_connected = await _thread(jf, "GET", "/System/Info") is not None
