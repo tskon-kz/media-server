@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import secrets
 import socket
 import struct
 import urllib.request
@@ -61,8 +62,32 @@ def qb() -> qbittorrentapi.Client:
 def _qb_login() -> qbittorrentapi.Client:
     user, password = get_creds()
     client = qbittorrentapi.Client(host=QB_HOST, username=user, password=password)
-    client.auth_log_in()
-    return client
+    try:
+        client.auth_log_in()
+        return client
+    except qbittorrentapi.LoginFailed:
+        # Stored password no longer works — most likely it was a per-session temp
+        # password and qBittorrent restarted (fresh install default). Recover once
+        # by logging in with the current temp password from the container logs and
+        # promoting it to a permanent one, so future restarts don't re-break login
+        # (and don't get the IP banned by repeated failures).
+        temp = qb_temp_password()
+        if not temp or temp == password:
+            raise
+        client = qbittorrentapi.Client(host=QB_HOST, username=user, password=temp)
+        client.auth_log_in()  # let this raise if the temp password is also wrong
+        perm = secrets.token_urlsafe(12)
+        try:
+            client._http_session.post(
+                f"{QB_HOST}/api/v2/app/setPreferences",
+                data={"json": json.dumps({"web_ui_password": perm})},
+                timeout=5,
+            )
+            set_config("qb_pass", perm)
+        except Exception:
+            # Couldn't persist a permanent password; keep using the temp one for now.
+            set_config("qb_pass", temp)
+        return client
 
 
 def invalidate_qb():
