@@ -73,10 +73,12 @@ M = {
     "update_available": "🆕 Update available!\n\nCurrent: `{local}`\nLatest:  `{remote}`",
     "update_check_fail":"⚠️ Could not check for updates\n\nCurrent: `{v}`",
     "update_btn":       "⬆️ Update to {v}",
-    "update_force_btn": "⚠️ Force update (unreleased main)",
     "update_force_warn":    "⚠️ *Force update* installs unreleased code from `main` (the `edge` tag). "
                             "It may be unstable. Continue?",
     "update_force_yes_btn": "⚠️ Yes, install edge",
+    "update_on_edge":            "🅱 You're on the *Edge* channel (beta)\n\nVersion: `{v}`\n\nThis is unreleased code from `main` and may be unstable.",
+    "channel_switch_edge_btn":   "🔀 Switch to Edge (beta)",
+    "channel_switch_stable_btn": "🔀 Switch to Stable",
     "cancel_btn":           "✖️ Cancel",
     "update_started":       "🔄 Update started. Bot will restart in ~1 min.",
     "update_success":       "✅ Bot restarted and running `{v}`",

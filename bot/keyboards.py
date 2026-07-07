@@ -182,13 +182,19 @@ def qb_settings_kb(is_perm: bool = True, has_auth_error: bool = False):
     return InlineKeyboardMarkup(buttons)
 
 
-def update_kb(has_update, remote=None):
+def update_kb(has_update, remote=None, channel="stable"):
     buttons = []
     if has_update:
         buttons.append([InlineKeyboardButton(
             t("update_btn", v=remote), callback_data="selfupdate:stable")])
-    buttons.append([InlineKeyboardButton(
-        t("update_force_btn"), callback_data="selfupdate:edge:confirm")])
+    # Channel toggle: on edge → offer stable (a plain re-install), on stable →
+    # offer edge behind the beta warning (selfupdate:edge:confirm).
+    if channel == "edge":
+        buttons.append([InlineKeyboardButton(
+            t("channel_switch_stable_btn"), callback_data="selfupdate:stable")])
+    else:
+        buttons.append([InlineKeyboardButton(
+            t("channel_switch_edge_btn"), callback_data="selfupdate:edge:confirm")])
     buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
     return InlineKeyboardMarkup(buttons)
 
@@ -274,12 +280,17 @@ def qb_view():
     return text, qb_settings_kb(is_perm, has_auth_error)
 
 
-def update_view(local, remote):
+def update_view(local, remote, channel="stable"):
+    # On edge the local version is an edge-<sha>, never equal to the latest
+    # release tag, so the stable up-to-date/available comparison is meaningless —
+    # just show the beta notice and a switch-to-stable button.
+    if channel == "edge":
+        return t("update_on_edge", v=local), update_kb(False, remote, channel)
     if remote is None:
-        return t("update_check_fail", v=local), update_kb(False)
+        return t("update_check_fail", v=local), update_kb(False, remote, channel)
     if remote == local:
-        return t("update_up_to_date", v=local), update_kb(False)
-    return t("update_available", local=local, remote=remote), update_kb(True, remote)
+        return t("update_up_to_date", v=local), update_kb(False, remote, channel)
+    return t("update_available", local=local, remote=remote), update_kb(True, remote, channel)
 
 
 def jackett_settings_kb(has_password: bool = False):
