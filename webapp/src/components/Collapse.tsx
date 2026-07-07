@@ -23,7 +23,9 @@ export function Collapse(props: Props) {
           <ChevronDown size={15} className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} />
         </button>
         <div className={`${styles.body} ${open ? styles.bodyOpen : ""}`}>
-          <div className={styles.inner}>{props.children}</div>
+          <div className={styles.inner}>
+            <div className={styles.content}>{props.children}</div>
+          </div>
         </div>
       </div>
     </div>
