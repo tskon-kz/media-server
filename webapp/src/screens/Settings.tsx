@@ -13,8 +13,105 @@ import Section from "../components/Section.tsx";
 import {ListItem, ListSection} from "../components/ui";
 import type {AppConfig, JellyfinUser, Settings as SettingsData} from "../types";
 import PageHeader from "../components/PageHeader.tsx";
+import s from "./Settings.module.scss";
 
 const DEL_COLOR = "var(--tg-theme-destructive-text-color)";
+
+interface QbContentProps {
+  data: SettingsData
+  cfg: AppConfig
+  onChangePass: () => void
+  onGetTemp: () => void
+  onRestart: () => void
+}
+
+function QbContent({data, cfg, onChangePass, onGetTemp, onRestart}: QbContentProps) {
+  const {t} = useTranslation()
+  return (
+    <>
+      <div className={s.infoRow}>
+        <div className={s.infoText}>
+          <span className={s.infoLabel}>{t("settings.credentials")}</span>
+          <span className={s.infoHint}>{t("settings.userSub", {user: data.qbittorrent.user})}</span>
+        </div>
+        {data.qbittorrent.is_perm && <Lock size={16} className={s.infoIcon}/>}
+      </div>
+      <div className={s.buttonStack}>
+        <Button fullWidth variant="light" onClick={onChangePass}>{t("settings.changePass")}</Button>
+        {!data.qbittorrent.is_perm && (
+          <Button fullWidth variant="light" onClick={onGetTemp}>{t("settings.getTemp")}</Button>
+        )}
+        <Button fullWidth variant="light" onClick={onRestart}>{t("settings.restart")}</Button>
+        {cfg.quick_links && (
+          <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>
+            {t("settings.openWebUI")}
+          </Button>
+        )}
+      </div>
+    </>
+  )
+}
+
+interface JackettContentProps {
+  data: SettingsData
+  cfg: AppConfig
+  onChangePass: () => void
+  onRemovePass: () => void
+}
+
+function JackettContent({data, cfg, onChangePass, onRemovePass}: JackettContentProps) {
+  const {t} = useTranslation()
+  return (
+    <>
+      <div className={s.infoRow}>
+        <div className={s.infoText}>
+          <span className={s.infoLabel}>{t("settings.jackett")}</span>
+          <span className={s.infoHint}>
+            {t("settings.apiKey", {status: t(data.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing")})}
+          </span>
+        </div>
+        {data.jackett.has_password
+          ? <Lock size={16} className={s.infoIcon}/>
+          : <Unlock size={16} className={s.infoIcon}/>
+        }
+      </div>
+      <div className={s.buttonStack}>
+        <Button fullWidth variant="light" onClick={onChangePass}>{t("settings.changePass")}</Button>
+        {data.jackett.has_password && (
+          <Button fullWidth variant="light" style={{color: DEL_COLOR}} onClick={onRemovePass}>
+            {t("settings.removePass")}
+          </Button>
+        )}
+        {cfg.quick_links && (
+          <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>
+            {t("settings.openWebUI")}
+          </Button>
+        )}
+      </div>
+    </>
+  )
+}
+
+interface JellyfinContentProps {
+  cfg: AppConfig
+  onManageUsers: () => void
+}
+
+function JellyfinContent({cfg, onManageUsers}: JellyfinContentProps) {
+  const {t} = useTranslation()
+  return (
+    <div className={s.buttonStack}>
+      <Button fullWidth variant="light" leftSection={<Users size={18}/>} onClick={onManageUsers}>
+        {t("settings.manageUsers")}
+      </Button>
+      {cfg.quick_links && (
+        <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>
+          {t("settings.openWebUI")}
+        </Button>
+      )}
+    </div>
+  )
+}
 
 export function Settings() {
   const toast = useToast();
@@ -27,10 +124,10 @@ export function Settings() {
   const [newUserName, setNewUserName] = useState("");
 
   const reload = async () => {
-    const [c, s] = await Promise.all([api.config(), api.settings()]);
+    const [c, settings] = await Promise.all([api.config(), api.settings()]);
     setCfg(c);
-    setSettingsData(s);
-    setAppLanguage(s.lang);
+    setSettingsData(settings);
+    setAppLanguage(settings.lang);
   };
 
   useEffect(() => {
@@ -155,66 +252,27 @@ export function Settings() {
           </Section>
 
           <Collapse className="mb-16" title={t("settings.qb")}>
-            <ListSection>
-              <ListItem
-                subtitle={t("settings.userSub", {user: settingsData.qbittorrent.user})}
-                after={settingsData.qbittorrent.is_perm ? <Lock size={16}/> : undefined}
-                multiline
-              >
-                {t("settings.credentials")}
-              </ListItem>
-            </ListSection>
-            <Stack gap={8}>
-              <Button fullWidth variant="light" onClick={() => setDialog("qbPass")}>{t("settings.changePass")}</Button>
-              {!settingsData.qbittorrent.is_perm &&
-                  <Button fullWidth variant="light" onClick={qbTemp}>{t("settings.getTemp")}</Button>}
-              <Button fullWidth variant="light" onClick={qbRestart}>{t("settings.restart")}</Button>
-              {cfg.quick_links && (
-                <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>
-                  {t("settings.openWebUI")}
-                </Button>
-              )}
-            </Stack>
+            <QbContent
+              data={settingsData}
+              cfg={cfg}
+              onChangePass={() => setDialog("qbPass")}
+              onGetTemp={qbTemp}
+              onRestart={qbRestart}
+            />
           </Collapse>
 
           <Collapse className="mb-16" title={t("settings.jackett")}>
-            <ListSection>
-              <ListItem
-                subtitle={t("settings.apiKey", {status: t(settingsData.jackett.has_key ? "settings.keyAvailable" : "settings.keyMissing")})}
-                after={settingsData.jackett.has_password ? <Lock size={16}/> : <Unlock size={16}/>}
-                multiline
-              >
-                {t("settings.jackett")}
-              </ListItem>
-            </ListSection>
-            <Stack gap={8}>
-              <Button fullWidth variant="light"
-                      onClick={() => setDialog("jackettPass")}>{t("settings.changePass")}</Button>
-              {settingsData.jackett.has_password && (
-                <Button fullWidth variant="light" style={{color: DEL_COLOR}} onClick={jackettRemovePass}>
-                  {t("settings.removePass")}
-                </Button>
-              )}
-              {cfg.quick_links && (
-                <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>
-                  {t("settings.openWebUI")}
-                </Button>
-              )}
-            </Stack>
+            <JackettContent
+              data={settingsData}
+              cfg={cfg}
+              onChangePass={() => setDialog("jackettPass")}
+              onRemovePass={jackettRemovePass}
+            />
           </Collapse>
 
           {settingsData.jellyfin.has_key && (
             <Collapse className="mb-16" title={t("settings.jellyfin")}>
-              <Stack gap={8}>
-                <Button fullWidth variant="light" leftSection={<Users size={18}/>} onClick={openUsers}>
-                  {t("settings.manageUsers")}
-                </Button>
-                {cfg.quick_links && (
-                  <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jellyfin)}>
-                    {t("settings.openWebUI")}
-                  </Button>
-                )}
-              </Stack>
+              <JellyfinContent cfg={cfg} onManageUsers={openUsers}/>
             </Collapse>
           )}
 
