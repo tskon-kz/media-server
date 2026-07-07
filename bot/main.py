@@ -30,15 +30,10 @@ async def _post_init(app):
     ])
 
     # Report a completed update FIRST — before anything that could fail — so a
-    # Mini App startup hiccup can never swallow the success notification. Set
-    # when the updater recreated the *previous* container; we're the fresh one.
+    # Mini App startup hiccup can never swallow the success notification. The flag
+    # was set by the previous container's self_update swap; we're the fresh one.
     if store.get_config("update_pending"):
         store.set_config("update_pending", "")
-        try:
-            from api import remove_updater
-            await asyncio.to_thread(remove_updater)  # retire the ephemeral updater
-        except Exception:
-            pass
         msg = store.t("update_success", v=APP_VERSION)
         for uid in ALLOWED:
             try:

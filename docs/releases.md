@@ -62,6 +62,12 @@ using the `docker.sock` the bot already mounts:
    Unhealthy → remove the new one, leave the old running, report the failure.
 5. Persist the tag to the DB (`bot_image_tag`) so cold starts agree.
 
+**Only the bot container is touched.** qBittorrent/Jellyfin/Jackett/cloudflared
+are never recreated by an in-bot update, so it can't reset qB auth or move the
+tunnel URL. Infrastructure/topology changes (compose file, new sidecars, bumped
+service digests) are applied deliberately on the host via `update.sh` — call them
+out in the release notes when a release needs it. See `docs/self-update.md`.
+
 ## Manual follow-up (not automatable from this repo)
 
 - **Branch protection:** in GitHub repo settings, protect `main` so it only
