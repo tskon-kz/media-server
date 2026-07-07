@@ -13,6 +13,7 @@ from config import (
     SEARCH_RESULTS_LIMIT, SEARCH_CATEGORIES,
     REPO_SLUG, CLOUDFLARED_CONTAINER,
     DATA_DIR, UPDATER_IMAGE, UPDATER_CONTAINER,
+    INCOMING_DIR,
 )
 from store import get_config, get_creds, set_config
 
@@ -94,6 +95,25 @@ def invalidate_qb():
     """Call after credential changes or auth failures to force re-login on next use."""
     global _qb_client
     _qb_client = None
+
+
+def ensure_qb_save_path():
+    """Point qBittorrent's default save path under /media if it isn't already.
+
+    The hotio image defaults to `/app/qBittorrent/downloads`, which is on the
+    container's ephemeral fs — not the mounted media disk. That makes qB report
+    `free_space_on_disk = -1` (unknown) and would silently drop any download that
+    used the default path. Downloads added via the bot always pass an explicit
+    per-category path under /media, so this only corrects the default; run once at
+    startup. Best-effort — never raise into the caller.
+    """
+    try:
+        client = qb()
+        current = client.app_preferences().get("save_path") or ""
+        if not current.startswith("/media"):
+            client.app_set_preferences({"save_path": INCOMING_DIR})
+    except Exception:
+        pass
 
 
 def _dechunk(body: bytes) -> bytes:
