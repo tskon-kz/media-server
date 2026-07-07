@@ -1,0 +1,15 @@
+.root {
+  background-color: rgba(128, 128, 128, 0.14);
+}
+
+.indicator {
+  background-color: var(--tg-theme-button-color);
+}
+
+.label {
+  color: var(--tg-theme-hint-color);
+
+  &[data-active] {
+    color: var(--tg-theme-button-text-color);
+  }
+}
