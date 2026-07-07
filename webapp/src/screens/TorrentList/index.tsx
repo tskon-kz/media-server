@@ -166,12 +166,12 @@ export function TorrentList() {
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
             {t("torrents.deleteBody", {name: confirmDel?.name})}
           </Box>
-          <Button fullWidth variant="light" leftSection={<Trash2 size={18}/>}
+          <Button fullWidth variant="dark" leftSection={<Trash2 size={18}/>}
             className={s.deleteBtn}
             onClick={() => confirmDel && doDelete(confirmDel)}>
             {t("common.delete")}
           </Button>
-          <Button fullWidth variant="light" onClick={() => setConfirmDel(null)}>
+          <Button fullWidth variant="dark" onClick={() => setConfirmDel(null)}>
             {t("common.cancel")}
           </Button>
         </Stack>
@@ -194,15 +194,15 @@ export function TorrentList() {
         overlayProps={{blur: 2}}
       >
         <Stack gap={8} pb={16} px={4}>
-          <Button fullWidth variant="light" leftSection={<Clapperboard size={18}/>}
+          <Button fullWidth variant="dark" leftSection={<Clapperboard size={18}/>}
             onClick={() => structFor && doStructure(structFor, "pretty")}>
             {t("torrents.pretty")}
           </Button>
-          <Button fullWidth variant="light" leftSection={<Folder size={18}/>}
+          <Button fullWidth variant="dark" leftSection={<Folder size={18}/>}
             onClick={() => structFor && doStructure(structFor, "flat")}>
             {t("torrents.original")}
           </Button>
-          <Button fullWidth variant="light" leftSection={<Trash2 size={18}/>}
+          <Button fullWidth variant="dark" leftSection={<Trash2 size={18}/>}
             className={s.deleteBtn}
             onClick={() => structFor && doStructure(structFor, "delete")}>
             {t("torrents.delLinks")}

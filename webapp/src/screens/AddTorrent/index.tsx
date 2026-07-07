@@ -278,7 +278,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
               {JF_TYPES.map(({key, label, Icon}) => (
                 <Button
                   key={key}
-                  variant="light"
+                  variant="dark"
                   leftSection={<Icon size={16}/>}
                   disabled={!newCatName.trim()}
                   onClick={() => createCat(key)}
@@ -313,14 +313,14 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
             <Text size="sm" c="dimmed">{t("settings.deleteCatBody", {name: confirmDelCat?.name})}</Text>
             <Button
               fullWidth
-              variant="light"
+              variant="dark"
               leftSection={<Trash2 size={18}/>}
               style={{color: "var(--tg-theme-destructive-text-color)"}}
               onClick={() => confirmDelCat && delCat(confirmDelCat)}
             >
               {t("common.delete")}
             </Button>
-            <Button fullWidth variant="light" onClick={() => setConfirmDelCat(null)}>
+            <Button fullWidth variant="dark" onClick={() => setConfirmDelCat(null)}>
               {t("common.cancel")}
             </Button>
           </Stack>

@@ -47,7 +47,7 @@ export function PromptSheet({
         >
           {submitText ?? t("btn_save")}
         </Button>
-        <Button fullWidth variant="light" onClick={onClose}>
+        <Button fullWidth variant="dark" onClick={onClose}>
           {t("btn_cancel")}
         </Button>
       </Stack>

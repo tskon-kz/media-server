@@ -25,13 +25,13 @@ export function QbContent({data, cfg, onChangePass, onGetTemp, onRestart}: QbCon
         {data.qbittorrent.is_perm && <Lock size={16} className={styles.infoIcon}/>}
       </div>
       <div className={styles.buttonStack}>
-        <Button fullWidth variant="light" onClick={onChangePass}>{t("settings.changePass")}</Button>
+        <Button fullWidth variant="dark" onClick={onChangePass}>{t("settings.changePass")}</Button>
         {!data.qbittorrent.is_perm && (
-          <Button fullWidth variant="light" onClick={onGetTemp}>{t("settings.getTemp")}</Button>
+          <Button fullWidth variant="dark" onClick={onGetTemp}>{t("settings.getTemp")}</Button>
         )}
-        <Button fullWidth variant="light" onClick={onRestart}>{t("settings.restart")}</Button>
+        <Button fullWidth variant="filled" color="red" onClick={onRestart}>{t("settings.restart")}</Button>
         {cfg.quick_links && (
-          <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>
+          <Button fullWidth variant="default" onClick={() => openExternal(cfg.quick_links!.qbittorrent)}>
             {t("settings.openWebUI")}
           </Button>
         )}

@@ -44,7 +44,7 @@ export function CategoriesContent({cats, onDelete, onRename, onAdd}: CategoriesC
           </ListItem>
         ))}
       </ListSection>
-      <Button fullWidth variant="light" leftSection={<Plus size={18}/>} onClick={onAdd}>
+      <Button fullWidth variant="dark" leftSection={<Plus size={18}/>} onClick={onAdd}>
         {t("settings.addCategory")}
       </Button>
     </div>

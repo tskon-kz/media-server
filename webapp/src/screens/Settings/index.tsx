@@ -231,7 +231,7 @@ export function Settings() {
               <ListItem>{t("settings.noUsers")}</ListItem>
             )}
           </ListSection>
-          <Button fullWidth variant="light" leftSection={<UserPlus size={18}/>}
+          <Button fullWidth variant="dark" leftSection={<UserPlus size={18}/>}
                   onClick={() => setDialog("newUserName")}>
             {t("settings.addUser")}
           </Button>

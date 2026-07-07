@@ -5,8 +5,6 @@ import {openExternal} from "@/telegram"
 import type {AppConfig, Settings as SettingsData} from "@/types"
 import styles from "../Settings.module.scss"
 
-const DEL_COLOR = "var(--tg-theme-destructive-text-color)"
-
 interface JackettContentProps {
   data: SettingsData
   cfg: AppConfig
@@ -31,14 +29,14 @@ export function JackettContent({data, cfg, onChangePass, onRemovePass}: JackettC
         }
       </div>
       <div className={styles.buttonStack}>
-        <Button fullWidth variant="light" onClick={onChangePass}>{t("settings.changePass")}</Button>
+        <Button fullWidth variant="dark" onClick={onChangePass}>{t("settings.changePass")}</Button>
         {data.jackett.has_password && (
-          <Button fullWidth variant="light" style={{color: DEL_COLOR}} onClick={onRemovePass}>
+          <Button fullWidth variant="filled" color="red" onClick={onRemovePass}>
             {t("settings.removePass")}
           </Button>
         )}
         {cfg.quick_links && (
-          <Button fullWidth variant="light" onClick={() => openExternal(cfg.quick_links!.jackett)}>
+          <Button fullWidth variant="default" onClick={() => openExternal(cfg.quick_links!.jackett)}>
             {t("settings.openWebUI")}
           </Button>
         )}
