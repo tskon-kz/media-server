@@ -163,7 +163,7 @@ export default {
     updateEdge: "Edge (бета)",
     updateAvailable: "Доступна",
     updateBtn: "Обновить до {{version}}",
-    updateRefreshEdge: "🔄 Обновить Edge",
+    updateRefreshEdge: "Обновить Edge",
     updateSwitchToEdge: "Перейти на Edge (бета)",
     updateSwitchToStable: "Перейти на Stable",
     updateStarted: "Обновление запущено, бот перезапустится через ~1 мин.",

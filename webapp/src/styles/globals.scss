@@ -2,6 +2,15 @@
 
 html, body, #root { height: 100%; }
 
+// Telegram hands out different --tg-theme-* palettes on desktop vs mobile, so the
+// dark background drifts to a washed-out gray on desktop. Pin consistent near-black
+// values in our own dark theme (section/secondary stay a touch lighter for contrast).
+html[data-theme="dark"] {
+  --tg-theme-bg-color: #17181c;
+  --tg-theme-secondary-bg-color: #202127;
+  --tg-theme-section-bg-color: #202127;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
