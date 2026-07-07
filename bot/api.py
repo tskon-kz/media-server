@@ -435,15 +435,25 @@ def self_update(tag: str) -> bool | str:
         "volumes":     host_cfg.get("Binds") or [],
         "labels":      conf.get("Labels") or {},
     }
-    net_mode = host_cfg.get("NetworkMode")
-    if net_mode and net_mode not in ("default", "bridge"):
-        run_kwargs["network"] = net_mode
     rp = host_cfg.get("RestartPolicy") or {}
     if rp.get("Name"):
         run_kwargs["restart_policy"] = {
             "Name": rp["Name"],
             "MaximumRetryCount": rp.get("MaximumRetryCount", 0),
         }
+
+    # The replacement must keep answering to the SAME compose network alias
+    # (e.g. `telegram-bot`) that cloudflared and other services dial — otherwise
+    # Docker DNS can't resolve it and the tunnel 502s. Cloning NetworkMode alone
+    # is not enough (it re-joins the network but only under the container name),
+    # so we attach explicitly with the old container's aliases after create.
+    networks = (cfg.get("NetworkSettings", {}) or {}).get("Networks", {}) or {}
+    net_name = next(iter(networks), None)
+    aliases = [a for a in (networks.get(net_name, {}).get("Aliases") or [])
+               if a and not me.id.startswith(a)] if net_name else []
+    compose_service = (conf.get("Labels") or {}).get("com.docker.compose.service")
+    if compose_service and compose_service not in aliases:
+        aliases.append(compose_service)
 
     new_name = f"{BOT_CONTAINER}-new"
     old_name = f"{BOT_CONTAINER}-old"
@@ -454,9 +464,24 @@ def self_update(tag: str) -> bool | str:
         except Exception:
             pass
 
+    new = None
     try:
-        new = client.containers.run(name=new_name, **run_kwargs)
+        # create (not run) so we can attach to the compose network WITH aliases
+        # before the container starts.
+        new = client.containers.create(name=new_name, **run_kwargs)
+        if net_name:
+            # create() auto-joins the default bridge; move it onto the compose
+            # network under the right aliases.
+            try:
+                client.networks.get("bridge").disconnect(new, force=True)
+            except Exception:
+                pass
+            client.networks.get(net_name).connect(new, aliases=aliases or None)
+        new.start()
     except Exception as e:
+        if new is not None:
+            try: new.remove(force=True)
+            except Exception: pass
         return f"start replacement failed: {e}"
 
     # Confirm the replacement stays up (a broken image would exit immediately).
