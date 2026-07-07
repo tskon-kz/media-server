@@ -27,13 +27,15 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/u
 ## Updating the bot — `/settings` → Update
 
 The bot updates **itself**, locally, through the Docker socket it mounts — no
-GitHub secrets, no per-install configuration. `/settings` → Update offers:
+GitHub secrets, no per-install configuration. `/settings` → Update offers a
+**channel switcher** (Stable / Edge):
 
-- **⬆️ Update to `vX.Y.Z`** — appears when a newer published release exists.
-  Pulls the `:stable` image and blue/green-replaces the bot container.
-- **⚠️ Force update (unreleased main)** — always available; asks for a second
-  confirmation. Installs the `:edge` build (latest `main`, not yet released).
-  Use for testing a fix before it's tagged.
+- **⬆️ Update to `vX.Y.Z`** — shown when a newer published release exists.
+  Pulls the `:stable` image and replaces the bot container.
+- **Switch to Edge** — switches to the `:edge` channel (latest `main`, unreleased).
+  Requires a confirmation tap. Use for testing a fix before it's tagged.
+- **Switch to Stable** — shown when on Edge; switches back to `:stable`.
+- **🔄 Refresh Edge** — shown when on Edge; re-pulls the latest `:edge` build.
 
 The bot starts the replacement container *before* stopping the old one, so a bad
 pull leaves the running bot untouched and reports the failure. On success it

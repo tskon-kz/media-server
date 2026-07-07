@@ -27,18 +27,24 @@ frozen at `0.0.0` and never bumped.
 
 ## Update actions in the bot
 
-`/settings → Update` shows, depending on state:
+`/settings → Update` shows different controls depending on the active channel:
 
-- **⬆️ Update to `vX.Y.Z`** — only when a newer stable release exists. Deploys
-  `:stable`. (`selfupdate:stable` → `api.self_update("stable")`.)
-- **⚠️ Force update (unreleased main)** — always visible. Requires a second
-  confirmation tap because it installs the un-released `:edge` build from `main`.
-  (`selfupdate:edge:confirm` → warning → `selfupdate:edge:go` →
-  `api.self_update("edge")`.)
+**On `:stable` (default):**
+- **⬆️ Update to `vX.Y.Z`** — shown only when a newer published release exists.
+  Deploys `:stable`. (`selfupdate:stable`)
+- **Switch to Edge** — switches to the `:edge` channel (unreleased `main`);
+  asks for a confirmation tap first. (`selfupdate:edge:confirm` → warning →
+  `selfupdate:edge:go`)
 
-Both send a "restarting, back in ~1 minute" message *before* the swap (the bot
-process is replaced mid-flow and can't reliably message afterward). The freshly
-started container confirms itself on boot ("Bot restarted and running …").
+**On `:edge`:**
+- A beta notice is shown instead of a version comparison (local is an
+  `edge-<sha>` string that will never equal a release tag).
+- **🔄 Refresh Edge** — re-pulls the latest `:edge` build. (`selfupdate:edge:go`)
+- **Switch to Stable** — switches back to `:stable`. (`selfupdate:stable`)
+
+Both channel switches send a "restarting, back in ~1 minute" message *before* the
+swap (the bot process is replaced mid-flow and can't reliably message afterward).
+The freshly started container confirms itself on boot ("Bot restarted and running …").
 
 ## How self-update works (and why there's no CI deploy for prod)
 

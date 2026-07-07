@@ -1,6 +1,8 @@
 services:
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    # Pinned to a known-good version. Was :latest — an uncontrolled major upgrade
+    # (10.x) once broke the stack on a routine update. Bump deliberately.
+    image: jellyfin/jellyfin:10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
     container_name: media-server-jellyfin
     restart: unless-stopped
     ports:
@@ -10,7 +12,9 @@ services:
       - ./data/jellyfin/cache:/cache
       - ${MEDIA_PATH:-./media}:/media
   qbittorrent:
-    image: ghcr.io/hotio/qbittorrent:latest
+    # qBittorrent 5.2.2 (hotio). Pinned by digest — qB 5.x renamed torrent states
+    # (paused* -> stopped*), so an unplanned bump can break status/done detection.
+    image: ghcr.io/hotio/qbittorrent@sha256:65dfa06797315b3d1e5b502c5f5a4c76a058441e94d6769fee18d57de27c08ef
     container_name: media-server-qbittorrent
     restart: unless-stopped
     environment:
@@ -27,7 +31,8 @@ services:
       - ${MEDIA_PATH:-./media}:/media
 
   jackett:
-    image: linuxserver/jackett:latest
+    # Jackett v0.24.2184-ls453. Pinned by digest — bump deliberately.
+    image: linuxserver/jackett@sha256:33fa8f6270913b5e649e2d01b20aae40c55a396eed38eb33dc5a797cb5f0cd6d
     container_name: media-server-jackett
     restart: unless-stopped
     environment:
@@ -68,7 +73,8 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned by digest — bump deliberately.
+    image: cloudflare/cloudflared@sha256:6d91c121b803126f7a5344005d17a9324788fc09d305b6e2560ec6040a7ae283
     container_name: media-server-cloudflared
     restart: unless-stopped
     # Quick tunnel (default, no Cloudflare account needed) — assigns a random
@@ -84,7 +90,8 @@ services:
       - telegram-bot
 
   watchtower:
-    image: containrrr/watchtower
+    # Pinned by digest — bump deliberately.
+    image: containrrr/watchtower@sha256:6dd50763bbd632a83cb154d5451700530d1e44200b268a4e9488fefdfcf2b038
     container_name: media-server-watchtower
     restart: unless-stopped
     ports:
