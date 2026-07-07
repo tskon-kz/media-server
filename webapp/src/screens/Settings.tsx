@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react";
 import {Box, Button, Drawer, Loader, SegmentedControl, Stack, Text,} from "@mantine/core";
-import {Lock, Trash2, Unlock, UserPlus, Users,} from "lucide-react";
+import {Lock, RefreshCw, Trash2, Unlock, UserPlus, Users,} from "lucide-react";
 import {useTranslation} from "react-i18next";
 import {api} from "../api";
 import {openExternal} from "../telegram";
@@ -94,13 +94,18 @@ function JackettContent({data, cfg, onChangePass, onRemovePass}: JackettContentP
 
 interface JellyfinContentProps {
   cfg: AppConfig
+  scanning: boolean
+  onScan: () => void
   onManageUsers: () => void
 }
 
-function JellyfinContent({cfg, onManageUsers}: JellyfinContentProps) {
+function JellyfinContent({cfg, scanning, onScan, onManageUsers}: JellyfinContentProps) {
   const {t} = useTranslation()
   return (
     <div className={s.buttonStack}>
+      <Button fullWidth variant="light" leftSection={<RefreshCw size={18}/>} onClick={onScan} disabled={scanning}>
+        {t("settings.scanLibrary")}
+      </Button>
       <Button fullWidth variant="light" leftSection={<Users size={18}/>} onClick={onManageUsers}>
         {t("settings.manageUsers")}
       </Button>
@@ -122,6 +127,7 @@ export function Settings() {
   const [users, setUsers] = useState<JellyfinUser[] | null>(null);
   const [dialog, setDialog] = useState<string | null>(null);
   const [newUserName, setNewUserName] = useState("");
+  const [scanning, setScanning] = useState(false);
 
   const reload = async () => {
     const [c, settings] = await Promise.all([api.config(), api.settings()]);
@@ -204,6 +210,18 @@ export function Settings() {
     reload();
   });
 
+  const scan = async () => {
+    setScanning(true);
+    try {
+      const r = await api.scan();
+      toast(r.ok ? t("settings.scanOk") : t("settings.scanFail"), r.ok ? "ok" : "err");
+    } catch (e) {
+      toast((e as Error).message, "err");
+    } finally {
+      setScanning(false);
+    }
+  };
+
   return (
     <Box>
       <PageHeader title={t("settings.title")}/>
@@ -272,7 +290,7 @@ export function Settings() {
 
           {settingsData.jellyfin.has_key && (
             <Collapse className="mb-16" title={t("settings.jellyfin")}>
-              <JellyfinContent cfg={cfg} onManageUsers={openUsers}/>
+              <JellyfinContent cfg={cfg} scanning={scanning} onScan={scan} onManageUsers={openUsers}/>
             </Collapse>
           )}
 

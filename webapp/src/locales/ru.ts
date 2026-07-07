@@ -68,9 +68,6 @@ export default {
     transfer: "Передача",
     download: "↓ Загрузка",
     upload: "↑ Отдача",
-    scan: "Сканировать библиотеку Jellyfin",
-    scanOk: "Сканирование Jellyfin запущено",
-    scanFail: "Ошибка сканирования",
   },
 
   // Settings screen
@@ -133,6 +130,9 @@ export default {
 
     // Jellyfin section
     jellyfin: "Jellyfin",
+    scanLibrary: "Сканировать библиотеку",
+    scanOk: "Сканирование Jellyfin запущено",
+    scanFail: "Ошибка сканирования",
     manageUsers: "Управление пользователями",
     jfUsers: "Пользователи Jellyfin",
     noUsers: "Нет пользователей",
