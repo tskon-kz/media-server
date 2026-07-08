@@ -10,6 +10,12 @@ bash update.sh
 bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh)
 ```
 
+If the connection to GitHub is slow or times out, increase the timeout:
+
+```bash
+curl -fsSL --connect-timeout 30 --max-time 120 https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh | bash
+```
+
 **What it does:**
 1. Downloads the latest `docker-compose.yml`, `update.sh`, and `lang/` files
 2. Stops all containers
@@ -116,7 +122,7 @@ bash migrate-media.sh
 
 **What it does:**
 1. Stops all containers
-2. Copies media via `rsync -a --info=progress2` (shows progress)
+2. Copies media via `rsync -aH --info=progress2` (shows progress, preserves hardlinks)
 3. Checks free space before starting — aborts if insufficient
 4. Updates `MEDIA_PATH` in `.env`
 5. Starts containers with the new path
