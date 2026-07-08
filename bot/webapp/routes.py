@@ -341,6 +341,7 @@ async def torrent_delete(request):
     if tor:
         basename = os.path.basename(tor.save_path.rstrip("/"))
         delete_disk_entry(f"{basename}/{tor.name}")
+    asyncio.create_task(_thread(jf, "POST", "/Library/Refresh"))
     return web.json_response({"deleted": True})
 
 
@@ -364,8 +365,26 @@ async def disk_delete(request):
     target = os.path.join(INCOMING_DIR, parts[0], parts[1])
     if not os.path.realpath(target).startswith(os.path.realpath(INCOMING_DIR) + os.sep):
         return _err("invalid disk_id")
+    cats = load_cats()
+    all_tors = await _qb_info()
+    tor = next(
+        (t for t in all_tors if t.name == parts[1] and os.path.basename(t.save_path.rstrip("/")) == parts[0]),
+        None,
+    )
+    if tor is None:
+        # Torrent no longer tracked by qB: synthesise a minimal stand-in so
+        # delete_torrent_links can still locate and remove the library hardlinks.
+        class _Stub:
+            pass
+        tor = _Stub()
+        tor.name = parts[1]
+        tor.save_path = os.path.join(INCOMING_DIR, parts[0]) + "/"
+        tor.content_path = target
+        tor.hash = ""
+    await _thread(delete_torrent_links, tor, cats)
     await _thread(shutil.rmtree, target, True)
     delete_disk_entry(disk_id)
+    asyncio.create_task(_thread(jf, "POST", "/Library/Refresh"))
     return web.json_response({"deleted": True})
 
 
@@ -439,7 +458,10 @@ async def torrent_structure(request):
         xdev = bool(errors) and "cross-device" in errors[0].lower()
         return web.json_response({"mode": "flat", "xdev": xdev})
     # delete
-    await _thread(delete_torrent_links, tor, cats)
+    def _f():
+        delete_torrent_links(tor, cats)
+        jf("POST", "/Library/Refresh")
+    await _thread(_f)
     return web.json_response({"mode": "delete", "deleted": True})
 
 
