@@ -13,16 +13,6 @@ import keyboards as kb
 from ._utils import _notify_admins, log
 
 
-async def job_qb_restart_check(ctx):
-    chat_id = ctx.job.data["chat_id"]
-    try:
-        qb().torrents_info()
-        set_qb_status("ok")
-        await ctx.bot.send_message(chat_id, t("qb_restart_done"))
-    except Exception:
-        await ctx.bot.send_message(chat_id, t("qb_restart_timeout"))
-
-
 async def job_check_done(ctx):
     known = load_states()
     try:
