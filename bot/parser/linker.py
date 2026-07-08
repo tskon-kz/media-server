@@ -149,66 +149,65 @@ def create_flat_hardlinks(tor, cats: list[dict], *, target_cat: dict | None = No
 
 
 def delete_torrent_links(tor, cats: list[dict]):
-    """Delete all content directories created for a torrent across all categories."""
+    """Delete all content directories created for a torrent in its current category."""
     cur_cat = find_cat(tor, cats)
+    if not cur_cat:
+        delete_rename_jobs_by_hash(tor.hash)
+        return
     content_path = getattr(tor, "content_path", None) or os.path.join(tor.save_path, tor.name)
     src_files = get_video_files(content_path)
     fallback_title = tor_fallback_title(tor)
 
-    for cat in cats:
-        incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
-        dirs_to_delete: set[str] = set()
-        first_parsed = None
-        has_extra = False
+    cat = cur_cat
+    incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
+    dirs_to_delete: set[str] = set()
+    first_parsed = None
+    has_extra = False
 
-        for src_path in src_files:
-            filename = os.path.basename(src_path)
-            extra = is_extra(src_path, content_path)
-            has_extra = has_extra or extra
-            # pretty: reconstruct expected link path in this category (skip extras —
-            # they live under <Show>/extras, handled below, not as episodes)
-            if cat["jf_type"] in ("tvshows", "movies") and not extra:
-                parsed = parse_filename(filename, cat["jf_type"], fallback_title)
-                if parsed:
-                    if first_parsed is None:
-                        first_parsed = parsed
-                    d = os.path.dirname(build_target_path(cat, parsed, filename))
-                    if d != cat["path"]:
-                        dirs_to_delete.add(d)
-            # flat links depend on the original save_path, only reliable for current category
-            if cat is cur_cat:
-                base = incoming_cat if src_path.startswith(incoming_cat + os.sep) else cat["path"]
-                rel_parts = os.path.relpath(src_path, base).split(os.sep)
-                if len(rel_parts) > 1:
-                    dirs_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
+    for src_path in src_files:
+        filename = os.path.basename(src_path)
+        extra = is_extra(src_path, content_path)
+        has_extra = has_extra or extra
+        if cat["jf_type"] in ("tvshows", "movies") and not extra:
+            parsed = parse_filename(filename, cat["jf_type"], fallback_title)
+            if parsed:
+                if first_parsed is None:
+                    first_parsed = parsed
+                d = os.path.dirname(build_target_path(cat, parsed, filename))
+                if d != cat["path"]:
+                    dirs_to_delete.add(d)
+        base = incoming_cat if src_path.startswith(incoming_cat + os.sep) else cat["path"]
+        rel_parts = os.path.relpath(src_path, base).split(os.sep)
+        if len(rel_parts) > 1:
+            dirs_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
 
-        if has_extra and cat["jf_type"] in ("tvshows", "movies"):
-            pf = [(None, None, first_parsed)] if first_parsed else []
-            dirs_to_delete.add(os.path.join(extras_base_dir(cat, tor, fallback_title, pf), "extras"))
+    if has_extra and cat["jf_type"] in ("tvshows", "movies"):
+        pf = [(None, None, first_parsed)] if first_parsed else []
+        dirs_to_delete.add(os.path.join(extras_base_dir(cat, tor, fallback_title, pf), "extras"))
 
-        for d in sorted(dirs_to_delete, key=lambda p: p.count(os.sep), reverse=True):
-            if os.path.isdir(d):
-                shutil.rmtree(d, ignore_errors=True)
-                log.info("Removed: %s", d)
-            parent = os.path.dirname(d)
-            while parent != cat["path"] and os.path.isdir(parent):
-                try:
-                    entries = os.listdir(parent)
-                except OSError:
-                    break
-                if any(
-                    os.path.isdir(os.path.join(parent, e))
-                    or os.path.splitext(e)[1].lower() in MEDIA_EXTENSIONS
-                    for e in entries
-                ):
-                    break
-                try:
-                    shutil.rmtree(parent)
-                    log.info("Removed: %s", parent)
-                except OSError as e:
-                    log.warning("Could not remove %s: %s", parent, e)
-                    break
-                parent = os.path.dirname(parent)
+    for d in sorted(dirs_to_delete, key=lambda p: p.count(os.sep), reverse=True):
+        if os.path.isdir(d):
+            shutil.rmtree(d, ignore_errors=True)
+            log.info("Removed: %s", d)
+        parent = os.path.dirname(d)
+        while parent != cat["path"] and os.path.isdir(parent):
+            try:
+                entries = os.listdir(parent)
+            except OSError:
+                break
+            if any(
+                os.path.isdir(os.path.join(parent, e))
+                or os.path.splitext(e)[1].lower() in MEDIA_EXTENSIONS
+                for e in entries
+            ):
+                break
+            try:
+                shutil.rmtree(parent)
+                log.info("Removed: %s", parent)
+            except OSError as e:
+                log.warning("Could not remove %s: %s", parent, e)
+                break
+            parent = os.path.dirname(parent)
 
     delete_rename_jobs_by_hash(tor.hash)
 
