@@ -15,7 +15,8 @@ import {useAppDispatch, useAppSelector} from "@/store"
 import {clearSearch, setLoading, setQuery, setResults} from "@/store/slices/searchSlice"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
-import {AppInput} from "@/components/AppInput.tsx";
+import {AppInput} from "@/components/AppInput.tsx"
+import styles from "./AddTorrent.module.scss"
 
 export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const {t} = useTranslation()
@@ -162,6 +163,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
     <div className="mb-16">
       <PageHeader title={t("add.title")} className="mb-16"/>
 
+      <div className={styles.content}>
       <div className="mb-16">
         <AppInput
           size="lg"
@@ -346,6 +348,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           onPick={(c) => searchPick && searchAddNow(searchPick, c)}
           onClose={() => setSearchPick(null)}
         />
+      </div>
       </div>
     </div>
   )
