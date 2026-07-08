@@ -1,10 +1,7 @@
-import {useState} from "react"
 import {Button, Divider, Switch} from "@mantine/core"
 import {Lock} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {openExternal} from "@/telegram"
-import {api} from "@/api"
-import {toast} from "@/components/Toast"
 import {speed} from "@/format"
 import type {AppConfig, Settings as SettingsData} from "@/types"
 import styles from "../Settings.module.scss"
@@ -12,10 +9,13 @@ import styles from "../Settings.module.scss"
 interface Props {
   data: SettingsData
   cfg: AppConfig
-  altSpeedInit: { enabled: boolean; dl: number; ul: number } | null
+  altSpeedEnabled: boolean | null
+  altSpeedLimits: { dl: number; ul: number } | null
+  togglingAltSpeed: boolean
   onChangePass: () => void
   onGetTemp: () => void
   onRestart: () => void
+  onToggleAltSpeed: () => void
 }
 
 function limitLabel(bytesPerSec: number): string {
@@ -24,25 +24,6 @@ function limitLabel(bytesPerSec: number): string {
 
 export function QbContent(props: Props) {
   const {t} = useTranslation()
-  const [altEnabled, setAltEnabled] = useState<boolean | null>(props.altSpeedInit?.enabled ?? null)
-  const [limits, setLimits] = useState(props.altSpeedInit ? { dl: props.altSpeedInit.dl, ul: props.altSpeedInit.ul } : null)
-  const [toggling, setToggling] = useState(false)
-
-  const toggleAltSpeed = async () => {
-    if (toggling) return
-    setToggling(true)
-    try {
-      const result = await api.toggleAltSpeed()
-      setAltEnabled(result.alt_speed_enabled)
-      const st = await api.status()
-      if (st.connected) setLimits({ dl: st.dl_rate_limit ?? 0, ul: st.up_rate_limit ?? 0 })
-    } catch (e) {
-      toast((e as Error).message, "err")
-    } finally {
-      setToggling(false)
-    }
-  }
-
   return (
     <>
       <div className={styles.infoRow}>
@@ -52,23 +33,23 @@ export function QbContent(props: Props) {
         </div>
         {props.data.qbittorrent.is_perm && <Lock size={16} className={styles.infoIcon}/>}
       </div>
-      {altEnabled !== null && (
+      {props.altSpeedEnabled !== null && (
         <>
           <Divider/>
           <div className={styles.infoRow}>
             <div className={styles.infoText}>
               <span className={styles.infoLabel}>{t("status.altSpeed")}</span>
-              {limits && (
+              {props.altSpeedLimits && (
                 <span className={styles.infoHint}>
-                  ↓ {limitLabel(limits.dl)} · ↑ {limitLabel(limits.ul)}
+                  ↓ {limitLabel(props.altSpeedLimits.dl)} · ↑ {limitLabel(props.altSpeedLimits.ul)}
                 </span>
               )}
             </div>
             <Switch
-              checked={altEnabled}
-              disabled={toggling}
-              onChange={toggleAltSpeed}
-              label={altEnabled ? t("status.altSpeedOn") : t("status.altSpeedOff")}
+              checked={props.altSpeedEnabled}
+              disabled={props.togglingAltSpeed}
+              onChange={props.onToggleAltSpeed}
+              label={props.altSpeedEnabled ? t("status.altSpeedOn") : t("status.altSpeedOff")}
             />
           </div>
         </>
