@@ -66,6 +66,7 @@ export const api = {
     dl_data?: number
     ul_data?: number
     free_space?: number
+    total_space?: number
     torrents_total?: number
     torrents_downloading?: number
     torrents_seeding?: number

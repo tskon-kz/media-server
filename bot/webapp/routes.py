@@ -478,6 +478,12 @@ async def status(request):
     except Exception:
         free_space = 0
 
+    try:
+        disk = shutil.disk_usage("/media")
+        total_space = disk.total
+    except Exception:
+        total_space = 0
+
     return web.json_response({
         "connected": True,
         "jf_connected": jf_connected,
@@ -486,6 +492,7 @@ async def status(request):
         "dl_data": getattr(info, "dl_info_data", 0),
         "ul_data": getattr(info, "up_info_data", 0),
         "free_space": free_space,
+        "total_space": total_space,
         "torrents_total": torrents_total,
         "torrents_downloading": torrents_downloading,
         "torrents_seeding": torrents_seeding,

@@ -69,6 +69,15 @@ export function Status() {
             <span>{t("status.sessionUl")}</span>
             <span className={styles.rowValue}>{st?.connected ? bytes(st.ul_data ?? 0) : "—"}</span>
           </div>
+        </Section>
+
+        <Section title={t("status.diskSection")} className="mb-12">
+          <div className={styles.row}>
+            <span>{t("status.diskUsed")}</span>
+            <span className={styles.rowValue}>
+              {st?.connected && st.total_space ? bytes((st.total_space ?? 0) - (st.free_space ?? 0)) : "—"}
+            </span>
+          </div>
           <Divider/>
           <div className={styles.row}>
             <span>{t("status.diskFree")}</span>
