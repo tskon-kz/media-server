@@ -36,19 +36,14 @@ export function Settings() {
   const [dialog, setDialog] = useState<string | null>(null)
   const [newUserName, setNewUserName] = useState("")
   const [scanning, setScanning] = useState(false)
-  const [altSpeedEnabled, setAltSpeedEnabled] = useState<boolean | null>(null)
-  const [altSpeedLimits, setAltSpeedLimits] = useState<{ dl: number; ul: number } | null>(null)
-  const [togglingAltSpeed, setTogglingAltSpeed] = useState(false)
+  const [altSpeedInit, setAltSpeedInit] = useState<{ enabled: boolean; dl: number; ul: number } | null>(null)
 
   const reload = async () => {
     const [c, settings, st] = await Promise.all([api.config(), api.settings(), api.status()])
     setCfg(c)
     setSettingsData(settings)
     setAppLanguage(settings.lang)
-    if (st.connected) {
-      setAltSpeedEnabled(st.alt_speed_enabled ?? false)
-      setAltSpeedLimits({ dl: st.dl_rate_limit ?? 0, ul: st.up_rate_limit ?? 0 })
-    }
+    if (st.connected) setAltSpeedInit({ enabled: st.alt_speed_enabled ?? false, dl: st.dl_rate_limit ?? 0, ul: st.up_rate_limit ?? 0 })
     // Update info involves a GitHub call — load without blocking the main render
     api.update().then(setUpdateInfo).catch(() => {})
   }
@@ -127,21 +122,6 @@ export function Settings() {
     reload()
   })
 
-  const toggleAltSpeed = async () => {
-    if (togglingAltSpeed) return
-    setTogglingAltSpeed(true)
-    try {
-      const result = await api.toggleAltSpeed()
-      setAltSpeedEnabled(result.alt_speed_enabled)
-      const st = await api.status()
-      if (st.connected) setAltSpeedLimits({ dl: st.dl_rate_limit ?? 0, ul: st.up_rate_limit ?? 0 })
-    } catch (e) {
-      toast((e as Error).message, "err")
-    } finally {
-      setTogglingAltSpeed(false)
-    }
-  }
-
   const scan = async () => {
     setScanning(true)
     try {
@@ -208,13 +188,10 @@ export function Settings() {
             <QbContent
               data={settingsData}
               cfg={cfg}
-              altSpeedEnabled={altSpeedEnabled}
-              altSpeedLimits={altSpeedLimits}
-              togglingAltSpeed={togglingAltSpeed}
+              altSpeedInit={altSpeedInit}
               onChangePass={() => setDialog("qbPass")}
               onGetTemp={qbTemp}
               onRestart={qbRestart}
-              onToggleAltSpeed={toggleAltSpeed}
             />
           </Collapse>
 
