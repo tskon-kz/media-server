@@ -1,11 +1,13 @@
 export interface Torrent {
-  hash: string;
+  disk_id: string;
+  hash: string | null;
+  in_qbittorrent: boolean;
   name: string;
   raw_name: string;
   state: string;
   icon: string;
   progress: number;
-  size: number;
+  size: number | null;
   dlspeed: number;
   upspeed: number;
   eta: number;

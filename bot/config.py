@@ -33,8 +33,8 @@ WEBAPP_URL       = os.environ.get("WEBAPP_URL", "")  # static override for named
 # MUST stay off in production.
 WEBAPP_DEV_MODE  = os.environ.get("WEBAPP_DEV_MODE", "").lower() in ("1", "true", "yes")
 
-SEARCH_RESULTS_LIMIT = 30
-SEARCH_PAGE_SIZE     = 5
+SEARCH_PAGE_SIZE  = 5
+BOT_SEARCH_LIMIT  = 30
 
 # Torznab categories sent to Jackett so search returns only video content:
 # Movies (2000–2080) and TV (5000–5080).

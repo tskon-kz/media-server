@@ -85,7 +85,7 @@ services:
     #   services:
     #     cloudflared:
     #       command: tunnel --no-autoupdate run --token YOUR_TOKEN
-    command: tunnel --no-autoupdate --url http://telegram-bot:8081
+    command: tunnel --no-autoupdate --protocol http2 --url http://telegram-bot:8081
     depends_on:
       - telegram-bot
 

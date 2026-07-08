@@ -47,6 +47,10 @@ export const api = {
   },
   deleteTorrent: (hash: string, deleteFiles = true) =>
     req<{ deleted: boolean }>("POST", `/api/torrents/${hash}/delete`, { delete_files: deleteFiles }),
+  removeFromClient: (hash: string) =>
+    req<{ removed: boolean }>("POST", `/api/torrents/${hash}/remove-from-client`),
+  deleteDiskEntry: (diskId: string) =>
+    req<{ deleted: boolean }>("POST", "/api/disk/delete", { disk_id: diskId }),
   moveTorrent: (hash: string, categoryId: number) =>
     req<{ moved: boolean }>("POST", `/api/torrents/${hash}/category`, { category_id: categoryId }),
   structure: (hash: string, mode: "pretty" | "flat" | "delete") =>
@@ -62,10 +66,15 @@ export const api = {
     dl_data?: number
     ul_data?: number
     free_space?: number
+    total_space?: number
     torrents_total?: number
     torrents_downloading?: number
     torrents_seeding?: number
+    alt_speed_enabled?: boolean
+    dl_rate_limit?: number
+    up_rate_limit?: number
   }>("GET", "/api/status"),
+  toggleAltSpeed: () => req<{ alt_speed_enabled: boolean }>("POST", "/api/qb/toggle_alt_speed"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
   search: (q: string, page = 1, pageSize = 5) =>
@@ -78,8 +87,8 @@ export const api = {
     }),
 
   categories: () => req<{ categories: Category[] }>("GET", "/api/categories"),
-  createCategory: (name: string, jfType: string) =>
-    req<{ categories: Category[] }>("POST", "/api/categories", { name, jf_type: jfType }),
+  createCategory: (name: string, jfType: string, slug?: string) =>
+    req<{ categories: Category[] }>("POST", "/api/categories", { name, jf_type: jfType, slug }),
   renameCategory: (id: number, name: string) =>
     req<{ categories: Category[] }>("PATCH", `/api/categories/${id}`, { name }),
   deleteCategory: (id: number) =>

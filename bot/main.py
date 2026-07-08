@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import os
-from telegram import BotCommand
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,20 +12,13 @@ from telegram.ext import (
 from config import BOT_TOKEN, APP_VERSION, ALLOWED, current_channel
 import store
 import handlers as h
-import keyboards as kb
 from webapp import start_webapp, stop_webapp
 
 log = logging.getLogger(__name__)
 
 
 async def _post_init(app):
-    await app.bot.set_my_commands([
-        BotCommand("list",     "Список торрентов"),
-        BotCommand("search",   "Поиск раздач через Jackett"),
-        BotCommand("status",   "Статус сети"),
-        BotCommand("scan",     "Сканировать Jellyfin"),
-        BotCommand("settings", "Настройки"),
-    ])
+    await app.bot.set_my_commands([])
 
     # Report a completed update FIRST — before anything that could fail — so a
     # Mini App startup hiccup can never swallow the success notification. The flag
@@ -85,14 +76,9 @@ def main():
         builder = builder.proxy(proxy_url).get_updates_proxy(proxy_url)
     app = builder.build()
 
-    app.add_handler(CommandHandler("start",    h.cmd_start))
-    app.add_handler(CommandHandler("list",     h.cmd_list))
-    app.add_handler(CommandHandler("search",   h.cmd_search))
-    app.add_handler(CommandHandler("status",   h.cmd_status))
-    app.add_handler(CommandHandler("scan",     h.cmd_scan))
-    app.add_handler(CommandHandler("settings", h.cmd_settings))
+    app.add_handler(CommandHandler("start",  h.cmd_start))
+    app.add_handler(CommandHandler("update", h.cmd_update))
     app.add_handler(CallbackQueryHandler(h.on_callback))
-    app.add_handler(MessageHandler(filters.Document.FileExtension("torrent"), h.on_torrent_file))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, h.on_message))
     app.job_queue.run_repeating(h.job_check_done,   interval=30,     first=10)
     app.job_queue.run_once(h.job_check_update, when=30)

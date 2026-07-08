@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 import {Box, Button, Drawer, Loader, Progress, Stack, Title} from "@mantine/core"
-import {Clapperboard, Folder, FolderInput, Layers, RefreshCw, Trash2} from "lucide-react"
+import {Clapperboard, Folder, FolderInput, HardDrive, Layers, RefreshCw, Trash2} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
@@ -20,6 +20,7 @@ export function TorrentList() {
   const [structFor, setStructFor] = useState<Torrent | null>(null)
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [pull, setPull] = useState(0)
+  const [confirmRemove, setConfirmRemove] = useState<Torrent | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -59,8 +60,23 @@ export function TorrentList() {
   const doDelete = async (tor: Torrent) => {
     setConfirmDel(null)
     try {
-      await api.deleteTorrent(tor.hash);
-      toast(t("torrents.deleted"));
+      if (tor.in_qbittorrent && tor.hash) {
+        await api.deleteTorrent(tor.hash)
+      } else {
+        await api.deleteDiskEntry(tor.disk_id)
+      }
+      toast(t("torrents.deleted"))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doRemoveFromClient = async (tor: Torrent) => {
+    setConfirmRemove(null)
+    try {
+      await api.removeFromClient(tor.hash!)
+      toast(t("torrents.removedFromClient"))
       load()
     } catch (e) {
       toast((e as Error).message, "err")
@@ -70,8 +86,8 @@ export function TorrentList() {
   const doMove = async (tor: Torrent, cat: Category) => {
     setMoving(null)
     try {
-      await api.moveTorrent(tor.hash, cat.id);
-      toast(t("torrents.moved", {name: cat.name}));
+      await api.moveTorrent(tor.hash!, cat.id)
+      toast(t("torrents.moved", {name: cat.name}))
       load()
     } catch (e) {
       toast((e as Error).message, "err")
@@ -81,7 +97,7 @@ export function TorrentList() {
   const doStructure = async (tor: Torrent, mode: "pretty" | "flat" | "delete") => {
     setStructFor(null)
     try {
-      const r = await api.structure(tor.hash, mode)
+      const r = await api.structure(tor.hash!, mode)
       if (r.xdev) toast(t("torrents.xdev"), "err")
       else if (mode === "pretty") toast(t("torrents.linked", {n: r.linked, pending: r.pending}))
       else toast(t("common.done"))
@@ -124,11 +140,11 @@ export function TorrentList() {
           <ListSection>
             {torrents.map((tor) => (
               <ListItem
-                key={tor.hash}
-                before={<TorrentIcon state={tor.state}/>}
+                key={tor.disk_id}
+                before={tor.in_qbittorrent ? <TorrentIcon state={tor.state}/> : <HardDrive size={20} style={{color: "var(--tg-theme-hint-color)"}}/>}
                 after={
                   <div className={s.iconActions}>
-                    {cats.length > 0 && (
+                    {tor.in_qbittorrent && cats.length > 0 && (
                       <button
                         className={s.iconBtn}
                         onClick={(e) => {
@@ -140,7 +156,7 @@ export function TorrentList() {
                         <FolderInput size={18}/>
                       </button>
                     )}
-                    {tor.renameable && (
+                    {tor.in_qbittorrent && tor.renameable && (
                       <button
                         className={s.iconBtn}
                         onClick={(e) => {
@@ -164,7 +180,7 @@ export function TorrentList() {
                     </button>
                   </div>
                 }
-                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${bytes(tor.size)}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}`}
+                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}`}
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
@@ -193,9 +209,41 @@ export function TorrentList() {
           </Box>
           <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
                   onClick={() => confirmDel && doDelete(confirmDel)}>
-            {t("common.delete")}
+            {confirmDel?.in_qbittorrent ? t("common.delete") : t("torrents.deleteFromDisk")}
           </Button>
+          {confirmDel?.in_qbittorrent && (
+            <Button fullWidth variant="filled" color="orange" leftSection={<HardDrive size={18}/>}
+                    onClick={() => {
+                      const tor = confirmDel
+                      setConfirmDel(null)
+                      setConfirmRemove(tor)
+                    }}>
+              {t("torrents.removeFromClient")}
+            </Button>
+          )}
           <Button fullWidth variant="default" onClick={() => setConfirmDel(null)}>
+            {t("common.cancel")}
+          </Button>
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={!!confirmRemove}
+        onClose={() => setConfirmRemove(null)}
+        title={t("torrents.removeFromClient")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{blur: 2}}
+      >
+        <Stack gap={8} pb={16} px={4}>
+          <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
+            {t("torrents.removeFromClientBody")}
+          </Box>
+          <Button fullWidth variant="filled" color="orange" leftSection={<HardDrive size={18}/>}
+                  onClick={() => confirmRemove && doRemoveFromClient(confirmRemove)}>
+            {t("torrents.removeFromClient")}
+          </Button>
+          <Button fullWidth variant="default" onClick={() => setConfirmRemove(null)}>
             {t("common.cancel")}
           </Button>
         </Stack>

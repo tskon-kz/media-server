@@ -182,7 +182,7 @@ def qb_settings_kb(is_perm: bool = True, has_auth_error: bool = False):
     return InlineKeyboardMarkup(buttons)
 
 
-def update_kb(has_update, remote=None, channel="stable"):
+def update_kb(has_update, remote=None, channel="stable", show_back=True):
     buttons = []
     if has_update:
         buttons.append([InlineKeyboardButton(
@@ -197,7 +197,8 @@ def update_kb(has_update, remote=None, channel="stable"):
     else:
         buttons.append([InlineKeyboardButton(
             t("channel_switch_edge_btn"), callback_data="selfupdate:edge:confirm")])
-    buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
+    if show_back:
+        buttons.append([InlineKeyboardButton(t("back_btn"), callback_data="settings:menu")])
     return InlineKeyboardMarkup(buttons)
 
 
@@ -282,17 +283,17 @@ def qb_view():
     return text, qb_settings_kb(is_perm, has_auth_error)
 
 
-def update_view(local, remote, channel="stable"):
+def update_view(local, remote, channel="stable", show_back=True):
     # On edge the local version is an edge-<sha>, never equal to the latest
     # release tag, so the stable up-to-date/available comparison is meaningless —
     # just show the beta notice and a switch-to-stable button.
     if channel == "edge":
-        return t("update_on_edge", v=local), update_kb(False, remote, channel)
+        return t("update_on_edge", v=local), update_kb(False, remote, channel, show_back)
     if remote is None:
-        return t("update_check_fail", v=local), update_kb(False, remote, channel)
+        return t("update_check_fail", v=local), update_kb(False, remote, channel, show_back)
     if remote == local:
-        return t("update_up_to_date", v=local), update_kb(False, remote, channel)
-    return t("update_available", local=local, remote=remote), update_kb(True, remote, channel)
+        return t("update_up_to_date", v=local), update_kb(False, remote, channel, show_back)
+    return t("update_available", local=local, remote=remote), update_kb(True, remote, channel, show_back)
 
 
 def jackett_settings_kb(has_password: bool = False):
@@ -375,13 +376,16 @@ def jackett_view():
     return t("jackett_settings_title", api_status=api_status, pass_status=pass_status), jackett_settings_kb(has_password)
 
 
-def start_kb() -> InlineKeyboardMarkup | None:
+def start_kb() -> InlineKeyboardMarkup:
+    buttons = []
     url = store.get_config("webapp_url")
-    if not url:
-        return None
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton(t("webapp_open_button"), web_app=WebAppInfo(url=url))
-    ]])
+    if url:
+        buttons.append([InlineKeyboardButton(t("webapp_open_button"), web_app=WebAppInfo(url=url))])
+    buttons.append([
+        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
+        InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
+    ])
+    return InlineKeyboardMarkup(buttons)
 
 
 def list_text(torrents, page=0):

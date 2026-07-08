@@ -15,7 +15,8 @@ import {useAppDispatch, useAppSelector} from "@/store"
 import {clearSearch, setLoading, setQuery, setResults} from "@/store/slices/searchSlice"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
-import {AppInput} from "@/components/AppInput.tsx";
+import {AppInput} from "@/components/AppInput.tsx"
+import styles from "./AddTorrent.module.scss"
 
 export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const {t} = useTranslation()
@@ -42,6 +43,8 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   // categories
   const [catDialog, setCatDialog] = useState<string | null>(null)
   const [newCatName, setNewCatName] = useState("")
+  const [newCatSlug, setNewCatSlug] = useState("")
+  const [slugEdited, setSlugEdited] = useState(false)
   const [renameCat, setRenameCat] = useState<Category | null>(null)
   const [confirmDelCat, setConfirmDelCat] = useState<Category | null>(null)
 
@@ -136,10 +139,25 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
 
   // ── categories ─────────────────────────────────────────────────────────────
 
+  const deriveSlug = (name: string) =>
+    name.toLowerCase().replace(/[^\w\s]/g, "").trim().replace(/\s+/g, "_")
+
+  const handleCatNameChange = (name: string) => {
+    setNewCatName(name)
+    if (!slugEdited) setNewCatSlug(deriveSlug(name))
+  }
+
+  const handleCatSlugChange = (slug: string) => {
+    setNewCatSlug(slug)
+    setSlugEdited(slug !== deriveSlug(newCatName))
+  }
+
   const createCat = (type: string) => guard(async () => {
-    await api.createCategory(newCatName, type)
+    await api.createCategory(newCatName, type, newCatSlug.trim() || undefined)
     setCatDialog(null)
     setNewCatName("")
+    setNewCatSlug("")
+    setSlugEdited(false)
     toast(t("settings.catAdded"))
     loadCats()
   })
@@ -162,6 +180,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
     <div className="mb-16">
       <PageHeader title={t("add.title")} className="mb-16"/>
 
+      <div className={styles.content}>
       <div className="mb-16">
         <AppInput
           size="lg"
@@ -265,7 +284,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
 
         <Drawer
           opened={catDialog === "new"}
-          onClose={() => setCatDialog(null)}
+          onClose={() => { setCatDialog(null); setNewCatName(""); setNewCatSlug(""); setSlugEdited(false) }}
           title={t("settings.newCategory")}
           position="bottom"
           radius="lg"
@@ -274,9 +293,17 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           <Stack gap={8} pb={16} px={4}>
             <TextInput
               autoFocus
+              label={t("settings.nameLabel")}
               value={newCatName}
-              onChange={(e) => setNewCatName(e.target.value)}
-              placeholder="Anime"
+              onChange={(e) => handleCatNameChange(e.target.value)}
+              placeholder="Аниме (тест)"
+            />
+            <TextInput
+              label={t("settings.folderLabel")}
+              value={newCatSlug}
+              onChange={(e) => handleCatSlugChange(e.target.value)}
+              placeholder="anime_test"
+              description="/media/"
             />
             <Text size="sm" c="dimmed">{t("settings.libraryType")}</Text>
             <Box style={{display: "flex", flexWrap: "wrap", gap: 8}}>
@@ -346,6 +373,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           onPick={(c) => searchPick && searchAddNow(searchPick, c)}
           onClose={() => setSearchPick(null)}
         />
+      </div>
       </div>
     </div>
   )

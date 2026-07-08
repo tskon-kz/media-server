@@ -9,7 +9,7 @@ import qbittorrentapi
 from config import (
     JF_URL, QB_HOST,
     JACKETT_URL,
-    SEARCH_RESULTS_LIMIT, SEARCH_CATEGORIES,
+    SEARCH_CATEGORIES,
     REPO_SLUG, CLOUDFLARED_CONTAINER,
     BOT_IMAGE, BOT_CONTAINER,
     INCOMING_DIR,
@@ -247,7 +247,7 @@ def jackett_get_api_key() -> str:
         return ""
 
 
-def jackett_search(query: str) -> list[dict] | None:
+def jackett_search(query: str, limit: int | None = None) -> list[dict] | None:
     """Search via Jackett aggregate endpoint.
 
     Returns sorted list of dicts or None on connection error.
@@ -271,8 +271,9 @@ def jackett_search(query: str) -> list[dict] | None:
         return None
     results = data.get("Results") or []
     results.sort(key=lambda r: r.get("Seeders") or 0, reverse=True)
+    results = results[:limit]
     out = []
-    for r in results[:SEARCH_RESULTS_LIMIT]:
+    for r in results:
         out.append({
             "title":   r.get("Title") or "",
             "seeders": r.get("Seeders") or 0,

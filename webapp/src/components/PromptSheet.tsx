@@ -45,10 +45,10 @@ export function PromptSheet({
           disabled={!value.trim()}
           onClick={() => onSubmit(value.trim())}
         >
-          {submitText ?? t("btn_save")}
+          {submitText ?? t("common.save")}
         </Button>
         <Button fullWidth variant="default" onClick={onClose}>
-          {t("btn_cancel")}
+          {t("common.cancel")}
         </Button>
       </Stack>
     </Drawer>

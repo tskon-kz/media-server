@@ -1,3 +1,4 @@
+import os
 import qbittorrentapi
 from telegram import MenuButtonWebApp, WebAppInfo
 
@@ -6,21 +7,12 @@ from store import (
     t, load_cats, load_states, save_states,
     get_config, set_config, set_qb_status, get_qb_status,
     has_notified_update, mark_update_notified,
+    upsert_disk_entry,
 )
 from api import jf, qb, invalidate_qb, gh_latest_release_tag, get_cloudflared_url
-from parser import create_flat_hardlinks, process_torrent_rename
+from parser import create_flat_hardlinks, process_torrent_rename, find_cat
 import keyboards as kb
 from ._utils import _notify_admins, log
-
-
-async def job_qb_restart_check(ctx):
-    chat_id = ctx.job.data["chat_id"]
-    try:
-        qb().torrents_info()
-        set_qb_status("ok")
-        await ctx.bot.send_message(chat_id, t("qb_restart_done"))
-    except Exception:
-        await ctx.bot.send_message(chat_id, t("qb_restart_timeout"))
 
 
 async def job_check_done(ctx):
@@ -51,6 +43,10 @@ async def job_check_done(ctx):
             log.info("Download done: %s", tor.name)
             for uid in ALLOWED:
                 await ctx.bot.send_message(uid, t("download_done", name=kb.short_name(tor.name)), parse_mode="Markdown")
+            cat = find_cat(tor, cats)
+            if cat:
+                basename = os.path.basename(cat["path"].rstrip("/"))
+                upsert_disk_entry(f"{basename}/{tor.name}", tor.name, cat["id"], tor.size)
             if rename_mode == "pretty":
                 linked, pending_ids, errors = process_torrent_rename(tor, cats)
                 jf("POST", "/Library/Refresh")

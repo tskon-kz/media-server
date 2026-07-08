@@ -77,7 +77,7 @@ cd "$SCRIPT_DIR"
 docker compose stop || true
 
 echo "$MSG_MIGRATE_COPYING"
-if rsync -a --info=progress2 "$old_abs/" "$new_abs/"; then
+if rsync -aH --info=progress2 "$old_abs/" "$new_abs/"; then
     echo ""
     echo "$MSG_MIGRATE_COPY_OK"
 

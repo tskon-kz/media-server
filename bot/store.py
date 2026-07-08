@@ -40,6 +40,12 @@ def _create_tables():
             cat_path     TEXT NOT NULL,
             jf_type      TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS disk_entries (
+            disk_id  TEXT PRIMARY KEY,
+            name     TEXT NOT NULL,
+            cat_id   INTEGER NOT NULL,
+            size     INTEGER NOT NULL
+        );
     """)
     _conn.commit()
 
@@ -312,6 +318,39 @@ def delete_rename_jobs_by_hash(torrent_hash: str):
 def delete_all_rename_jobs():
     _conn.execute("DELETE FROM rename_jobs")
     _conn.commit()
+
+
+# ---- disk entries ----
+
+def upsert_disk_entry(disk_id: str, name: str, cat_id: int, size: int):
+    _conn.execute(
+        "INSERT OR REPLACE INTO disk_entries (disk_id, name, cat_id, size) VALUES (?, ?, ?, ?)",
+        (disk_id, name, cat_id, size),
+    )
+    _conn.commit()
+
+
+def upsert_disk_entries_batch(rows: list[tuple[str, str, int, int]]):
+    _conn.executemany(
+        "INSERT OR REPLACE INTO disk_entries (disk_id, name, cat_id, size) VALUES (?, ?, ?, ?)",
+        rows,
+    )
+    _conn.commit()
+
+
+def delete_disk_entry(disk_id: str):
+    _conn.execute("DELETE FROM disk_entries WHERE disk_id=?", (disk_id,))
+    _conn.commit()
+
+
+def update_disk_entry_size(disk_id: str, size: int):
+    _conn.execute("UPDATE disk_entries SET size=? WHERE disk_id=?", (size, disk_id))
+    _conn.commit()
+
+
+def load_disk_entries() -> dict[str, dict]:
+    rows = _conn.execute("SELECT disk_id, name, cat_id, size FROM disk_entries").fetchall()
+    return {r[0]: {"name": r[1], "cat_id": r[2], "size": r[3]} for r in rows}
 
 
 # ---- update notifications ----

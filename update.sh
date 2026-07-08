@@ -50,11 +50,13 @@ _curl_fetch() {  # _curl_fetch <url> <output_path>  — downloads with timeouts 
 }
 
 echo "⬇  Downloading latest files..."
-_curl_fetch "$RAW/docker-compose.yml" docker-compose.new.yml
-_curl_fetch "$RAW/update.sh"          update.sh && chmod +x update.sh
+_curl_fetch "$RAW/docker-compose.yml"   docker-compose.new.yml
+_curl_fetch "$RAW/update.sh"            update.sh && chmod +x update.sh
+_curl_fetch "$RAW/migrate-media.sh"     migrate-media.sh && chmod +x migrate-media.sh
+_curl_fetch "$RAW/teardown.sh"          teardown.sh && chmod +x teardown.sh
 mkdir -p lang
-_curl_fetch "$RAW/lang/en.sh"         lang/en.sh
-_curl_fetch "$RAW/lang/ru.sh"         lang/ru.sh
+_curl_fetch "$RAW/lang/en.sh"           lang/en.sh
+_curl_fetch "$RAW/lang/ru.sh"           lang/ru.sh
 
 echo "⏹  Stopping containers..."
 docker compose down
