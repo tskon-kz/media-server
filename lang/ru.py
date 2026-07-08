@@ -28,6 +28,7 @@ M = {
     "no_cats": "Нет категорий",
     "cat_add_btn": "➕ Добавить категорию",
     "cat_add_name": "Введи название категории:",
+    "cat_add_slug": "Введи имя папки на диске (или отправь предложенное):\n\n<code>{suggestion}</code>",
     "cat_rename_prompt": "Введи новое название:",
     "cat_pick_type": "Выбери тип библиотеки Jellyfin:",
     "delcat_confirm": "⚠️ Удалить категорию <b>{name}</b>?\n\nБиблиотека Jellyfin также будет удалена.",

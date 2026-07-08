@@ -71,8 +71,18 @@ async def on_message(update, ctx):
         return
 
     if state == "await_cat_name":
-        slug = re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip().lower().replace(" ", "_")
+        suggested_slug = re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip().lower().replace(" ", "_")
         set_pending(uid, "pending_cat_name", text)
+        set_user_state(uid, "await_cat_slug")
+        await update.message.reply_text(
+            t("cat_add_slug", suggestion=suggested_slug or "folder"),
+            parse_mode="HTML",
+        )
+        return
+
+    if state == "await_cat_slug":
+        raw = text.strip()
+        slug = re.sub(r"[^\w\s]", "", raw, flags=re.UNICODE).strip().lower().replace(" ", "_")
         set_pending(uid, "pending_cat_path", f"/media/{slug}" if slug else "/media")
         await update.message.reply_text(t("cat_pick_type"), reply_markup=kb.cat_type_kb())
         return

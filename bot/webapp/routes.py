@@ -428,7 +428,8 @@ async def category_create(request):
     if jf_type not in ("movies", "tvshows", "music", "mixed"):
         return _err("jf_type must be movies|tvshows|music|mixed")
 
-    slug = re.sub(r"[^\w\s]", "", name, flags=re.UNICODE).strip().lower().replace(" ", "_")
+    raw_slug = (body.get("slug") or "").strip() or name
+    slug = re.sub(r"[^\w\s]", "", raw_slug, flags=re.UNICODE).strip().lower().replace(" ", "_")
     path = f"/media/{slug}" if slug else "/media"
 
     def _f():

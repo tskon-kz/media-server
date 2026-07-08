@@ -78,8 +78,8 @@ export const api = {
     }),
 
   categories: () => req<{ categories: Category[] }>("GET", "/api/categories"),
-  createCategory: (name: string, jfType: string) =>
-    req<{ categories: Category[] }>("POST", "/api/categories", { name, jf_type: jfType }),
+  createCategory: (name: string, jfType: string, slug?: string) =>
+    req<{ categories: Category[] }>("POST", "/api/categories", { name, jf_type: jfType, slug }),
   renameCategory: (id: number, name: string) =>
     req<{ categories: Category[] }>("PATCH", `/api/categories/${id}`, { name }),
   deleteCategory: (id: number) =>

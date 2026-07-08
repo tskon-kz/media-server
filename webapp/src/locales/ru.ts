@@ -98,6 +98,7 @@ export default {
     addCategory: "Добавить категорию",
     newCategory: "Новая категория",
     nameLabel: "Название",
+    folderLabel: "Папка на диске",
     libraryType: "Тип библиотеки",
     catAdded: "Категория добавлена",
     catDeleted: "Категория удалена",

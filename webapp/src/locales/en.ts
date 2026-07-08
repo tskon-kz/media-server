@@ -98,6 +98,7 @@ export default {
     addCategory: "Add category",
     newCategory: "New category",
     nameLabel: "Name",
+    folderLabel: "Folder on disk",
     libraryType: "Library type",
     catAdded: "Category added",
     catDeleted: "Category deleted",

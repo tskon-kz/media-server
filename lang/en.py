@@ -28,6 +28,7 @@ M = {
     "no_cats": "No categories",
     "cat_add_btn": "➕ Add category",
     "cat_add_name": "Enter category name:",
+    "cat_add_slug": "Enter the folder name on disk (or send the suggested one):\n\n<code>{suggestion}</code>",
     "cat_rename_prompt": "Enter new name:",
     "cat_pick_type": "Choose Jellyfin library type:",
     "delcat_confirm": "⚠️ Delete category <b>{name}</b>?\n\nThe Jellyfin library will also be removed.",
