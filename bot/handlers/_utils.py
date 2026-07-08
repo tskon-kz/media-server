@@ -7,7 +7,7 @@ from html import escape
 from telegram import Update, LinkPreviewOptions
 from telegram.ext import ContextTypes
 
-from config import ALLOWED, ICONS, INCOMING_DIR
+from config import ALLOWED, ICONS, INCOMING_DIR, BOT_SEARCH_LIMIT
 import store
 from store import t, load_cats
 import keyboards as kb
@@ -126,7 +126,7 @@ async def _do_search(message, uid: int, query: str):
     if not jackett_get_api_key():
         await message.reply_text(t("jackett_no_key"))
         return
-    results = await asyncio.to_thread(jackett_search, query)
+    results = await asyncio.to_thread(jackett_search, query, BOT_SEARCH_LIMIT)
     if results is None:
         await message.reply_text(t("jackett_error"))
         return

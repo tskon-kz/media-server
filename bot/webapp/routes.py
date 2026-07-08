@@ -11,6 +11,7 @@ so it never stalls the shared PTB/aiohttp event loop.
 import asyncio
 import os
 import re
+import time
 
 from aiohttp import web
 
@@ -338,6 +339,8 @@ async def scan(request):
     return web.json_response({"ok": bool(ok)})
 
 
+_SEARCH_CACHE_TTL = 300  # seconds
+
 # ---- search ----
 
 @routes.get("/api/search")
@@ -352,9 +355,17 @@ async def search(request):
         page_size = max(1, min(50, int(request.query.get("page_size") or 10)))
     except ValueError:
         page, page_size = 1, 10
-    all_results = await _thread(jackett_search, query)
-    if all_results is None:
-        return _err(t("jackett_error"), status=502)
+
+    cache = request.app.setdefault("_search_cache", {})
+    cached = cache.get(query)
+    if cached and time.monotonic() - cached["ts"] < _SEARCH_CACHE_TTL:
+        all_results = cached["results"]
+    else:
+        all_results = await _thread(jackett_search, query)
+        if all_results is None:
+            return _err(t("jackett_error"), status=502)
+        cache[query] = {"results": all_results, "ts": time.monotonic()}
+
     total = len(all_results)
     offset = (page - 1) * page_size
     results = all_results[offset:offset + page_size]
