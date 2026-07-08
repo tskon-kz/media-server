@@ -70,9 +70,9 @@ export const api = {
     torrents_total?: number
     torrents_downloading?: number
     torrents_seeding?: number
-r    alt_speed_enabled?: boolean
+    alt_speed_enabled?: boolean
   }>("GET", "/api/status"),
-e  toggleAltSpeed: () => req<{ alt_speed_enabled: boolean }>("POST", "/api/qb/toggle_alt_speed"),
+  toggleAltSpeed: () => req<{ alt_speed_enabled: boolean }>("POST", "/api/qb/toggle_alt_speed"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
   search: (q: string, page = 1, pageSize = 5) =>

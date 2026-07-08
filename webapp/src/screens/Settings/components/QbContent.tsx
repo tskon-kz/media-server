@@ -1,4 +1,4 @@
-import {Button} from "@mantine/core"
+import {Button, Divider, Switch} from "@mantine/core"
 import {Lock} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {openExternal} from "@/telegram"
@@ -8,12 +8,15 @@ import styles from "../Settings.module.scss"
 interface QbContentProps {
   data: SettingsData
   cfg: AppConfig
+  altSpeedEnabled: boolean | null
+  togglingAltSpeed: boolean
   onChangePass: () => void
   onGetTemp: () => void
   onRestart: () => void
+  onToggleAltSpeed: () => void
 }
 
-export function QbContent({data, cfg, onChangePass, onGetTemp, onRestart}: QbContentProps) {
+export function QbContent({data, cfg, altSpeedEnabled, togglingAltSpeed, onChangePass, onGetTemp, onRestart, onToggleAltSpeed}: QbContentProps) {
   const {t} = useTranslation()
   return (
     <>
@@ -24,6 +27,20 @@ export function QbContent({data, cfg, onChangePass, onGetTemp, onRestart}: QbCon
         </div>
         {data.qbittorrent.is_perm && <Lock size={16} className={styles.infoIcon}/>}
       </div>
+      {altSpeedEnabled !== null && (
+        <>
+          <Divider/>
+          <div className={styles.infoRow}>
+            <span className={styles.infoLabel}>{t("status.altSpeed")}</span>
+            <Switch
+              checked={altSpeedEnabled}
+              disabled={togglingAltSpeed}
+              onChange={onToggleAltSpeed}
+              label={altSpeedEnabled ? t("status.altSpeedOn") : t("status.altSpeedOff")}
+            />
+          </div>
+        </>
+      )}
       <div className={styles.buttonStack}>
         <Button fullWidth variant="dark" onClick={onChangePass}>{t("settings.changePass")}</Button>
         {!data.qbittorrent.is_perm && (
