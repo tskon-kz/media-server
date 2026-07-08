@@ -37,6 +37,12 @@ export default {
     // Delete confirmation modal
     deleteTitle: "Delete torrent?",
     deleteBody: '"{{name}}" and all its files will be removed.',
+    removeFromClient: "Remove from qBittorrent",
+    removeFromClientBody: "Files on disk and library links will remain.",
+    removedFromClient: "Removed from client",
+    deleteFromDisk: "Delete from disk",
+    diskOnly: "On disk",
+    sizeUnknown: "N/A",
   },
 
   // Add torrent screen

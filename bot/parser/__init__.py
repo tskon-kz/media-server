@@ -9,7 +9,7 @@ from .constants import (
 )
 from .filenames import parse_filename, parse_manual_input, is_extra, tor_fallback_title
 from .naming import build_target_path
-from .fsops import create_hardlink, get_video_files
+from .fsops import create_hardlink, get_video_files, find_cat
 from .linker import (
     count_parseable_files,
     process_torrent_rename,
@@ -24,6 +24,7 @@ __all__ = [
     "SIDECAR_EXTENSIONS", "MEDIA_EXTENSIONS",
     "parse_filename", "parse_manual_input", "is_extra", "tor_fallback_title",
     "build_target_path", "create_hardlink", "get_video_files",
+    "find_cat",
     "count_parseable_files", "process_torrent_rename",
     "create_flat_hardlink_for_job", "create_flat_hardlinks",
     "delete_torrent_links", "delete_all_cat_contents",

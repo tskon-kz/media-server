@@ -11,6 +11,7 @@ so it never stalls the shared PTB/aiohttp event loop.
 import asyncio
 import os
 import re
+import shutil
 import time
 
 from aiohttp import web
@@ -23,6 +24,7 @@ import store
 from store import (
     t, load_cats, save_cats, set_lang, set_config, get_config,
     get_creds, get_qb_status, set_qb_status,
+    load_disk_entries, upsert_disk_entry, upsert_disk_entries_batch, delete_disk_entry,
 )
 from api import (
     jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
@@ -57,9 +59,49 @@ def _is_renameable(tor, cats: list) -> bool:
     return tor.save_path.rstrip("/") in targets
 
 
+def _scan_incoming(cats: list) -> list[dict]:
+    """Fast: one os.listdir per category download dir, no size I/O."""
+    entries = []
+    for cat in cats:
+        basename = os.path.basename(cat["path"].rstrip("/"))
+        incoming = os.path.join(INCOMING_DIR, basename)
+        if not os.path.isdir(incoming):
+            continue
+        try:
+            names = sorted(os.listdir(incoming))
+        except OSError:
+            continue
+        for name in names:
+            entries.append({
+                "name": name,
+                "disk_id": f"{basename}/{name}",
+                "cat": cat,
+            })
+    return entries
+
+
+def _compute_disk_size(path: str) -> int:
+    total = 0
+    try:
+        if os.path.isfile(path):
+            return os.path.getsize(path)
+        for dirpath, _dirs, files in os.walk(path):
+            for fname in files:
+                try:
+                    total += os.path.getsize(os.path.join(dirpath, fname))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
+
+
 def _torrent_dict(tor, cats: list) -> dict:
+    basename = os.path.basename(tor.save_path.rstrip("/"))
     return {
+        "disk_id": f"{basename}/{tor.name}",
         "hash": tor.hash,
+        "in_qbittorrent": True,
         "name": kb.short_name(tor.name),
         "raw_name": tor.name,
         "state": tor.state,
@@ -72,6 +114,48 @@ def _torrent_dict(tor, cats: list) -> dict:
         "save_path": tor.save_path,
         "renameable": _is_renameable(tor, cats),
     }
+
+
+def _torrent_dict_merged(disk_entry: dict, size: int, qb_tor=None, cats: list | None = None) -> dict:
+    disk_id = disk_entry["disk_id"]
+    if qb_tor is not None:
+        return {
+            "disk_id": disk_id,
+            "hash": qb_tor.hash,
+            "in_qbittorrent": True,
+            "name": kb.short_name(qb_tor.name),
+            "raw_name": qb_tor.name,
+            "state": qb_tor.state,
+            "icon": ICONS.get(qb_tor.state, "❓"),
+            "progress": qb_tor.progress,
+            "size": qb_tor.size,
+            "dlspeed": getattr(qb_tor, "dlspeed", 0),
+            "upspeed": getattr(qb_tor, "upspeed", 0),
+            "eta": getattr(qb_tor, "eta", 0),
+            "save_path": qb_tor.save_path,
+            "renameable": _is_renameable(qb_tor, cats or []),
+        }
+    cat = disk_entry["cat"]
+    name = disk_entry["name"]
+    return {
+        "disk_id": disk_id,
+        "hash": None,
+        "in_qbittorrent": False,
+        "name": kb.short_name(name),
+        "raw_name": name,
+        "state": "archived",
+        "icon": "📁",
+        "progress": 1.0,
+        "size": size if size > 0 else None,
+        "dlspeed": 0,
+        "upspeed": 0,
+        "eta": 0,
+        "save_path": cat["path"],
+        "renameable": cat.get("jf_type") in ("tvshows", "movies"),
+    }
+
+
+
 
 
 async def _qb_info(hashes=None):
@@ -142,13 +226,60 @@ async def config(request):
 
 @routes.get("/api/torrents")
 async def torrents_list(request):
-    try:
-        tors = await _qb_info()
-    except Exception as e:
-        return _err(t("qb_error", e=e), status=502)
     cats = load_cats()
+    try:
+        qb_tors = await _qb_info()
+    except Exception:
+        invalidate_qb()
+        qb_tors = []
+
+    disk_entries = await _thread(_scan_incoming, cats)
+    db_sizes = {disk_id: e["size"] for disk_id, e in load_disk_entries().items()}
+
+    qb_by_disk_id: dict[str, object] = {}
+    for tor in qb_tors:
+        basename = os.path.basename(tor.save_path.rstrip("/"))
+        qb_by_disk_id[f"{basename}/{tor.name}"] = tor
+
+    result = []
+    matched_hashes: set[str] = set()
+    needs_size: list[tuple[dict, str]] = []
+
+    for de in disk_entries:
+        disk_id = de["disk_id"]
+        qb_tor = qb_by_disk_id.get(disk_id)
+        if qb_tor is not None:
+            matched_hashes.add(qb_tor.hash)
+
+        size = db_sizes.get(disk_id, 0)
+        if qb_tor is None and size == 0:
+            disk_path = os.path.join(INCOMING_DIR, *disk_id.split("/", 1))
+            needs_size.append((de, disk_path))
+
+        result.append(_torrent_dict_merged(de, size, qb_tor, cats))
+
+    if needs_size:
+        computed_sizes = await asyncio.gather(
+            *[_thread(_compute_disk_size, path) for _, path in needs_size]
+        )
+        size_fixes: list[tuple[str, str, int, int]] = []
+        for (de, _), computed in zip(needs_size, computed_sizes):
+            size = computed if computed > 0 else -1
+            size_fixes.append((de["disk_id"], de["name"], de["cat"]["id"], size))
+            for item in result:
+                if item["disk_id"] == de["disk_id"] and not item["in_qbittorrent"]:
+                    item["size"] = size if size > 0 else None
+                    break
+        upsert_disk_entries_batch(size_fixes)
+
+    for tor in qb_tors:
+        if tor.hash not in matched_hashes:
+            d = _torrent_dict(tor, cats)
+            d["disk_id"] = f"qb:{tor.hash}"
+            result.append(d)
+
     return web.json_response({
-        "torrents": [_torrent_dict(tr, cats) for tr in tors],
+        "torrents": result,
         "has_categories": bool(cats),
     })
 
@@ -207,6 +338,34 @@ async def torrent_delete(request):
         )
     except Exception as e:
         return _err(t("add_error", e=e), status=502)
+    if tor:
+        basename = os.path.basename(tor.save_path.rstrip("/"))
+        delete_disk_entry(f"{basename}/{tor.name}")
+    return web.json_response({"deleted": True})
+
+
+@routes.post("/api/torrents/{hash}/remove-from-client")
+async def torrent_remove_from_client(request):
+    tor_hash = request.match_info["hash"]
+    try:
+        await _thread(lambda: qb().torrents_delete(delete_files=False, torrent_hashes=tor_hash))
+    except Exception as e:
+        return _err(t("qb_error", e=e), status=502)
+    return web.json_response({"removed": True})
+
+
+@routes.post("/api/disk/delete")
+async def disk_delete(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    parts = disk_id.split("/")
+    if len(parts) != 2 or ".." in parts or not all(parts):
+        return _err("invalid disk_id")
+    target = os.path.join(INCOMING_DIR, parts[0], parts[1])
+    if not os.path.realpath(target).startswith(os.path.realpath(INCOMING_DIR) + os.sep):
+        return _err("invalid disk_id")
+    await _thread(shutil.rmtree, target, True)
+    delete_disk_entry(disk_id)
     return web.json_response({"deleted": True})
 
 
