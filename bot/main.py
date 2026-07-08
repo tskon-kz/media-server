@@ -76,7 +76,8 @@ def main():
         builder = builder.proxy(proxy_url).get_updates_proxy(proxy_url)
     app = builder.build()
 
-    app.add_handler(CommandHandler("start", h.cmd_start))
+    app.add_handler(CommandHandler("start",  h.cmd_start))
+    app.add_handler(CommandHandler("update", h.cmd_update))
     app.add_handler(CallbackQueryHandler(h.on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, h.on_message))
     app.job_queue.run_repeating(h.job_check_done,   interval=30,     first=10)

@@ -1,6 +1,6 @@
 M = {
     "no_access": "⛔ Access denied",
-    "start": "🎬 *Media Server*\n\nSend a magnet link\n\n/list — torrents\n/search — search torrents\n/status — status\n/settings — settings",
+    "start": "🎬 *Media Server*\n\nOpen the app with the button below\n\n/update — updates and channel switching",
     "empty": "📭 List is empty",
     "qb_error": "❌ qBittorrent unavailable: {e}",
     "list_title": "Torrents",
