@@ -38,6 +38,8 @@ After the installer completes, the bot is live in your Telegram chat.
 
 The Mini App (web UI in Telegram) is served over HTTPS via a Cloudflare Tunnel. Two modes are supported:
 
+> **Firewall / outbound ports:** `cloudflared` connects outbound — no inbound ports need to be opened. It uses **UDP 7844** (QUIC/HTTP3) for best performance and falls back to **TCP 443** if UDP is blocked. Allow outbound UDP 7844 on your server's firewall for the tunnel to use QUIC; TCP 443 alone is sufficient if QUIC is unavailable.
+
 ### Quick tunnel (default, no account required)
 
 The installer starts a `cloudflared` container that opens an ephemeral `*.trycloudflare.com` HTTPS URL. The bot detects it automatically and sets the Menu Button in Telegram. No configuration needed — just press `n` at the named tunnel prompt.
