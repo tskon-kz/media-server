@@ -2,6 +2,7 @@ import {Button, Divider, Switch} from "@mantine/core"
 import {Lock} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {openExternal} from "@/telegram"
+import {speed} from "@/format"
 import type {AppConfig, Settings as SettingsData} from "@/types"
 import styles from "../Settings.module.scss"
 
@@ -9,6 +10,7 @@ interface QbContentProps {
   data: SettingsData
   cfg: AppConfig
   altSpeedEnabled: boolean | null
+  altSpeedLimits: { dl: number; ul: number } | null
   togglingAltSpeed: boolean
   onChangePass: () => void
   onGetTemp: () => void
@@ -16,7 +18,11 @@ interface QbContentProps {
   onToggleAltSpeed: () => void
 }
 
-export function QbContent({data, cfg, altSpeedEnabled, togglingAltSpeed, onChangePass, onGetTemp, onRestart, onToggleAltSpeed}: QbContentProps) {
+function limitLabel(bytesPerSec: number): string {
+  return bytesPerSec === 0 ? "∞" : speed(bytesPerSec)
+}
+
+export function QbContent({data, cfg, altSpeedEnabled, altSpeedLimits, togglingAltSpeed, onChangePass, onGetTemp, onRestart, onToggleAltSpeed}: QbContentProps) {
   const {t} = useTranslation()
   return (
     <>
@@ -31,7 +37,14 @@ export function QbContent({data, cfg, altSpeedEnabled, togglingAltSpeed, onChang
         <>
           <Divider/>
           <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>{t("status.altSpeed")}</span>
+            <div className={styles.infoText}>
+              <span className={styles.infoLabel}>{t("status.altSpeed")}</span>
+              {altSpeedLimits && (
+                <span className={styles.infoHint}>
+                  ↓ {limitLabel(altSpeedLimits.dl)} · ↑ {limitLabel(altSpeedLimits.ul)}
+                </span>
+              )}
+            </div>
             <Switch
               checked={altSpeedEnabled}
               disabled={togglingAltSpeed}

@@ -498,9 +498,13 @@ async def status(request):
         # negative byte count in the UI.
         free_space = max(0, server_state.get("free_space_on_disk", 0))
         alt_speed_enabled = bool(server_state.get("use_alt_speed_limits", False))
+        dl_rate_limit = server_state.get("dl_rate_limit", 0)
+        up_rate_limit = server_state.get("up_rate_limit", 0)
     except Exception:
         free_space = 0
         alt_speed_enabled = False
+        dl_rate_limit = 0
+        up_rate_limit = 0
 
     try:
         disk = shutil.disk_usage("/media")
@@ -521,6 +525,8 @@ async def status(request):
         "torrents_downloading": torrents_downloading,
         "torrents_seeding": torrents_seeding,
         "alt_speed_enabled": alt_speed_enabled,
+        "dl_rate_limit": dl_rate_limit,
+        "up_rate_limit": up_rate_limit,
     })
 
 
@@ -528,7 +534,7 @@ async def status(request):
 async def toggle_alt_speed(request):
     try:
         await _thread(lambda: qb().transfer_toggle_speed_limits_mode())
-        mode = await _thread(lambda: qb().transfer_speed_limits_mode)
+        mode = await _thread(lambda: qb().transfer_speed_limits_mode())
         return web.json_response({"alt_speed_enabled": bool(mode)})
     except Exception as e:
         return _err(t("qb_error", e=e), status=502)

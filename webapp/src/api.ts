@@ -71,6 +71,8 @@ export const api = {
     torrents_downloading?: number
     torrents_seeding?: number
     alt_speed_enabled?: boolean
+    dl_rate_limit?: number
+    up_rate_limit?: number
   }>("GET", "/api/status"),
   toggleAltSpeed: () => req<{ alt_speed_enabled: boolean }>("POST", "/api/qb/toggle_alt_speed"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
