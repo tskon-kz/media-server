@@ -8,7 +8,7 @@ import shutil
 from config import INCOMING_DIR
 from store import add_rename_job, delete_rename_jobs_by_hash, delete_all_rename_jobs
 
-from .constants import SIDECAR_EXTENSIONS
+from .constants import SIDECAR_EXTENSIONS, MEDIA_EXTENSIONS
 from .filenames import tor_fallback_title, parse_filename, is_extra
 from .naming import (
     build_target_path, sidecar_label, season_episode_widths, dedupe, extras_base_dir,
@@ -191,8 +191,23 @@ def delete_torrent_links(tor, cats: list[dict]):
                 shutil.rmtree(d, ignore_errors=True)
                 log.info("Removed: %s", d)
             parent = os.path.dirname(d)
-            while parent != cat["path"] and os.path.isdir(parent) and not os.listdir(parent):
-                os.rmdir(parent)
+            while parent != cat["path"] and os.path.isdir(parent):
+                try:
+                    entries = os.listdir(parent)
+                except OSError:
+                    break
+                if any(
+                    os.path.isdir(os.path.join(parent, e))
+                    or os.path.splitext(e)[1].lower() in MEDIA_EXTENSIONS
+                    for e in entries
+                ):
+                    break
+                try:
+                    shutil.rmtree(parent)
+                    log.info("Removed: %s", parent)
+                except OSError as e:
+                    log.warning("Could not remove %s: %s", parent, e)
+                    break
                 parent = os.path.dirname(parent)
 
     delete_rename_jobs_by_hash(tor.hash)
