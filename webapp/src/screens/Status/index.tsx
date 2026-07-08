@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {Divider, Loader} from "@mantine/core"
+import {Divider, Loader, Switch} from "@mantine/core"
 import {CheckCircle2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
@@ -20,6 +20,7 @@ function ServiceIcon({ok}: { ok: boolean | undefined }) {
 export function Status() {
   const {t} = useTranslation()
   const [st, setSt] = useState<StatusData | null>(null)
+  const [togglingAltSpeed, setTogglingAltSpeed] = useState(false)
 
   useEffect(() => {
     const load = () => api.status().then(setSt).catch(() => setSt({connected: false}))
@@ -27,6 +28,17 @@ export function Status() {
     const iv = setInterval(load, 5000)
     return () => clearInterval(iv)
   }, [])
+
+  const toggleAltSpeed = async () => {
+    if (!st?.connected || togglingAltSpeed) return
+    setTogglingAltSpeed(true)
+    try {
+      const result = await api.toggleAltSpeed()
+      setSt(prev => prev ? {...prev, alt_speed_enabled: result.alt_speed_enabled} : prev)
+    } finally {
+      setTogglingAltSpeed(false)
+    }
+  }
 
   const connected = st?.connected ?? undefined
 
@@ -56,6 +68,19 @@ export function Status() {
           <div className={styles.row}>
             <span>{t("status.upload")}</span>
             <span className={styles.rowValue}>{st?.connected ? speed(st.ul ?? 0) : "—"}</span>
+          </div>
+          <Divider/>
+          <div className={styles.row}>
+            <span>{t("status.altSpeed")}</span>
+            <Switch
+              checked={st?.alt_speed_enabled ?? false}
+              disabled={!st?.connected || togglingAltSpeed}
+              onChange={toggleAltSpeed}
+              label={st?.connected
+                ? (st.alt_speed_enabled ? t("status.altSpeedOn") : t("status.altSpeedOff"))
+                : "—"
+              }
+            />
           </div>
         </Section>
 
