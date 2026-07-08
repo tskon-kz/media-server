@@ -3,7 +3,7 @@ import os
 
 from config import ALLOWED, APP_VERSION, current_channel
 from store import (
-    t, set_config, load_cats,
+    t, set_config, set_lang, load_cats,
     set_user_state, set_pending,
     delete_rename_jobs_by_hash, get_rename_jobs_by_hash,
     get_pending_rename_jobs, get_rename_job, delete_rename_job,
@@ -27,6 +27,11 @@ async def on_callback(update, ctx):
     match action:
         case "noop":
             pass
+
+        case "lang":
+            if value in ("ru", "en"):
+                set_lang(value)
+            await _edit(query, t("start"), kb.start_kb())
 
         case "selfupdate":
             if value == "stable":

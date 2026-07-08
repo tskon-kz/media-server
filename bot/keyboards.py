@@ -376,13 +376,16 @@ def jackett_view():
     return t("jackett_settings_title", api_status=api_status, pass_status=pass_status), jackett_settings_kb(has_password)
 
 
-def start_kb() -> InlineKeyboardMarkup | None:
+def start_kb() -> InlineKeyboardMarkup:
+    buttons = []
     url = store.get_config("webapp_url")
-    if not url:
-        return None
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton(t("webapp_open_button"), web_app=WebAppInfo(url=url))
-    ]])
+    if url:
+        buttons.append([InlineKeyboardButton(t("webapp_open_button"), web_app=WebAppInfo(url=url))])
+    buttons.append([
+        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
+        InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
+    ])
+    return InlineKeyboardMarkup(buttons)
 
 
 def list_text(torrents, page=0):
