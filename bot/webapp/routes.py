@@ -534,8 +534,9 @@ async def status(request):
 async def toggle_alt_speed(request):
     try:
         await _thread(lambda: qb().transfer_toggle_speed_limits_mode())
-        mode = await _thread(lambda: qb().transfer_speed_limits_mode())
-        return web.json_response({"alt_speed_enabled": str(mode) == "1"})
+        server_state = (await _thread(lambda: qb().sync_maindata())).get("server_state", {})
+        alt_speed_enabled = bool(server_state.get("use_alt_speed_limits", False))
+        return web.json_response({"alt_speed_enabled": alt_speed_enabled})
     except Exception as e:
         return _err(t("qb_error", e=e), status=502)
 
