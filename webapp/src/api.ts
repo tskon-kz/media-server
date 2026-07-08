@@ -51,11 +51,11 @@ export const api = {
     req<{ removed: boolean }>("POST", `/api/torrents/${hash}/remove-from-client`),
   deleteDiskEntry: (diskId: string) =>
     req<{ deleted: boolean }>("POST", "/api/disk/delete", { disk_id: diskId }),
-  moveTorrent: (hash: string, categoryId: number) =>
-    req<{ moved: boolean }>("POST", `/api/torrents/${hash}/category`, { category_id: categoryId }),
-  structure: (hash: string, mode: "pretty" | "flat" | "delete") =>
+  moveTorrent: (diskId: string, categoryId: number) =>
+    req<{ moved: boolean }>("POST", "/api/torrents/category", { disk_id: diskId, category_id: categoryId }),
+  structure: (diskId: string, mode: "pretty" | "flat" | "delete") =>
     req<{ mode: string; linked?: number; pending?: number; xdev?: boolean }>(
-      "POST", `/api/torrents/${hash}/structure`, { mode },
+      "POST", "/api/torrents/structure", { disk_id: diskId, mode },
     ),
 
   status: () => req<{

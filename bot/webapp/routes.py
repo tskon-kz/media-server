@@ -59,6 +59,56 @@ def _is_renameable(tor, cats: list) -> bool:
     return tor.save_path.rstrip("/") in targets
 
 
+def _qb_disk_id(tor) -> str:
+    """Disk-identity of a qB torrent.
+
+    Keyed on what actually lands on disk (basename of ``content_path``), not on
+    ``tor.name``: a single-file torrent's display name can differ from the
+    on-disk filename (e.g. a trailing ``.torrent``), which would otherwise make
+    it fail to match its own downloaded file and get mislabelled as disk-only.
+    """
+    content = os.path.basename((getattr(tor, "content_path", "") or "").rstrip("/"))
+    name = content or tor.name
+    return f"{os.path.basename(tor.save_path.rstrip('/'))}/{name}"
+
+
+def _disk_stub(disk_id: str):
+    """Minimal torrent stand-in built from a disk entry, so the parser can act
+    on library hardlinks for content qBittorrent no longer tracks."""
+    parts = disk_id.split("/", 1)
+    if len(parts) != 2 or ".." in disk_id or not all(parts):
+        return None
+    basename, name = parts
+    target = os.path.join(INCOMING_DIR, basename, name)
+    if not os.path.realpath(target).startswith(os.path.realpath(INCOMING_DIR) + os.sep):
+        return None
+
+    class _Stub:
+        pass
+
+    stub = _Stub()
+    stub.name = name
+    stub.save_path = os.path.join(INCOMING_DIR, basename) + "/"
+    stub.content_path = target
+    stub.hash = ""
+    return stub
+
+
+async def _resolve_torrent(disk_id: str):
+    """Live qB torrent for this disk entry, or a disk stub if qB no longer
+    tracks it. The disk is the source of truth; qBittorrent is secondary."""
+    if disk_id.startswith("qb:"):
+        return await _one_torrent(disk_id[3:])
+    try:
+        all_tors = await _qb_info()
+    except Exception:
+        all_tors = []
+    tor = next((tor for tor in all_tors if _qb_disk_id(tor) == disk_id), None)
+    if tor is not None:
+        return tor
+    return _disk_stub(disk_id)
+
+
 def _scan_incoming(cats: list) -> list[dict]:
     """Fast: one os.listdir per category download dir, no size I/O."""
     entries = []
@@ -97,9 +147,8 @@ def _compute_disk_size(path: str) -> int:
 
 
 def _torrent_dict(tor, cats: list) -> dict:
-    basename = os.path.basename(tor.save_path.rstrip("/"))
     return {
-        "disk_id": f"{basename}/{tor.name}",
+        "disk_id": _qb_disk_id(tor),
         "hash": tor.hash,
         "in_qbittorrent": True,
         "name": kb.short_name(tor.name),
@@ -238,8 +287,7 @@ async def torrents_list(request):
 
     qb_by_disk_id: dict[str, object] = {}
     for tor in qb_tors:
-        basename = os.path.basename(tor.save_path.rstrip("/"))
-        qb_by_disk_id[f"{basename}/{tor.name}"] = tor
+        qb_by_disk_id[_qb_disk_id(tor)] = tor
 
     result = []
     matched_hashes: set[str] = set()
@@ -339,8 +387,7 @@ async def torrent_delete(request):
     except Exception as e:
         return _err(t("add_error", e=e), status=502)
     if tor:
-        basename = os.path.basename(tor.save_path.rstrip("/"))
-        delete_disk_entry(f"{basename}/{tor.name}")
+        delete_disk_entry(_qb_disk_id(tor))
     asyncio.create_task(_thread(jf, "POST", "/Library/Refresh"))
     return web.json_response({"deleted": True})
 
@@ -366,21 +413,9 @@ async def disk_delete(request):
     if not os.path.realpath(target).startswith(os.path.realpath(INCOMING_DIR) + os.sep):
         return _err("invalid disk_id")
     cats = load_cats()
-    all_tors = await _qb_info()
-    tor = next(
-        (t for t in all_tors if t.name == parts[1] and os.path.basename(t.save_path.rstrip("/")) == parts[0]),
-        None,
-    )
+    tor = await _resolve_torrent(disk_id)
     if tor is None:
-        # Torrent no longer tracked by qB: synthesise a minimal stand-in so
-        # delete_torrent_links can still locate and remove the library hardlinks.
-        class _Stub:
-            pass
-        tor = _Stub()
-        tor.name = parts[1]
-        tor.save_path = os.path.join(INCOMING_DIR, parts[0]) + "/"
-        tor.content_path = target
-        tor.hash = ""
+        return _err("invalid disk_id")
     await _thread(delete_torrent_links, tor, cats)
     await _thread(shutil.rmtree, target, True)
     delete_disk_entry(disk_id)
@@ -388,50 +423,73 @@ async def disk_delete(request):
     return web.json_response({"deleted": True})
 
 
-@routes.post("/api/torrents/{hash}/category")
+@routes.post("/api/torrents/category")
 async def torrent_move(request):
-    tor_hash = request.match_info["hash"]
     body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
     cat_id = body.get("category_id")
     cats = load_cats()
     new_cat = _find_cat(cat_id) if cat_id is not None else None
     if not new_cat:
         return _err("category not found", status=404)
-    try:
-        tor = await _one_torrent(tor_hash)
-    except Exception as e:
-        return _err(t("qb_error", e=e), status=502)
-    if tor:
-        def _relink():
-            delete_torrent_links(tor, cats)
-            if get_config("rename_mode", "flat") == "pretty":
-                process_torrent_rename(tor, cats, target_cat=new_cat)
-            else:
-                create_flat_hardlinks(tor, cats, target_cat=new_cat)
-            jf("POST", "/Library/Refresh")
-        await _thread(_relink)
-    try:
-        await _thread(
-            lambda: qb().torrents_set_location(torrent_hashes=tor_hash, location=_dl_path(new_cat))
-        )
-    except Exception as e:
-        return _err(t("add_error", e=e), status=502)
+    tor = await _resolve_torrent(disk_id)
+    if tor is None:
+        return _err("torrent not found", status=404)
+
+    def _relink():
+        delete_torrent_links(tor, cats)
+        if get_config("rename_mode", "flat") == "pretty":
+            process_torrent_rename(tor, cats, target_cat=new_cat)
+        else:
+            create_flat_hardlinks(tor, cats, target_cat=new_cat)
+        jf("POST", "/Library/Refresh")
+    await _thread(_relink)
+
+    if getattr(tor, "hash", ""):
+        # Live qB torrent: let qBittorrent relocate the download (it re-checks
+        # the files at the new location).
+        try:
+            await _thread(
+                lambda: qb().torrents_set_location(torrent_hashes=tor.hash, location=_dl_path(new_cat))
+            )
+        except Exception as e:
+            return _err(t("add_error", e=e), status=502)
+    else:
+        # Disk-only entry: no client to relocate, so move the content ourselves
+        # into the new category's download dir. os.rename/shutil.move keeps inodes
+        # on the same filesystem, so the library hardlinks repointed above stay
+        # valid. Keep the disk-entry index in sync with the new location.
+        new_dir = _dl_path(new_cat)
+        new_disk_id = f"{os.path.basename(new_cat['path'].rstrip('/'))}/{tor.name}"
+
+        def _relocate():
+            os.makedirs(new_dir, exist_ok=True)
+            new_path = os.path.join(new_dir, tor.name)
+            if os.path.realpath(tor.content_path) != os.path.realpath(new_path):
+                shutil.move(tor.content_path, new_path)
+
+        try:
+            await _thread(_relocate)
+        except Exception as e:
+            return _err(t("add_error", e=e), status=502)
+
+        if new_disk_id != disk_id:
+            size = load_disk_entries().get(disk_id, {}).get("size", 0)
+            delete_disk_entry(disk_id)
+            upsert_disk_entry(new_disk_id, tor.name, new_cat["id"], size)
     return web.json_response({"moved": True})
 
 
-@routes.post("/api/torrents/{hash}/structure")
+@routes.post("/api/torrents/structure")
 async def torrent_structure(request):
     """mode: pretty | flat | delete — mirrors structure_menu_kb."""
-    tor_hash = request.match_info["hash"]
     body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
     mode = body.get("mode")
     if mode not in ("pretty", "flat", "delete"):
         return _err("mode must be pretty|flat|delete")
     cats = load_cats()
-    try:
-        tor = await _one_torrent(tor_hash)
-    except Exception as e:
-        return _err(t("qb_error", e=e), status=502)
+    tor = await _resolve_torrent(disk_id)
     if not tor:
         return _err("torrent not found", status=404)
 

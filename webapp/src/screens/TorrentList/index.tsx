@@ -86,7 +86,7 @@ export function TorrentList() {
   const doMove = async (tor: Torrent, cat: Category) => {
     setMoving(null)
     try {
-      await api.moveTorrent(tor.hash!, cat.id)
+      await api.moveTorrent(tor.disk_id, cat.id)
       toast(t("torrents.moved", {name: cat.name}))
       load()
     } catch (e) {
@@ -97,7 +97,7 @@ export function TorrentList() {
   const doStructure = async (tor: Torrent, mode: "pretty" | "flat" | "delete") => {
     setStructFor(null)
     try {
-      const r = await api.structure(tor.hash!, mode)
+      const r = await api.structure(tor.disk_id, mode)
       if (r.xdev) toast(t("torrents.xdev"), "err")
       else if (mode === "pretty") toast(t("torrents.linked", {n: r.linked, pending: r.pending}))
       else toast(t("common.done"))
@@ -144,7 +144,7 @@ export function TorrentList() {
                 before={tor.in_qbittorrent ? <TorrentIcon state={tor.state}/> : <HardDrive size={20} style={{color: "var(--tg-theme-hint-color)"}}/>}
                 after={
                   <div className={s.iconActions}>
-                    {tor.in_qbittorrent && cats.length > 0 && (
+                    {cats.length > 0 && (
                       <button
                         className={s.iconBtn}
                         onClick={(e) => {
@@ -156,7 +156,7 @@ export function TorrentList() {
                         <FolderInput size={18}/>
                       </button>
                     )}
-                    {tor.in_qbittorrent && tor.renameable && (
+                    {tor.renameable && (
                       <button
                         className={s.iconBtn}
                         onClick={(e) => {
