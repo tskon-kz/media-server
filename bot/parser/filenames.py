@@ -26,11 +26,13 @@ def parse_filename(filename: str, jf_type: str, fallback_title: str | None = Non
         if re.match(r'^s\d{1,2}e\d{1,3}', stem, re.IGNORECASE):
             title = fallback_title
 
-        # Bare zero-padded numbers ("Naruto - 150", "Naruto - 001") make guessit
-        # split them into season/episode ("150"->S1E50, "001"->S0E1), and it does
-        # so inconsistently across a release's videos vs its dub/sub files. With no
-        # explicit season marker, trust the trailing number as the absolute episode
-        # so every file (video + sidecars) maps to the same S01Exxx.
+        # No explicit season marker → absolute episode numbering in season 1
+        # ("Naruto - 150", "Naruto.E166.hevc", "One Piece - 1000 [1080p]").
+        # guessit mis-splits bare numbers ("150"->S1E50, "001"->S0E1) inconsistently
+        # across a release, so we prefer a trailing bare number (the full "150"),
+        # falling back to guessit's episode when the number isn't at the end
+        # (e.g. "E166" before "hevc"). Either way the season is forced to 1 so every
+        # file (video + dub/sub sidecars) maps to the same S01Exxx.
         has_season_marker = re.search(r'(?i)(?:\bs\d{1,2}(?!\d)|season[ ._]?\d{1,2})', stem)
         if not has_season_marker:
             clean_stem = re.sub(r'(\s*[\[(][^\]\)]*[\]\)])+$', '', stem).rstrip()
@@ -38,21 +40,11 @@ def parse_filename(filename: str, jf_type: str, fallback_title: str | None = Non
             if m:
                 n = int(m.group(1))
                 if 0 < n < 3000 and n != (guess.get("year") or -1):
-                    season, episode = 1, n
-                    if not title:
-                        title = fallback_title
-
-        # fallback: bare number for partial guesses (other layouts)
-        if title and (season is None or episode is None):
-            clean_stem = re.sub(r'(\s*[\[(][^\]\)]*[\]\)])+$', '', stem).rstrip()
-            m = re.search(r'[\s_.-](\d{1,3})$', clean_stem)
-            if m:
-                n = int(m.group(1))
-                if n < 480:
-                    if season is None:
-                        season = 1
-                    if episode is None:
-                        episode = n
+                    episode = n
+            if episode is not None:
+                season = 1
+                if not title:
+                    title = fallback_title
 
         if title and season is not None and episode is not None:
             return {"title": str(title), "season": int(season), "episode": int(episode)}
