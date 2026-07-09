@@ -82,6 +82,8 @@ def run(job: dict, progress_cb):
     elif upscaler == "video2x":
         if not has_vulkan():
             raise UpscaleError("no Vulkan GPU (/dev/dri) — Video2X unavailable")
+        if not shutil.which(VIDEO2X_BIN):
+            raise UpscaleError(f"video2x binary not found ('{VIDEO2X_BIN}') — pip install may have failed at image build time")
         _run_video2x(src, scale, progress_cb)
     else:
         raise UpscaleError(f"unknown upscaler: {upscaler}")
@@ -185,7 +187,10 @@ def _run_video2x(src: str, scale: int, progress_cb):
 
 
 def _run_ok(cmd: list[str], errmsg: str):
-    proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    except FileNotFoundError:
+        raise UpscaleError(f"{errmsg}: binary not found: '{cmd[0]}'")
     if proc.returncode != 0:
         # Take the tail so the actual error isn't hidden behind ffmpeg's version banner.
         tail = proc.stderr.strip()[-400:]
