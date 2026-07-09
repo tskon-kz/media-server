@@ -15,11 +15,14 @@ The ncnn-vulkan binary can only read/write files or directories (no stdin/stdout
 streaming), so a literal ffmpeg->realesrgan->ffmpeg pipe is impossible; the
 segment-in-scratch approach is the closest we get to "not touching the slow disk".
 """
+import logging
 import os
 import shutil
 import subprocess
 import tempfile
 import time
+
+log = logging.getLogger("upscaler")
 
 # Binary + model locations (overridable so the Dockerfile can pin exact paths).
 REALESRGAN_BIN    = os.environ.get("REALESRGAN_BIN", "realesrgan-ncnn-vulkan")
@@ -36,12 +39,33 @@ FAST_TMPDIR       = os.environ.get("UPSCALE_TMPDIR", "/tmp")
 # start-up. ~20s ≈ a few hundred frames.
 SEGMENT_SECONDS   = int(os.environ.get("UPSCALE_SEGMENT_SECONDS", "20"))
 
+# VAAPI hardware H.264 encode. `auto` = use it when the device probes OK; `off`
+# forces the CPU libx264 path (e.g. for a broken driver). Same /dev/dri already
+# mounted for the AI backend.
+VAAPI_DEVICE      = os.environ.get("VAAPI_DEVICE", "/dev/dri/renderD128")
+HWENC             = os.environ.get("UPSCALE_HWENC", "auto").lower()
+
 
 class UpscaleError(Exception):
     pass
 
 
+# GPU capabilities don't change while the container lives, and this worker is a
+# long-running poll loop, so probe once and memoise instead of shelling out per
+# job. None = not yet probed.
+_vulkan_cached: bool | None = None
+_vaapi_cached: bool | None = None
+
+
 def has_vulkan() -> bool:
+    global _vulkan_cached
+    if _vulkan_cached is None:
+        _vulkan_cached = _probe_vulkan()
+        log.info("Vulkan (AI upscaler) available: %s", _vulkan_cached)
+    return _vulkan_cached
+
+
+def _probe_vulkan() -> bool:
     if not os.path.exists("/dev/dri"):
         return False
     try:
@@ -49,6 +73,46 @@ def has_vulkan() -> bool:
         return True
     except Exception:
         return False
+
+
+def has_vaapi() -> bool:
+    global _vaapi_cached
+    if _vaapi_cached is None:
+        _vaapi_cached = _probe_vaapi()
+        log.info("VAAPI hardware encode available: %s (device=%s)", _vaapi_cached, VAAPI_DEVICE)
+    return _vaapi_cached
+
+
+def _probe_vaapi() -> bool:
+    if HWENC == "off" or not os.path.exists(VAAPI_DEVICE):
+        return False
+    try:
+        out = subprocess.run(
+            ["vainfo", "--display", "drm", "--device", VAAPI_DEVICE],
+            capture_output=True, text=True, timeout=30,
+        )
+        # Need an actual H.264 *encode* entrypoint, not just decode.
+        return out.returncode == 0 and "VAEntrypointEncSlice" in out.stdout
+    except Exception:
+        return False
+
+
+def _video_encode(scale_filter: str | None) -> tuple[list, str, list]:
+    """Encoder command fragments, shared by the ffmpeg and ncnn re-encode steps.
+
+    Returns ``(pre_input_args, video_filter, codec_args)``. ``scale_filter`` is the
+    caller's scaling stage (or None) that the hwupload tail is appended to.
+    VAAPI when available (H.264 encode on the iGPU), else CPU libx264.
+    """
+    parts = [p for p in (scale_filter,) if p]
+    if has_vaapi():
+        parts.append("format=nv12,hwupload")
+        return (["-vaapi_device", VAAPI_DEVICE],
+                ",".join(parts),
+                ["-c:v", "h264_vaapi", "-qp", "18"])
+    return ([],
+            ",".join(parts),
+            ["-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p"])
 
 
 def _probe_duration(src: str) -> float:
@@ -118,14 +182,17 @@ def _run_ffmpeg(src: str, scale: int, progress_cb):
     # CPU-bound, not disk-bound, so scratch placement doesn't matter here.
     fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
     os.close(fd)
+    # lanczos scaling stays on the CPU (quality); only the H.264 encode moves to
+    # the GPU when VAAPI is available.
+    pre_input, vfilter, codec = _video_encode(f"scale=iw*{scale}:ih*{scale}:flags=lanczos")
     cmd = [
-        "ffmpeg", "-y", "-i", src,
+        "ffmpeg", "-y", *pre_input, "-i", src,
         # Keep every stream (all audio dubs, all subtitles, attachments/fonts) —
         # the result replaces the original in place, so a dropped track is lost
         # for good. Only the video stream is filtered; the rest is copied.
         "-map", "0",
-        "-vf", f"scale=iw*{scale}:ih*{scale}:flags=lanczos",
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p",
+        "-vf", vfilter,
+        *codec,
         "-c:a", "copy", "-c:s", "copy", "-c:t", "copy",
         "-progress", "pipe:1", "-nostats", tmp_out,
     ]
@@ -221,11 +288,12 @@ def _run_ncnn(src: str, scale: int, progress_cb):
                 raise UpscaleError(f"{REALESRGAN_BIN} exited {proc.returncode}")
 
             # 4. Re-encode this segment (video only; audio/subs come from original).
+            pre_input, vfilter, codec = _video_encode(None)
             _run_ok(
-                ["ffmpeg", "-y", "-loglevel", "error", "-framerate", fps,
-                 "-i", os.path.join(frames_out, "%08d.png"),
-                 "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-                 "-pix_fmt", "yuv420p", os.path.join(seg_enc, f"e{idx:05d}.mkv")],
+                ["ffmpeg", "-y", "-loglevel", "error", *pre_input,
+                 "-framerate", fps, "-i", os.path.join(frames_out, "%08d.png"),
+                 *(["-vf", vfilter] if vfilter else []), *codec,
+                 os.path.join(seg_enc, f"e{idx:05d}.mkv")],
                 "segment re-encode failed",
             )
             done_frames += seg_total

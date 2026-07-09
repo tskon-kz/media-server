@@ -5,12 +5,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # ffmpeg/ffprobe for classical scaling + frame extract/reassemble; Vulkan loader
 # and Mesa drivers so the ncnn binaries can use an AMD/Intel iGPU; vulkan-tools
-# for the runtime `vulkaninfo` availability check.
+# for the runtime `vulkaninfo` availability check; mesa-va-drivers + vainfo for
+# VAAPI hardware H.264 encoding (ffmpeg's Debian build already enables VAAPI).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         libvulkan1 \
         mesa-vulkan-drivers \
         vulkan-tools \
+        mesa-va-drivers \
+        vainfo \
         libgomp1 \
         wget \
         unzip \
