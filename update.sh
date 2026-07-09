@@ -38,36 +38,19 @@ else
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG" >> .env
 fi
 
-_curl_fetch() {  # _curl_fetch <url> <output_path>  — downloads with timeouts and retries
-    local url="$1" out="$2"
-    curl -fsSL \
-        --connect-timeout 10 \
-        --max-time 60 \
-        --retry 3 \
-        --retry-delay 2 \
-        --retry-all-errors \
-        -o "$out" "$url"
-}
-
-echo "⬇  Downloading latest files..."
-_curl_fetch "$RAW/docker-compose.yml"   docker-compose.new.yml
-_curl_fetch "$RAW/update.sh"            update.sh && chmod +x update.sh
-_curl_fetch "$RAW/migrate-media.sh"     migrate-media.sh && chmod +x migrate-media.sh
-_curl_fetch "$RAW/teardown.sh"          teardown.sh && chmod +x teardown.sh
-mkdir -p lang
-_curl_fetch "$RAW/lang/en.sh"           lang/en.sh
-_curl_fetch "$RAW/lang/ru.sh"           lang/ru.sh
-mkdir -p upscaler
-_curl_fetch "$RAW/upscaler/Dockerfile"  upscaler/Dockerfile
-_curl_fetch "$RAW/upscaler/main.py"     upscaler/main.py
-_curl_fetch "$RAW/upscaler/db.py"       upscaler/db.py
-_curl_fetch "$RAW/upscaler/runners.py"  upscaler/runners.py
+echo "⬇  Fetching latest files from GitHub..."
+if [ ! -d .git ]; then
+    git init -q
+    git remote add origin "https://github.com/$REPO.git"
+elif ! git remote get-url origin &>/dev/null 2>&1; then
+    git remote add origin "https://github.com/$REPO.git"
+fi
+git fetch --depth=1 -q origin main
+git checkout --force origin/main -- .
+chmod +x update.sh teardown.sh migrate-media.sh
 
 echo "⏹  Stopping containers..."
 docker compose down
-
-echo "📄  Applying new docker-compose.yml..."
-mv docker-compose.new.yml docker-compose.yml
 
 echo "📦  Pulling latest bot image..."
 # Only the bot image — the other services are pinned to :latest and must not be

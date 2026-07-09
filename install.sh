@@ -172,18 +172,15 @@ cd "$INSTALL_DIR"
 export BOT_IMAGE_TAG="$(_db_get bot_image_tag stable)"
 
 _spin "$MSG_DOWNLOADING" bash -c "
-    _curl_fetch '$RAW/docker-compose.yml'  docker-compose.yml
-    mkdir -p lang
-    _curl_fetch '$RAW/lang/en.sh'          lang/en.sh
-    _curl_fetch '$RAW/lang/ru.sh'          lang/ru.sh
-    _curl_fetch '$RAW/update.sh'           update.sh        && chmod +x update.sh
-    _curl_fetch '$RAW/teardown.sh'         teardown.sh      && chmod +x teardown.sh
-    _curl_fetch '$RAW/migrate-media.sh'    migrate-media.sh && chmod +x migrate-media.sh
-    mkdir -p upscaler
-    _curl_fetch '$RAW/upscaler/Dockerfile' upscaler/Dockerfile
-    _curl_fetch '$RAW/upscaler/main.py'    upscaler/main.py
-    _curl_fetch '$RAW/upscaler/db.py'      upscaler/db.py
-    _curl_fetch '$RAW/upscaler/runners.py' upscaler/runners.py
+    if [ ! -d .git ]; then
+        git init -q
+        git remote add origin 'https://github.com/$REPO.git'
+    elif ! git remote get-url origin >/dev/null 2>&1; then
+        git remote add origin 'https://github.com/$REPO.git'
+    fi
+    git fetch --depth=1 -q origin main
+    git checkout --force origin/main -- .
+    chmod +x update.sh teardown.sh migrate-media.sh
 "
 
 if [ -f "$INSTALL_DIR/.env" ]; then
