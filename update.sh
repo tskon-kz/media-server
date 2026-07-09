@@ -66,6 +66,9 @@ until docker compose pull telegram-bot; do
     _pull_attempt=$((_pull_attempt + 1))
 done
 
+echo "🔨  Rebuilding upscaler (local image)..."
+docker compose build upscaler
+
 echo "▶  Starting containers..."
 docker compose up -d
 
