@@ -37,6 +37,7 @@ from api import (
 from parser import (
     process_torrent_rename, create_flat_hardlinks,
     delete_torrent_links, delete_all_cat_contents, get_video_files,
+    VIDEO_EXTENSIONS,
 )
 import keyboards as kb
 
@@ -569,7 +570,10 @@ def _cat_id_for(tor, cats: list) -> int | None:
 def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None) -> tuple[int, str]:
     """Snap the torrent out of qB (keeping files), then queue one upscale job per
     video file. Returns (queued_count, disk_id the jobs are keyed on)."""
-    files = get_video_files(tor.content_path)
+    # get_video_files also returns sidecars (subs/audio) for the linker; only real
+    # video files can be upscaled, so filter them out before queueing jobs.
+    files = [f for f in get_video_files(tor.content_path)
+             if os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS]
     disk_id = _qb_disk_id(tor)
     delete_upscale_jobs_by_disk_id(disk_id)  # clear any stale error jobs from previous attempts
     if getattr(tor, "hash", ""):
