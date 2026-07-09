@@ -13,6 +13,15 @@ export interface Torrent {
   eta: number;
   save_path: string;
   renameable: boolean;
+  upscaling: boolean;
+  upscale_progress: number;
+  has_backup: boolean;
+}
+
+export interface Upscaler {
+  id: string;
+  label: string;
+  needs_gpu: boolean;
 }
 
 export interface Category {
@@ -46,6 +55,7 @@ export interface AppConfig {
   webapp_url: string;
   quick_links: QuickLinks | null;
   has_categories: boolean;
+  upscalers: Upscaler[];
 }
 
 export interface Settings {

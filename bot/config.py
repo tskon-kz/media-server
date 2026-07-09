@@ -45,12 +45,25 @@ SEARCH_CATEGORIES = [
 
 DATA_DIR       = "/app/data"
 INCOMING_DIR   = "/media/.downloads"
+BACKUP_DIR     = "/media/.backups"
 WATCHTOWER_URL = "http://watchtower:8080"
 REPO_SLUG      = "tskon-kz/media-server"
 REPO_OWNER     = REPO_SLUG.split("/")[0]
 BOT_IMAGE      = f"ghcr.io/{REPO_OWNER}/media-server-bot"
 BOT_CONTAINER  = "media-server-telegram-bot"
 CLOUDFLARED_CONTAINER = "media-server-cloudflared"
+
+# Available upscalers offered to the user. `needs_gpu` ones require a Vulkan
+# device (`/dev/dri`) in the upscaler container; without it the worker fails the
+# job with a clear error. `ffmpeg` is the CPU-safe classical resize (lanczos).
+# The `id` is the contract with upscaler/runners.py.
+UPSCALERS = [
+    {"id": "ffmpeg",     "label": "ffmpeg (lanczos)", "needs_gpu": False},
+    {"id": "realesrgan", "label": "Real-ESRGAN",      "needs_gpu": True},
+    {"id": "waifu2x",    "label": "waifu2x (anime)",  "needs_gpu": True},
+    {"id": "video2x",    "label": "Video2X",          "needs_gpu": True},
+]
+UPSCALER_IDS = frozenset(u["id"] for u in UPSCALERS)
 
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},

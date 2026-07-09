@@ -34,6 +34,16 @@ export default {
     pretty: "Красивые имена",
     original: "Оригинальная структура",
     delLinks: "Удалить хардлинки",
+    // Апскейл + бэкап
+    upscale: "Апскейл (2x)",
+    upscalePick: "Выберите апскейлер",
+    upscaleQueued: "В очереди: {{n}} файл(ов). Это займёт время.",
+    upscaling: "апскейл {{pct}}",
+    backup: "Сохранить в бэкап",
+    delBackup: "Удалить бэкап",
+    backupSaved: "Бэкап сохранён",
+    backupDeleted: "Бэкап удалён",
+    gpuHint: "нужен GPU",
     // Delete confirmation modal
     deleteTitle: "Удалить торрент?",
     deleteBody: '"{{name}}" и все его файлы будут удалены.',

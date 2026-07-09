@@ -17,14 +17,15 @@ import time
 from aiohttp import web
 
 from config import (
-    ICONS, INCOMING_DIR, APP_VERSION, current_channel,
-    QB_PORT, JF_PORT, JACKETT_PORT,
+    ICONS, INCOMING_DIR, BACKUP_DIR, APP_VERSION, current_channel,
+    QB_PORT, JF_PORT, JACKETT_PORT, UPSCALERS, UPSCALER_IDS,
 )
 import store
 from store import (
     t, load_cats, save_cats, set_lang, set_config, get_config,
     get_creds, get_qb_status, set_qb_status,
     load_disk_entries, upsert_disk_entry, upsert_disk_entries_batch, delete_disk_entry,
+    add_upscale_job, get_active_upscale_disk_ids,
 )
 from api import (
     jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
@@ -35,7 +36,7 @@ from api import (
 )
 from parser import (
     process_torrent_rename, create_flat_hardlinks,
-    delete_torrent_links, delete_all_cat_contents,
+    delete_torrent_links, delete_all_cat_contents, get_video_files,
 )
 import keyboards as kb
 
@@ -92,6 +93,27 @@ def _disk_stub(disk_id: str):
     stub.content_path = target
     stub.hash = ""
     return stub
+
+
+def _backup_path(disk_id: str) -> str | None:
+    """Backup location for a disk_id (``<catslug>/<name>``), or None if malformed.
+
+    Backups are real copies (not hardlinks) under BACKUP_DIR so they survive the
+    upscaler replacing the originals in place; keeps the original layout so the
+    user can restore by copying back.
+    """
+    parts = disk_id.split("/", 1)
+    if len(parts) != 2 or ".." in disk_id or not all(parts):
+        return None
+    target = os.path.join(BACKUP_DIR, parts[0], parts[1])
+    if not os.path.realpath(os.path.dirname(target)).startswith(os.path.realpath(BACKUP_DIR)):
+        return None
+    return target
+
+
+def _has_backup(disk_id: str) -> bool:
+    p = _backup_path(disk_id)
+    return bool(p) and os.path.exists(p)
 
 
 async def _resolve_torrent(disk_id: str):
@@ -268,6 +290,7 @@ async def config(request):
         "webapp_url": get_config("webapp_url"),
         "quick_links": links,
         "has_categories": bool(load_cats()),
+        "upscalers": UPSCALERS,
     })
 
 
@@ -325,6 +348,13 @@ async def torrents_list(request):
             d = _torrent_dict(tor, cats)
             d["disk_id"] = f"qb:{tor.hash}"
             result.append(d)
+
+    active_upscales = get_active_upscale_disk_ids()
+    for item in result:
+        progress = active_upscales.get(item["disk_id"])
+        item["upscaling"] = progress is not None
+        item["upscale_progress"] = progress if progress is not None else 0
+        item["has_backup"] = _has_backup(item["disk_id"])
 
     return web.json_response({
         "torrents": result,
@@ -521,6 +551,93 @@ async def torrent_structure(request):
         jf("POST", "/Library/Refresh")
     await _thread(_f)
     return web.json_response({"mode": "delete", "deleted": True})
+
+
+# ---- upscale / backup ----
+#
+# Shared blocking helpers so the Telegram callbacks can reuse the exact same
+# logic via _thread — no business logic duplicated between the two surfaces.
+
+def _cat_id_for(tor, cats: list) -> int | None:
+    slug = os.path.basename(tor.save_path.rstrip("/"))
+    cat = next((c for c in cats if os.path.basename(c["path"].rstrip("/")) == slug), None)
+    return cat["id"] if cat else None
+
+
+def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None) -> tuple[int, str]:
+    """Snap the torrent out of qB (keeping files), then queue one upscale job per
+    video file. Returns (queued_count, disk_id the jobs are keyed on)."""
+    files = get_video_files(tor.content_path)
+    disk_id = _qb_disk_id(tor)
+    if getattr(tor, "hash", ""):
+        # Remove from the client but keep the files: the upscaler rewrites them in
+        # place, and a live torrent would recheck/error on the changed data.
+        qb().torrents_delete(delete_files=False, torrent_hashes=tor.hash)
+        cat_id = _cat_id_for(tor, cats)
+        if cat_id is not None:
+            upsert_disk_entry(disk_id, os.path.basename(tor.content_path.rstrip("/")),
+                              cat_id, _compute_disk_size(tor.content_path))
+    for src in files:
+        add_upscale_job(disk_id, src, upscaler, user_id)
+    return len(files), disk_id
+
+
+@routes.post("/api/torrents/upscale")
+async def torrent_upscale(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    upscaler = body.get("upscaler")
+    if upscaler not in UPSCALER_IDS:
+        return _err("unknown upscaler")
+    cats = load_cats()
+    tor = await _resolve_torrent(disk_id)
+    if not tor:
+        return _err("torrent not found", status=404)
+    # Refuse a second run while one is in flight: re-queueing would upscale the
+    # already-upscaled files again (2x → 4x) since the originals are gone.
+    if _qb_disk_id(tor) in get_active_upscale_disk_ids():
+        return _err(t("upscale_in_progress"))
+    user_id = request.get("user_id")
+    queued, new_disk_id = await _thread(queue_upscale, tor, cats, upscaler, user_id)
+    if not queued:
+        return _err("no video files to upscale")
+    return web.json_response({"queued": queued, "disk_id": new_disk_id})
+
+
+@routes.post("/api/torrents/backup")
+async def torrent_backup(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    tor = await _resolve_torrent(disk_id)
+    if not tor:
+        return _err("torrent not found", status=404)
+    # Key the backup on the canonical <slug>/<name>, not a raw qb:<hash> id.
+    dst = _backup_path(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
+    if not dst:
+        return _err("invalid disk_id")
+    src = tor.content_path
+
+    def _f():
+        if os.path.exists(dst):
+            shutil.rmtree(dst, ignore_errors=True)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if os.path.isdir(src):
+            shutil.copytree(src, dst)
+        else:
+            shutil.copy2(src, dst)
+    await _thread(_f)
+    return web.json_response({"backed_up": True})
+
+
+@routes.post("/api/torrents/backup/delete")
+async def torrent_backup_delete(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    dst = _backup_path(disk_id)
+    if not dst:
+        return _err("invalid disk_id")
+    await _thread(lambda: shutil.rmtree(dst, ignore_errors=True))
+    return web.json_response({"deleted": True})
 
 
 # ---- status / scan ----
