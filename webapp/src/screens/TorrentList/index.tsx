@@ -136,6 +136,17 @@ export function TorrentList() {
     }
   }
 
+  const doRestoreBackup = async (tor: Torrent) => {
+    setStructFor(null)
+    try {
+      await api.restoreBackup(tor.disk_id)
+      toast(t("torrents.backupRestored"))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
   const doDeleteBackup = async (tor: Torrent) => {
     setStructFor(null)
     try {
@@ -326,10 +337,17 @@ export function TorrentList() {
                   onClick={() => setUpscaleFor(structFor)}>
             {t("torrents.upscale")}
           </Button>
-          <Button fullWidth variant="default" leftSection={<Save size={18}/>}
-                  onClick={() => structFor && doBackup(structFor)}>
-            {t("torrents.backup")}
-          </Button>
+          {structFor?.has_backup ? (
+            <Button fullWidth variant="light" color="teal" leftSection={<Save size={18}/>}
+                    onClick={() => structFor && doRestoreBackup(structFor)}>
+              {t("torrents.restoreBackup")}
+            </Button>
+          ) : (
+            <Button fullWidth variant="default" leftSection={<Save size={18}/>}
+                    onClick={() => structFor && doBackup(structFor)}>
+              {t("torrents.backup")}
+            </Button>
+          )}
           {structFor?.has_backup && (
             <Button fullWidth variant="subtle" color="red" leftSection={<Trash2 size={18}/>}
                     onClick={() => structFor && doDeleteBackup(structFor)}>

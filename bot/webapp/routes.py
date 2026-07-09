@@ -629,6 +629,39 @@ async def torrent_backup(request):
     return web.json_response({"backed_up": True})
 
 
+@routes.post("/api/torrents/backup/restore")
+async def torrent_backup_restore(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    backup = _backup_path(disk_id)
+    if not backup or not os.path.exists(backup):
+        return _err("backup not found", status=404)
+    tor = await _resolve_torrent(disk_id)
+    if tor is None:
+        return _err("torrent not found", status=404)
+    cats = load_cats()
+
+    def _f():
+        dst = tor.content_path
+        if os.path.isdir(dst):
+            shutil.rmtree(dst)
+        elif os.path.isfile(dst):
+            os.remove(dst)
+        if os.path.isdir(backup):
+            shutil.copytree(backup, dst)
+        else:
+            shutil.copy2(backup, dst)
+        delete_torrent_links(tor, cats)
+        if get_config("rename_mode", "flat") == "pretty":
+            process_torrent_rename(tor, cats)
+        else:
+            create_flat_hardlinks(tor, cats)
+        jf("POST", "/Library/Refresh")
+
+    await _thread(_f)
+    return web.json_response({"restored": True})
+
+
 @routes.post("/api/torrents/backup/delete")
 async def torrent_backup_delete(request):
     body = await _json(request)

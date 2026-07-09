@@ -40,8 +40,10 @@ export default {
     upscaleQueued: "В очереди: {{n}} файл(ов). Это займёт время.",
     upscaling: "апскейл {{pct}}",
     backup: "Сохранить в бэкап",
+    restoreBackup: "Восстановить из бэкапа",
     delBackup: "Удалить бэкап",
     backupSaved: "Бэкап сохранён",
+    backupRestored: "Восстановлено из бэкапа",
     backupDeleted: "Бэкап удалён",
     gpuHint: "нужен GPU",
     // Delete confirmation modal

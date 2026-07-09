@@ -40,8 +40,10 @@ export default {
     upscaleQueued: "Queued: {{n}} file(s). This can take a while.",
     upscaling: "upscaling {{pct}}",
     backup: "Save backup",
+    restoreBackup: "Restore from backup",
     delBackup: "Delete backup",
     backupSaved: "Backup saved",
+    backupRestored: "Restored from backup",
     backupDeleted: "Backup deleted",
     gpuHint: "needs GPU",
     // Delete confirmation modal
