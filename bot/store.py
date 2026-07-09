@@ -46,6 +46,9 @@ def _create_tables():
             cat_id   INTEGER NOT NULL,
             size     INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS done_notified (
+            hash TEXT PRIMARY KEY
+        );
     """)
     _conn.commit()
 
@@ -183,6 +186,20 @@ def save_states(states: dict):
         )
     else:
         _conn.execute("DELETE FROM torrent_states")
+    _conn.commit()
+
+
+def has_done_notified(torrent_hash: str) -> bool:
+    return bool(_conn.execute("SELECT 1 FROM done_notified WHERE hash=?", (torrent_hash,)).fetchone())
+
+
+def mark_done_notified(torrent_hash: str):
+    _conn.execute("INSERT OR IGNORE INTO done_notified VALUES (?)", (torrent_hash,))
+    _conn.commit()
+
+
+def clear_done_notified(torrent_hash: str):
+    _conn.execute("DELETE FROM done_notified WHERE hash=?", (torrent_hash,))
     _conn.commit()
 
 

@@ -8,6 +8,7 @@ from store import (
     get_config, set_config, set_qb_status, get_qb_status,
     has_notified_update, mark_update_notified,
     upsert_disk_entry,
+    has_done_notified, mark_done_notified, clear_done_notified,
 )
 from api import jf, qb, invalidate_qb, gh_latest_release_tag, get_cloudflared_url
 from parser import create_flat_hardlinks, process_torrent_rename, find_cat
@@ -39,8 +40,9 @@ async def job_check_done(ctx):
 
     for tor in torrents:
         prev = known.get(tor.hash)
-        if prev and prev not in DONE_STATES and tor.state in DONE_STATES:
+        if prev and prev not in DONE_STATES and tor.state in DONE_STATES and not has_done_notified(tor.hash):
             log.info("Download done: %s", tor.name)
+            mark_done_notified(tor.hash)
             for uid in ALLOWED:
                 await ctx.bot.send_message(uid, t("download_done", name=kb.short_name(tor.name)), parse_mode="Markdown")
             cat = find_cat(tor, cats)
@@ -73,6 +75,7 @@ async def job_check_done(ctx):
     for h in list(known):
         if h not in active:
             del known[h]
+            clear_done_notified(h)
     save_states(known)
 
 
