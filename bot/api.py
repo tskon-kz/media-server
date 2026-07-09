@@ -356,8 +356,8 @@ def get_cloudflared_url() -> str | None:
     it rather than caching it across restarts. Returns None until the banner
     appears (or if the container is unreachable).
     """
-    m = _TRYCLOUDFLARE_RE.search(_docker_logs(CLOUDFLARED_CONTAINER, tail=200))
-    return m.group(0) if m else None
+    matches = _TRYCLOUDFLARE_RE.findall(_docker_logs(CLOUDFLARED_CONTAINER, tail=200))
+    return matches[-1] if matches else None
 
 
 # --- Updates ---
