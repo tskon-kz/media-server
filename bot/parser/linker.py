@@ -77,7 +77,9 @@ def process_torrent_rename(tor, cats: list[dict], *, target_cat: dict | None = N
     # language/group suffix so multiple dubs/subs per episode all survive.
     for src_path, filename, parsed in parsed_files:
         ext = os.path.splitext(filename)[1].lower()
-        width = widths.get((parsed["title"], parsed["season"]), 2)
+        # Movies have no season; widths is empty for them anyway, so fall back to
+        # the default width instead of KeyError-ing on the missing 'season' key.
+        width = widths.get((parsed.get("title"), parsed.get("season")), 2)
         is_sidecar = ext in SIDECAR_EXTENSIONS
         label = sidecar_label(src_path, content_path, filename) if is_sidecar else ""
         dst_path = build_target_path(cat, parsed, filename, episode_width=width, label=label)

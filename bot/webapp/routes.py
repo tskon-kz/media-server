@@ -646,14 +646,23 @@ async def torrent_backup_restore(request):
 
     def _f():
         dst = tor.content_path
+        # Copy the backup to a temp sibling first, then swap it in — never delete
+        # the live content until the fresh copy is fully in place, so a failed
+        # copy (or a crash in the relink below) can't leave the source gone.
+        tmp = dst.rstrip("/") + ".restore-tmp"
+        if os.path.isdir(tmp):
+            shutil.rmtree(tmp)
+        elif os.path.lexists(tmp):
+            os.remove(tmp)
+        if os.path.isdir(backup):
+            shutil.copytree(backup, tmp)
+        else:
+            shutil.copy2(backup, tmp)
         if os.path.isdir(dst):
             shutil.rmtree(dst)
-        elif os.path.isfile(dst):
+        elif os.path.lexists(dst):
             os.remove(dst)
-        if os.path.isdir(backup):
-            shutil.copytree(backup, dst)
-        else:
-            shutil.copy2(backup, dst)
+        os.rename(tmp, dst)
         delete_torrent_links(tor, cats)
         if get_config("rename_mode", "flat") == "pretty":
             process_torrent_rename(tor, cats)
