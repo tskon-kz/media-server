@@ -135,7 +135,8 @@ def _run_ncnn(src: str, scale: int, model: str, progress_cb):
     os.makedirs(frames_out)
     tmp_out = os.path.join(workdir, f"out{ext}")
     try:
-        _run_ok(["ffmpeg", "-y", "-i", src, os.path.join(frames_in, "%08d.png")],
+        _run_ok(["ffmpeg", "-y", "-loglevel", "error", "-i", src,
+                 os.path.join(frames_in, "%08d.png")],
                 "frame extraction failed")
         total = len([f for f in os.listdir(frames_in) if f.endswith(".png")]) or 1
 
@@ -156,7 +157,8 @@ def _run_ncnn(src: str, scale: int, model: str, progress_cb):
             raise UpscaleError(f"{binary} exited {proc.returncode}")
 
         _run_ok(
-            ["ffmpeg", "-y", "-framerate", fps, "-i", os.path.join(frames_out, "%08d.png"),
+            ["ffmpeg", "-y", "-loglevel", "error",
+             "-framerate", fps, "-i", os.path.join(frames_out, "%08d.png"),
              "-i", src, "-map", "0:v:0", "-map", "1:a?", "-map", "1:s?",
              "-c:v", "libx264", "-crf", "18", "-preset", "medium",
              "-pix_fmt", "yuv420p", "-c:a", "copy", "-c:s", "copy", tmp_out],
@@ -185,7 +187,9 @@ def _run_video2x(src: str, scale: int, progress_cb):
 def _run_ok(cmd: list[str], errmsg: str):
     proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     if proc.returncode != 0:
-        raise UpscaleError(f"{errmsg}: {proc.stderr.strip()[:300]}")
+        # Take the tail so the actual error isn't hidden behind ffmpeg's version banner.
+        tail = proc.stderr.strip()[-400:]
+        raise UpscaleError(f"{errmsg}: {tail}")
 
 
 def _cleanup(path: str):
