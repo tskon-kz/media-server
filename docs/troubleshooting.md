@@ -10,38 +10,53 @@ bash update.sh
 bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh)
 ```
 
-**Downloading a fresh `update.sh` locally** (e.g. the copy on the server is outdated or you want to inspect it first):
-
-```bash
-# download to current directory
-curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh -o update.sh
-chmod +x update.sh
-```
-
-Or if you have the repo cloned locally and just need to pull the latest:
-
-```bash
-git fetch origin main
-git checkout origin/main -- update.sh
-```
-
-If the connection to GitHub is slow or times out, increase the timeout:
-
-```bash
-curl -fsSL --connect-timeout 30 --max-time 120 https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh | bash
-```
-
 **What it does:**
-1. Downloads the latest `docker-compose.yml`, `update.sh`, and `lang/` files
-2. Stops all containers
-3. Applies the new `docker-compose.yml`
-4. Pulls the latest Docker images
+1. Initializes a git repo in the install dir on first run (`git init` + `origin`
+   pointing at the GitHub repo) if one isn't there yet
+2. Fetches the latest `main` and force-checks-out all tracked files
+   (`docker-compose.yml`, the shell scripts, `lang/`, `upscaler/`, …) over the
+   local copies
+3. Stops all containers
+4. Pulls the latest bot Docker image
 5. Starts containers again
+
+The script syncs files with **git**, not per-file `curl` downloads. It uses
+`git checkout --force FETCH_HEAD -- .`, which:
+- **overwrites every tracked file** from the remote, discarding any local edits
+  (deliberate — the repo is the source of truth for infrastructure);
+- **never touches untracked files** — your `.env`, `bot-data/`, `data/`, and
+  `media/` are in `.gitignore`, so secrets and data are always safe;
+- **auto-picks-up new files/directories** added to the repo, so the scripts no
+  longer need editing every time a new component (like `upscaler/`) is added.
 
 > **Note:** This updates the infrastructure (compose file, images) and syncs
 > `BOT_IMAGE_TAG` in `.env` with the tag the bot last self-updated to (stored in
 > the DB, default `stable`). The bot itself normally updates via `/settings` →
 > Update (see below); Watchtower remains only as a weekly safety net.
+
+### First update after switching to the git-based script
+
+Older installs have an outdated `update.sh` (the pre-git, `curl`-based one)
+already sitting on disk. Bash reads the running script into memory before it gets
+overwritten, so the *first* run still executes the old logic. Fetch a fresh copy
+first, then run it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh \
+  -o ~/media-server/update.sh && bash ~/media-server/update.sh
+```
+
+Every subsequent `bash update.sh` works normally.
+
+### Dev servers — `update-dev.sh`
+
+Dev servers track the `dev` branch and the `:dev` image tag. Same git mechanism,
+different branch:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/dev/update-dev.sh \
+  -o ~/media-server/update-dev.sh && bash ~/media-server/update-dev.sh
+```
 
 ---
 
