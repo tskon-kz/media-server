@@ -72,6 +72,26 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  upscaler:
+    # Video upscaler worker: polls the shared SQLite queue and rewrites files in
+    # place. ffmpeg works on CPU; the AI backends (Real-ESRGAN/waifu2x/Video2X)
+    # need a Vulkan device. /dev/dri covers AMD/Intel iGPUs; NVIDIA users add a
+    # runtime override in docker-compose.override.yml. Built locally, not pulled.
+    build:
+      context: .
+      dockerfile: upscaler/Dockerfile
+    container_name: media-server-upscaler
+    restart: unless-stopped
+    volumes:
+      - ./bot-data:/app/data                 # shared SQLite job queue
+      - ${MEDIA_PATH:-./media}:/media        # same media paths as the other services
+    devices:
+      # Vulkan (AMD/Intel iGPU). CPU-only hosts (no /dev/dri) must comment this
+      # out — only the ffmpeg backend works there; the AI backends need a GPU.
+      - /dev/dri:/dev/dri
+    depends_on:
+      - telegram-bot
+
   cloudflared:
     # Pinned by digest — bump deliberately.
     image: cloudflare/cloudflared@sha256:6d91c121b803126f7a5344005d17a9324788fc09d305b6e2560ec6040a7ae283

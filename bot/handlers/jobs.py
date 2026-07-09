@@ -2,15 +2,16 @@ import os
 import qbittorrentapi
 from telegram import MenuButtonWebApp, WebAppInfo
 
-from config import ALLOWED, DONE_STATES, APP_VERSION, WEBAPP_URL
+from config import ALLOWED, DONE_STATES, APP_VERSION, WEBAPP_URL, INCOMING_DIR
 from store import (
     t, load_cats, load_states, save_states,
     get_config, set_config, set_qb_status, get_qb_status,
     has_notified_update, mark_update_notified,
-    upsert_disk_entry,
+    upsert_disk_entry, load_disk_entries,
+    get_finished_upscale_disk_ids, get_upscale_jobs_by_disk_id, mark_upscale_disk_notified,
 )
 from api import jf, qb, invalidate_qb, gh_latest_release_tag, get_cloudflared_url
-from parser import create_flat_hardlinks, process_torrent_rename, find_cat
+from parser import create_flat_hardlinks, process_torrent_rename, delete_torrent_links, find_cat
 import keyboards as kb
 from ._utils import _notify_admins, log
 
@@ -74,6 +75,68 @@ async def job_check_done(ctx):
         if h not in active:
             del known[h]
     save_states(known)
+
+
+def _upscale_stub(disk_id: str):
+    """Minimal torrent stand-in for content the upscaler rewrote in place, so the
+    parser can rebuild library hardlinks (the replaced files have new inodes)."""
+    parts = disk_id.split("/", 1)
+    if len(parts) != 2 or ".." in disk_id or not all(parts):
+        return None
+    slug, name = parts
+
+    class _Stub:
+        pass
+
+    stub = _Stub()
+    stub.name = name
+    stub.save_path = os.path.join(INCOMING_DIR, slug) + "/"
+    stub.content_path = os.path.join(INCOMING_DIR, slug, name)
+    stub.hash = ""
+    return stub
+
+
+async def job_check_upscale(ctx):
+    """Finalise finished upscale batches: rebuild library hardlinks (originals
+    were replaced → old inodes are stale), refresh Jellyfin, notify, mark done."""
+    cats = load_cats()
+    rename_mode = get_config("rename_mode", "flat")
+    for disk_id in get_finished_upscale_disk_ids():
+        jobs = get_upscale_jobs_by_disk_id(disk_id)
+        errored = [j for j in jobs if j["status"] == "error"]
+        stub = _upscale_stub(disk_id)
+        if stub is not None and len(errored) < len(jobs):
+            # At least one file was upscaled — repoint the library at the new files.
+            try:
+                delete_torrent_links(stub, cats)
+                if rename_mode == "pretty":
+                    process_torrent_rename(stub, cats)
+                else:
+                    create_flat_hardlinks(stub, cats)
+                jf("POST", "/Library/Refresh")
+                # Update the stored size: upscaled files are larger than the originals.
+                entry = load_disk_entries().get(disk_id)
+                if entry and os.path.exists(stub.content_path):
+                    new_size = sum(
+                        os.path.getsize(os.path.join(dp, f))
+                        for dp, _, files in os.walk(stub.content_path)
+                        for f in files
+                        if not os.path.islink(os.path.join(dp, f))
+                    ) if os.path.isdir(stub.content_path) else os.path.getsize(stub.content_path)
+                    upsert_disk_entry(disk_id, stub.name, entry["cat_id"], new_size)
+            except Exception:
+                log.exception("Upscale relink failed for %s", disk_id)
+        name = kb.short_name(disk_id.split("/", 1)[1])
+        for uid in ALLOWED:
+            try:
+                if errored:
+                    await ctx.bot.send_message(
+                        uid, t("upscale_error", name=name, e=errored[0]["error"] or "?"))
+                else:
+                    await ctx.bot.send_message(uid, t("upscale_done", name=name))
+            except Exception:
+                pass
+        mark_upscale_disk_notified(disk_id)
 
 
 async def job_check_webapp_url(ctx):

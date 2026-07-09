@@ -10,6 +10,21 @@ bash update.sh
 bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh)
 ```
 
+**Downloading a fresh `update.sh` locally** (e.g. the copy on the server is outdated or you want to inspect it first):
+
+```bash
+# download to current directory
+curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh -o update.sh
+chmod +x update.sh
+```
+
+Or if you have the repo cloned locally and just need to pull the latest:
+
+```bash
+git fetch origin main
+git checkout origin/main -- update.sh
+```
+
 If the connection to GitHub is slow or times out, increase the timeout:
 
 ```bash

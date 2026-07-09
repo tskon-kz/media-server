@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
-import {Box, Button, Drawer, Loader, Progress, Stack, Title} from "@mantine/core"
-import {Clapperboard, Folder, FolderInput, HardDrive, Layers, RefreshCw, Trash2} from "lucide-react"
+import {Box, Button, Divider, Drawer, Loader, Progress, Stack, Title} from "@mantine/core"
+import {Clapperboard, Folder, FolderInput, HardDrive, Layers, RefreshCw, Save, Trash2, Wand2} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
@@ -9,7 +9,7 @@ import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
-import type {Category, Torrent} from "@/types"
+import type {Category, Torrent, Upscaler} from "@/types"
 import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
@@ -18,6 +18,8 @@ export function TorrentList() {
   const [cats, setCats] = useState<Category[]>([])
   const [moving, setMoving] = useState<Torrent | null>(null)
   const [structFor, setStructFor] = useState<Torrent | null>(null)
+  const [upscaleFor, setUpscaleFor] = useState<Torrent | null>(null)
+  const [upscalers, setUpscalers] = useState<Upscaler[]>([])
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [pull, setPull] = useState(0)
   const [confirmRemove, setConfirmRemove] = useState<Torrent | null>(null)
@@ -32,6 +34,10 @@ export function TorrentList() {
       setTorrents([])
     }
   }, []) // eslint-disable-line
+
+  useEffect(() => {
+    api.config().then((c) => setUpscalers(c.upscalers ?? [])).catch(() => {})
+  }, [])
 
   useEffect(() => {
     load()
@@ -101,6 +107,51 @@ export function TorrentList() {
       if (r.xdev) toast(t("torrents.xdev"), "err")
       else if (mode === "pretty") toast(t("torrents.linked", {n: r.linked, pending: r.pending}))
       else toast(t("common.done"))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doUpscale = async (tor: Torrent, upscalerId: string) => {
+    setUpscaleFor(null)
+    setStructFor(null)
+    try {
+      const r = await api.upscale(tor.disk_id, upscalerId)
+      toast(t("torrents.upscaleQueued", {n: r.queued}))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doBackup = async (tor: Torrent) => {
+    setStructFor(null)
+    try {
+      await api.backup(tor.disk_id)
+      toast(t("torrents.backupSaved"))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doRestoreBackup = async (tor: Torrent) => {
+    setStructFor(null)
+    try {
+      await api.restoreBackup(tor.disk_id)
+      toast(t("torrents.backupRestored"))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doDeleteBackup = async (tor: Torrent) => {
+    setStructFor(null)
+    try {
+      await api.deleteBackup(tor.disk_id)
+      toast(t("torrents.backupDeleted"))
       load()
     } catch (e) {
       toast((e as Error).message, "err")
@@ -180,11 +231,13 @@ export function TorrentList() {
                     </button>
                   </div>
                 }
-                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}`}
+                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {pct: pct(tor.upscale_progress)}) : ""}`}
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
-                    : undefined
+                    : tor.upscaling
+                      ? <Progress value={tor.upscale_progress * 100} size="xs" mt={6} animated/>
+                      : undefined
                 }
                 multiline
               >
@@ -278,6 +331,47 @@ export function TorrentList() {
                   onClick={() => structFor && doStructure(structFor, "delete")}>
             {t("torrents.delLinks")}
           </Button>
+          <Divider my={4}/>
+          <Button fullWidth variant="light" leftSection={<Wand2 size={18}/>}
+                  disabled={upscalers.length === 0 || !!structFor?.upscaling}
+                  onClick={() => setUpscaleFor(structFor)}>
+            {t("torrents.upscale")}
+          </Button>
+          {structFor?.has_backup ? (
+            <Button fullWidth variant="light" color="teal" leftSection={<Save size={18}/>}
+                    onClick={() => structFor && doRestoreBackup(structFor)}>
+              {t("torrents.restoreBackup")}
+            </Button>
+          ) : (
+            <Button fullWidth variant="default" leftSection={<Save size={18}/>}
+                    onClick={() => structFor && doBackup(structFor)}>
+              {t("torrents.backup")}
+            </Button>
+          )}
+          {structFor?.has_backup && (
+            <Button fullWidth variant="subtle" color="red" leftSection={<Trash2 size={18}/>}
+                    onClick={() => structFor && doDeleteBackup(structFor)}>
+              {t("torrents.delBackup")}
+            </Button>
+          )}
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={!!upscaleFor}
+        onClose={() => setUpscaleFor(null)}
+        title={t("torrents.upscalePick")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{blur: 2}}
+      >
+        <Stack gap={8} pb={16} px={4}>
+          {upscalers.map((u) => (
+            <Button key={u.id} fullWidth variant="dark" leftSection={<Wand2 size={18}/>}
+                    onClick={() => upscaleFor && doUpscale(upscaleFor, u.id)}>
+              {u.label}{u.needs_gpu ? ` · ${t("torrents.gpuHint")}` : ""}
+            </Button>
+          ))}
         </Stack>
       </Drawer>
     </Box>
