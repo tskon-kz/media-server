@@ -31,7 +31,7 @@ elif ! git remote get-url origin &>/dev/null 2>&1; then
     git remote add origin "https://github.com/$REPO.git"
 fi
 git fetch --depth=1 -q origin dev
-git checkout --force origin/dev -- .
+git checkout --force FETCH_HEAD -- .
 chmod +x update.sh update-dev.sh teardown.sh migrate-media.sh
 
 echo "⏹  Stopping containers..."
