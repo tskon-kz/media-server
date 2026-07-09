@@ -157,12 +157,29 @@ def _replace(src: str, tmp_out: str):
     os.replace(tmp_out, src)
 
 
+def _has_video(src: str) -> bool:
+    """True if ffprobe finds at least one video stream. Guards against being
+    handed a broken/truncated file or a non-video the linker mislabelled."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v",
+             "-show_entries", "stream=codec_type",
+             "-of", "default=noprint_wrappers=1:nokey=1", src],
+            capture_output=True, text=True, timeout=60,
+        ).stdout
+        return "video" in out
+    except Exception:
+        return False
+
+
 def run(job: dict, progress_cb):
     upscaler = job["upscaler"]
     src = job["src_path"]
     scale = int(job["scale"] or 2)
     if not os.path.isfile(src):
         raise UpscaleError(f"source missing: {src}")
+    if not _has_video(src):
+        raise UpscaleError(f"no decodable video stream in {os.path.basename(src)}")
 
     if upscaler == "ffmpeg":
         _run_ffmpeg(src, scale, progress_cb)
@@ -261,10 +278,13 @@ def _run_ncnn(src: str, scale: int, progress_cb):
             os.makedirs(frames_in)
             os.makedirs(frames_out)
 
-            # 2. Decode this segment's frames (-vsync 0 = keep exact source frames).
+            # 2. Decode this segment's frames. Map the video stream explicitly and
+            #    drop audio/subs so the image2 muxer can't fail stream selection
+            #    (-vsync 0 keeps exact source frames).
             _run_ok(
                 ["ffmpeg", "-y", "-loglevel", "error", "-i", seg_path,
-                 "-vsync", "0", os.path.join(frames_in, "%08d.png")],
+                 "-map", "0:v:0", "-an", "-sn", "-vsync", "0",
+                 os.path.join(frames_in, "%08d.png")],
                 "frame extraction failed",
             )
             seg_total = len([f for f in os.listdir(frames_in) if f.endswith(".png")])
