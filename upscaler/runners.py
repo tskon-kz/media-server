@@ -24,6 +24,13 @@ import time
 
 log = logging.getLogger("upscaler")
 
+# Only real video files can be upscaled. The bot filters sidecars (subs/audio)
+# out before queueing, but stale jobs queued by older bot builds may still name a
+# subtitle/audio file — skip those cleanly instead of erroring on a non-video.
+VIDEO_EXTENSIONS = {
+    ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v", ".ts", ".m2ts", ".flv", ".webm",
+}
+
 # Binary + model locations (overridable so the Dockerfile can pin exact paths).
 REALESRGAN_BIN    = os.environ.get("REALESRGAN_BIN", "realesrgan-ncnn-vulkan")
 REALESRGAN_MODELS = os.environ.get("REALESRGAN_MODELS", "")
@@ -178,6 +185,11 @@ def run(job: dict, progress_cb):
     scale = int(job["scale"] or 2)
     if not os.path.isfile(src):
         raise UpscaleError(f"source missing: {src}")
+    if os.path.splitext(src)[1].lower() not in VIDEO_EXTENSIONS:
+        # Sidecar (subtitle/audio) that slipped in from an older queueing build —
+        # not something to upscale. Skip it cleanly so the batch isn't tainted.
+        log.info("skipping non-video file %s", os.path.basename(src))
+        return
     if not _has_video(src):
         raise UpscaleError(f"no decodable video stream in {os.path.basename(src)}")
 
