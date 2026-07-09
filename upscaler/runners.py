@@ -2,10 +2,18 @@
 and atomically replaces the original in place, so the library relink the bot runs
 afterwards points at the upscaled data with no extra disk cost.
 
-- ``ffmpeg``  — classical lanczos resize; CPU-only, works everywhere.
-- ``realesrgan`` / ``waifu2x`` — AI, frame-by-frame via the ncnn-vulkan binaries;
-  need a Vulkan device (``/dev/dri``).
-- ``video2x`` — the Video2X CLI, which orchestrates ncnn models itself.
+- ``ffmpeg``     — classical lanczos resize; CPU-only, works everywhere.
+- ``realesrgan`` — AI, frame-by-frame via the ncnn-vulkan binary; needs a Vulkan
+  device (``/dev/dri``). Uses the video-optimised ``realesr-animevideov3`` model
+  (far faster than the general ``realesrgan-x4plus``) and processes the video in
+  short segments so the intermediate PNG frames live on a fast scratch dir
+  (tmpfs/SSD, ``UPSCALE_TMPDIR``) instead of piling up next to the source on a
+  slow USB HDD. Only one segment's frames exist at a time, so disk/RAM use stays
+  bounded no matter how long the video is.
+
+The ncnn-vulkan binary can only read/write files or directories (no stdin/stdout
+streaming), so a literal ffmpeg->realesrgan->ffmpeg pipe is impossible; the
+segment-in-scratch approach is the closest we get to "not touching the slow disk".
 """
 import os
 import shutil
@@ -16,9 +24,17 @@ import time
 # Binary + model locations (overridable so the Dockerfile can pin exact paths).
 REALESRGAN_BIN    = os.environ.get("REALESRGAN_BIN", "realesrgan-ncnn-vulkan")
 REALESRGAN_MODELS = os.environ.get("REALESRGAN_MODELS", "")
-WAIFU2X_BIN       = os.environ.get("WAIFU2X_BIN", "waifu2x-ncnn-vulkan")
-WAIFU2X_MODELS    = os.environ.get("WAIFU2X_MODELS", "")
-VIDEO2X_BIN       = os.environ.get("VIDEO2X_BIN", "video2x")
+# Video-optimised model shipped with the ncnn release. Much lighter per frame
+# than realesrgan-x4plus, which is what made the old runs take hours.
+REALESRGAN_MODEL  = os.environ.get("REALESRGAN_MODEL", "realesr-animevideov3")
+
+# Fast scratch dir for the intermediate frames. Defaults to /tmp; docker-compose
+# points it at a tmpfs (RAM) so the frame churn never hits the media HDD.
+FAST_TMPDIR       = os.environ.get("UPSCALE_TMPDIR", "/tmp")
+# Seconds of video per segment. Small enough that one segment's upscaled 4K
+# frames fit comfortably in the scratch dir; large enough to amortise ffmpeg
+# start-up. ~20s ≈ a few hundred frames.
+SEGMENT_SECONDS   = int(os.environ.get("UPSCALE_SEGMENT_SECONDS", "20"))
 
 
 class UpscaleError(Exception):
@@ -60,9 +76,20 @@ def _probe_fps(src: str) -> str:
         return "24000/1001"
 
 
+def _fps_float(fps: str) -> float:
+    try:
+        if "/" in fps:
+            num, den = fps.split("/", 1)
+            return float(num) / float(den)
+        return float(fps)
+    except (ValueError, ZeroDivisionError):
+        return 24000.0 / 1001.0
+
+
 def _replace(src: str, tmp_out: str):
     """Swap the upscaled file in for the original, preserving the extension so the
-    bot's linker still recognises the file."""
+    bot's linker still recognises the file. ``tmp_out`` is written next to ``src``
+    so this stays a same-filesystem atomic rename."""
     os.replace(tmp_out, src)
 
 
@@ -75,16 +102,10 @@ def run(job: dict, progress_cb):
 
     if upscaler == "ffmpeg":
         _run_ffmpeg(src, scale, progress_cb)
-    elif upscaler in ("realesrgan", "waifu2x"):
+    elif upscaler == "realesrgan":
         if not has_vulkan():
-            raise UpscaleError("no Vulkan GPU (/dev/dri) — AI upscalers unavailable")
-        _run_ncnn(src, scale, upscaler, progress_cb)
-    elif upscaler == "video2x":
-        if not has_vulkan():
-            raise UpscaleError("no Vulkan GPU (/dev/dri) — Video2X unavailable")
-        if not shutil.which(VIDEO2X_BIN):
-            raise UpscaleError(f"video2x binary not found ('{VIDEO2X_BIN}') — pip install may have failed at image build time")
-        _run_video2x(src, scale, progress_cb)
+            raise UpscaleError("no Vulkan GPU (/dev/dri) — the AI upscaler is unavailable")
+        _run_ncnn(src, scale, progress_cb)
     else:
         raise UpscaleError(f"unknown upscaler: {upscaler}")
 
@@ -92,6 +113,9 @@ def run(job: dict, progress_cb):
 def _run_ffmpeg(src: str, scale: int, progress_cb):
     duration = _probe_duration(src)
     ext = os.path.splitext(src)[1] or ".mkv"
+    # Temp next to src: a single sequential write the HDD handles fine, and it
+    # keeps the final swap a same-filesystem atomic rename. The lanczos filter is
+    # CPU-bound, not disk-bound, so scratch placement doesn't matter here.
     fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
     os.close(fd)
     cmd = [
@@ -101,7 +125,7 @@ def _run_ffmpeg(src: str, scale: int, progress_cb):
         # for good. Only the video stream is filtered; the rest is copied.
         "-map", "0",
         "-vf", f"scale=iw*{scale}:ih*{scale}:flags=lanczos",
-        "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p",
         "-c:a", "copy", "-c:s", "copy", "-c:t", "copy",
         "-progress", "pipe:1", "-nostats", tmp_out,
     ]
@@ -127,68 +151,119 @@ def _run_ffmpeg(src: str, scale: int, progress_cb):
             _cleanup(tmp_out)
 
 
-def _run_ncnn(src: str, scale: int, model: str, progress_cb):
-    """Extract frames → upscale each with the ncnn-vulkan binary → reassemble
-    with the original audio at the original fps."""
-    binary = REALESRGAN_BIN if model == "realesrgan" else WAIFU2X_BIN
+def _run_ncnn(src: str, scale: int, progress_cb):
+    """Split the video into short segments, upscale each segment's frames with the
+    ncnn-vulkan binary on a fast scratch dir, re-encode per segment, then concat
+    and re-mux the original audio/subtitles. Only one segment of frames exists on
+    disk at a time, so this stays bounded and off the slow media HDD."""
     fps = _probe_fps(src)
+    fps_f = _fps_float(fps)
+    duration = _probe_duration(src)
+    total_frames = max(1, round(duration * fps_f)) if duration else 1
     ext = os.path.splitext(src)[1] or ".mkv"
-    workdir = tempfile.mkdtemp(prefix=".upscale_", dir=os.path.dirname(src))
+
+    os.makedirs(FAST_TMPDIR, exist_ok=True)
+    workdir = tempfile.mkdtemp(prefix="upscale_", dir=FAST_TMPDIR)
+    seg_src = os.path.join(workdir, "seg_src")   # stream-copied source chunks
+    seg_enc = os.path.join(workdir, "seg_enc")   # upscaled + re-encoded chunks
     frames_in = os.path.join(workdir, "in")
     frames_out = os.path.join(workdir, "out")
-    os.makedirs(frames_in)
-    os.makedirs(frames_out)
-    tmp_out = os.path.join(workdir, f"out{ext}")
-    try:
-        _run_ok(["ffmpeg", "-y", "-loglevel", "error", "-i", src,
-                 os.path.join(frames_in, "%08d.png")],
-                "frame extraction failed")
-        total = len([f for f in os.listdir(frames_in) if f.endswith(".png")]) or 1
+    os.makedirs(seg_src)
+    os.makedirs(seg_enc)
 
-        ncnn_cmd = [binary, "-i", frames_in, "-o", frames_out, "-s", str(scale)]
-        if model == "realesrgan":
-            ncnn_cmd += ["-n", "realesrgan-x4plus"]
+    try:
+        # 1. Split the video stream into ~SEGMENT_SECONDS chunks (stream copy, so
+        #    this is near-instant and lossless). Audio/subs are re-muxed at the end
+        #    from the untouched original, so only the video is segmented here.
+        _run_ok(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-map", "0:v:0",
+             "-c", "copy", "-f", "segment", "-segment_time", str(SEGMENT_SECONDS),
+             "-reset_timestamps", "1", os.path.join(seg_src, "s%05d.mkv")],
+            "segmenting failed",
+        )
+        segments = sorted(f for f in os.listdir(seg_src) if f.endswith(".mkv"))
+        if not segments:
+            raise UpscaleError("no segments produced from source")
+
+        done_frames = 0
+        for idx, seg in enumerate(segments):
+            seg_path = os.path.join(seg_src, seg)
+            # Fresh empty frame dirs per segment.
+            shutil.rmtree(frames_in, ignore_errors=True)
+            shutil.rmtree(frames_out, ignore_errors=True)
+            os.makedirs(frames_in)
+            os.makedirs(frames_out)
+
+            # 2. Decode this segment's frames (-vsync 0 = keep exact source frames).
+            _run_ok(
+                ["ffmpeg", "-y", "-loglevel", "error", "-i", seg_path,
+                 "-vsync", "0", os.path.join(frames_in, "%08d.png")],
+                "frame extraction failed",
+            )
+            seg_total = len([f for f in os.listdir(frames_in) if f.endswith(".png")])
+            if seg_total == 0:
+                continue
+
+            # 3. Upscale the frames with the video-optimised model.
+            ncnn_cmd = [REALESRGAN_BIN, "-i", frames_in, "-o", frames_out,
+                        "-s", str(scale), "-n", REALESRGAN_MODEL]
             if REALESRGAN_MODELS:
                 ncnn_cmd += ["-m", REALESRGAN_MODELS]
-        elif WAIFU2X_MODELS:
-            ncnn_cmd += ["-m", WAIFU2X_MODELS]
-        proc = subprocess.Popen(ncnn_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # ncnn has no machine-readable progress; poll the output frame count.
-        while proc.poll() is None:
-            done = len(os.listdir(frames_out))
-            progress_cb(0.9 * done / total)  # reserve last 10% for re-encode
-            time.sleep(2)
-        if proc.returncode != 0:
-            raise UpscaleError(f"{binary} exited {proc.returncode}")
+            proc = subprocess.Popen(ncnn_cmd, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
+            # ncnn has no machine-readable progress; poll the output frame count.
+            # Reserve the last 10% of the bar for the final concat/mux.
+            while proc.poll() is None:
+                seg_done = len(os.listdir(frames_out))
+                progress_cb(0.9 * (done_frames + seg_done) / total_frames)
+                time.sleep(2)
+            if proc.returncode != 0:
+                raise UpscaleError(f"{REALESRGAN_BIN} exited {proc.returncode}")
 
+            # 4. Re-encode this segment (video only; audio/subs come from original).
+            _run_ok(
+                ["ffmpeg", "-y", "-loglevel", "error", "-framerate", fps,
+                 "-i", os.path.join(frames_out, "%08d.png"),
+                 "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                 "-pix_fmt", "yuv420p", os.path.join(seg_enc, f"e{idx:05d}.mkv")],
+                "segment re-encode failed",
+            )
+            done_frames += seg_total
+            progress_cb(min(0.9, 0.9 * done_frames / total_frames))
+
+        # 5. Concat the upscaled segments (stream copy) into one video-only file.
+        enc_segments = sorted(f for f in os.listdir(seg_enc) if f.endswith(".mkv"))
+        if not enc_segments:
+            raise UpscaleError("no upscaled segments produced")
+        concat_list = os.path.join(workdir, "concat.txt")
+        with open(concat_list, "w") as fh:
+            for f in enc_segments:
+                fh.write(f"file '{os.path.join(seg_enc, f)}'\n")
+        video_only = os.path.join(workdir, f"video{ext}")
         _run_ok(
-            ["ffmpeg", "-y", "-loglevel", "error",
-             "-framerate", fps, "-i", os.path.join(frames_out, "%08d.png"),
-             "-i", src, "-map", "0:v:0", "-map", "1:a?", "-map", "1:s?",
-             "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-             "-pix_fmt", "yuv420p", "-c:a", "copy", "-c:s", "copy", tmp_out],
-            "re-encode failed",
+            ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
+             "-i", concat_list, "-c", "copy", video_only],
+            "concat failed",
         )
-        progress_cb(1.0)
-        _replace(src, tmp_out)
+
+        # 6. Mux the upscaled video with the original audio/subtitles. The output
+        #    goes next to src (HDD) so the final swap is a same-fs atomic rename.
+        fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
+        os.close(fd)
+        try:
+            _run_ok(
+                ["ffmpeg", "-y", "-loglevel", "error", "-i", video_only, "-i", src,
+                 "-map", "0:v:0", "-map", "1:a?", "-map", "1:s?",
+                 "-c", "copy", tmp_out],
+                "final mux failed",
+            )
+            progress_cb(1.0)
+            _replace(src, tmp_out)
+        except Exception:
+            _cleanup(tmp_out)
+            raise
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
-
-
-def _run_video2x(src: str, scale: int, progress_cb):
-    ext = os.path.splitext(src)[1] or ".mkv"
-    fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
-    os.close(fd)
-    success = False
-    try:
-        _run_ok([VIDEO2X_BIN, "-i", src, "-o", tmp_out, "-s", str(scale)],
-                "video2x failed")
-        progress_cb(1.0)
-        _replace(src, tmp_out)
-        success = True
-    finally:
-        if not success:
-            _cleanup(tmp_out)
 
 
 def _run_ok(cmd: list[str], errmsg: str):

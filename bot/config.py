@@ -59,9 +59,7 @@ CLOUDFLARED_CONTAINER = "media-server-cloudflared"
 # The `id` is the contract with upscaler/runners.py.
 UPSCALERS = [
     {"id": "ffmpeg",     "label": "ffmpeg (lanczos)", "needs_gpu": False},
-    {"id": "realesrgan", "label": "Real-ESRGAN",      "needs_gpu": True},
-    {"id": "waifu2x",    "label": "waifu2x (anime)",  "needs_gpu": True},
-    {"id": "video2x",    "label": "Video2X",          "needs_gpu": True},
+    {"id": "realesrgan", "label": "Real-ESRGAN (AI)", "needs_gpu": True},
 ]
 UPSCALER_IDS = frozenset(u["id"] for u in UPSCALERS)
 
