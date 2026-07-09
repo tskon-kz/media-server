@@ -25,7 +25,7 @@ from store import (
     t, load_cats, save_cats, set_lang, set_config, get_config,
     get_creds, get_qb_status, set_qb_status,
     load_disk_entries, upsert_disk_entry, upsert_disk_entries_batch, delete_disk_entry,
-    add_upscale_job, get_active_upscale_disk_ids,
+    add_upscale_job, get_active_upscale_disk_ids, delete_upscale_jobs_by_disk_id,
 )
 from api import (
     jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
@@ -571,6 +571,7 @@ def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None) -> tuple[
     video file. Returns (queued_count, disk_id the jobs are keyed on)."""
     files = get_video_files(tor.content_path)
     disk_id = _qb_disk_id(tor)
+    delete_upscale_jobs_by_disk_id(disk_id)  # clear any stale error jobs from previous attempts
     if getattr(tor, "hash", ""):
         # Remove from the client but keep the files: the upscaler rewrites them in
         # place, and a live torrent would recheck/error on the changed data.

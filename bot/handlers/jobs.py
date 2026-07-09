@@ -7,7 +7,7 @@ from store import (
     t, load_cats, load_states, save_states,
     get_config, set_config, set_qb_status, get_qb_status,
     has_notified_update, mark_update_notified,
-    upsert_disk_entry,
+    upsert_disk_entry, load_disk_entries,
     get_finished_upscale_disk_ids, get_upscale_jobs_by_disk_id, mark_upscale_disk_notified,
 )
 from api import jf, qb, invalidate_qb, gh_latest_release_tag, get_cloudflared_url
@@ -114,6 +114,16 @@ async def job_check_upscale(ctx):
                 else:
                     create_flat_hardlinks(stub, cats)
                 jf("POST", "/Library/Refresh")
+                # Update the stored size: upscaled files are larger than the originals.
+                entry = load_disk_entries().get(disk_id)
+                if entry and os.path.exists(stub.content_path):
+                    new_size = sum(
+                        os.path.getsize(os.path.join(dp, f))
+                        for dp, _, files in os.walk(stub.content_path)
+                        for f in files
+                        if not os.path.islink(os.path.join(dp, f))
+                    ) if os.path.isdir(stub.content_path) else os.path.getsize(stub.content_path)
+                    upsert_disk_entry(disk_id, stub.name, entry["cat_id"], new_size)
             except Exception:
                 log.exception("Upscale relink failed for %s", disk_id)
         name = kb.short_name(disk_id.split("/", 1)[1])
