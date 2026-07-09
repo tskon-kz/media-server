@@ -46,6 +46,18 @@ def _create_tables():
             cat_id   INTEGER NOT NULL,
             size     INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS upscale_jobs (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            disk_id  TEXT NOT NULL,
+            src_path TEXT NOT NULL,
+            upscaler TEXT NOT NULL,
+            scale    INTEGER NOT NULL DEFAULT 2,
+            status   TEXT NOT NULL DEFAULT 'queued',
+            progress REAL NOT NULL DEFAULT 0,
+            error    TEXT,
+            user_id  INTEGER,
+            notified INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS done_notified (
             hash TEXT PRIMARY KEY
         );
@@ -368,6 +380,67 @@ def update_disk_entry_size(disk_id: str, size: int):
 def load_disk_entries() -> dict[str, dict]:
     rows = _conn.execute("SELECT disk_id, name, cat_id, size FROM disk_entries").fetchall()
     return {r[0]: {"name": r[1], "cat_id": r[2], "size": r[3]} for r in rows}
+
+
+# ---- upscale jobs ----
+#
+# The upscaler worker container writes to this same table (status/progress/error)
+# over the shared SQLite file; the bot only queues jobs, reads state for the UI,
+# and finalises finished ones (relink + Jellyfin refresh + notify).
+
+def _row_to_upscale_job(row) -> dict:
+    return {
+        "id": row[0], "disk_id": row[1], "src_path": row[2], "upscaler": row[3],
+        "scale": row[4], "status": row[5], "progress": row[6], "error": row[7],
+        "user_id": row[8], "notified": row[9],
+    }
+
+
+_UPSCALE_COLS = "id, disk_id, src_path, upscaler, scale, status, progress, error, user_id, notified"
+
+
+def add_upscale_job(disk_id: str, src_path: str, upscaler: str, user_id: int | None, scale: int = 2) -> int:
+    cur = _conn.execute(
+        "INSERT INTO upscale_jobs (disk_id, src_path, upscaler, scale, user_id) VALUES (?, ?, ?, ?, ?)",
+        (disk_id, src_path, upscaler, scale, user_id),
+    )
+    _conn.commit()
+    return cur.lastrowid
+
+
+def get_upscale_jobs_by_disk_id(disk_id: str) -> list[dict]:
+    rows = _conn.execute(
+        f"SELECT {_UPSCALE_COLS} FROM upscale_jobs WHERE disk_id=?", (disk_id,)
+    ).fetchall()
+    return [_row_to_upscale_job(r) for r in rows]
+
+
+def get_active_upscale_disk_ids() -> dict[str, float]:
+    """Map disk_id -> mean progress for torrents with queued/running jobs (for the UI)."""
+    rows = _conn.execute(
+        "SELECT disk_id, AVG(progress) FROM upscale_jobs "
+        "WHERE status IN ('queued', 'running') GROUP BY disk_id"
+    ).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
+def get_finished_upscale_disk_ids() -> list[str]:
+    """disk_ids where no job is still queued/running but at least one is unnotified."""
+    rows = _conn.execute(
+        "SELECT disk_id FROM upscale_jobs GROUP BY disk_id "
+        "HAVING SUM(status IN ('queued', 'running')) = 0 AND SUM(notified = 0) > 0"
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def mark_upscale_disk_notified(disk_id: str):
+    _conn.execute("UPDATE upscale_jobs SET notified=1 WHERE disk_id=?", (disk_id,))
+    _conn.commit()
+
+
+def delete_upscale_jobs_by_disk_id(disk_id: str):
+    _conn.execute("DELETE FROM upscale_jobs WHERE disk_id=?", (disk_id,))
+    _conn.commit()
 
 
 # ---- update notifications ----

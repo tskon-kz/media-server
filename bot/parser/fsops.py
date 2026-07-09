@@ -12,7 +12,9 @@ log = logging.getLogger(__name__)
 def create_hardlink(src: str, dst: str):
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     if os.path.exists(dst):
-        return
+        if os.stat(src).st_ino == os.stat(dst).st_ino:
+            return  # already pointing at the right inode
+        os.unlink(dst)  # stale link (e.g. original was replaced in-place by upscaler)
     os.link(src, dst)
 
 

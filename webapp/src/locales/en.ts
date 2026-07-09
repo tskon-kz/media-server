@@ -34,6 +34,18 @@ export default {
     pretty: "Pretty names",
     original: "Original structure",
     delLinks: "Delete hardlinks",
+    // Upscale + backup
+    upscale: "Upscale (2x)",
+    upscalePick: "Choose an upscaler",
+    upscaleQueued: "Queued: {{n}} file(s). This can take a while.",
+    upscaling: "upscaling {{pct}}",
+    backup: "Save backup",
+    restoreBackup: "Restore from backup",
+    delBackup: "Delete backup",
+    backupSaved: "Backup saved",
+    backupRestored: "Restored from backup",
+    backupDeleted: "Backup deleted",
+    gpuHint: "needs GPU",
     // Delete confirmation modal
     deleteTitle: "Delete torrent?",
     deleteBody: '"{{name}}" and all its files will be removed.',
