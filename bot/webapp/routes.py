@@ -144,6 +144,8 @@ def _scan_incoming(cats: list) -> list[dict]:
         except OSError:
             continue
         for name in names:
+            if name.startswith("."):
+                continue
             entries.append({
                 "name": name,
                 "disk_id": f"{basename}/{name}",

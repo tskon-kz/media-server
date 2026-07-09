@@ -90,7 +90,7 @@ def run(job: dict, progress_cb):
 def _run_ffmpeg(src: str, scale: int, progress_cb):
     duration = _probe_duration(src)
     ext = os.path.splitext(src)[1] or ".mkv"
-    fd, tmp_out = tempfile.mkstemp(suffix=ext, dir=os.path.dirname(src))
+    fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
     os.close(fd)
     cmd = [
         "ffmpeg", "-y", "-i", src,
@@ -128,7 +128,7 @@ def _run_ncnn(src: str, scale: int, model: str, progress_cb):
     binary = REALESRGAN_BIN if model == "realesrgan" else WAIFU2X_BIN
     fps = _probe_fps(src)
     ext = os.path.splitext(src)[1] or ".mkv"
-    workdir = tempfile.mkdtemp(dir=os.path.dirname(src))
+    workdir = tempfile.mkdtemp(prefix=".upscale_", dir=os.path.dirname(src))
     frames_in = os.path.join(workdir, "in")
     frames_out = os.path.join(workdir, "out")
     os.makedirs(frames_in)
@@ -170,7 +170,7 @@ def _run_ncnn(src: str, scale: int, model: str, progress_cb):
 
 def _run_video2x(src: str, scale: int, progress_cb):
     ext = os.path.splitext(src)[1] or ".mkv"
-    fd, tmp_out = tempfile.mkstemp(suffix=ext, dir=os.path.dirname(src))
+    fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
     os.close(fd)
     try:
         _run_ok([VIDEO2X_BIN, "-i", src, "-o", tmp_out, "-s", str(scale)],

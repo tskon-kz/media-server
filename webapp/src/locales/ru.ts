@@ -38,7 +38,7 @@ export default {
     upscale: "Апскейл (2x)",
     upscalePick: "Выберите апскейлер",
     upscaleQueued: "В очереди: {{n}} файл(ов). Это займёт время.",
-    upscaling: "апскейл {{pct}}",
+    upscaling: "upscaling {{pct}}",
     backup: "Сохранить в бэкап",
     restoreBackup: "Восстановить из бэкапа",
     delBackup: "Удалить бэкап",
