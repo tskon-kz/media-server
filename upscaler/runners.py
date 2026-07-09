@@ -106,6 +106,7 @@ def _run_ffmpeg(src: str, scale: int, progress_cb):
         "-progress", "pipe:1", "-nostats", tmp_out,
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    success = False
     try:
         for line in proc.stdout:
             if duration and line.startswith("out_time_ms="):
@@ -115,13 +116,15 @@ def _run_ffmpeg(src: str, scale: int, progress_cb):
                 except ValueError:
                     pass
         code = proc.wait()
+        if code != 0:
+            raise UpscaleError(f"ffmpeg exited {code}")
+        _replace(src, tmp_out)
+        success = True
     finally:
         if proc.poll() is None:
             proc.kill()
-    if code != 0:
-        _cleanup(tmp_out)
-        raise UpscaleError(f"ffmpeg exited {code}")
-    _replace(src, tmp_out)
+        if not success:
+            _cleanup(tmp_out)
 
 
 def _run_ncnn(src: str, scale: int, model: str, progress_cb):
@@ -176,14 +179,16 @@ def _run_video2x(src: str, scale: int, progress_cb):
     ext = os.path.splitext(src)[1] or ".mkv"
     fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
     os.close(fd)
+    success = False
     try:
         _run_ok([VIDEO2X_BIN, "-i", src, "-o", tmp_out, "-s", str(scale)],
                 "video2x failed")
         progress_cb(1.0)
         _replace(src, tmp_out)
-    except Exception:
-        _cleanup(tmp_out)
-        raise
+        success = True
+    finally:
+        if not success:
+            _cleanup(tmp_out)
 
 
 def _run_ok(cmd: list[str], errmsg: str):
