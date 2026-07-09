@@ -179,6 +179,11 @@ _spin "$MSG_DOWNLOADING" bash -c "
     _curl_fetch '$RAW/update.sh'           update.sh        && chmod +x update.sh
     _curl_fetch '$RAW/teardown.sh'         teardown.sh      && chmod +x teardown.sh
     _curl_fetch '$RAW/migrate-media.sh'    migrate-media.sh && chmod +x migrate-media.sh
+    mkdir -p upscaler
+    _curl_fetch '$RAW/upscaler/Dockerfile' upscaler/Dockerfile
+    _curl_fetch '$RAW/upscaler/main.py'    upscaler/main.py
+    _curl_fetch '$RAW/upscaler/db.py'      upscaler/db.py
+    _curl_fetch '$RAW/upscaler/runners.py' upscaler/runners.py
 "
 
 if [ -f "$INSTALL_DIR/.env" ]; then

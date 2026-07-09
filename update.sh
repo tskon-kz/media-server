@@ -57,6 +57,11 @@ _curl_fetch "$RAW/teardown.sh"          teardown.sh && chmod +x teardown.sh
 mkdir -p lang
 _curl_fetch "$RAW/lang/en.sh"           lang/en.sh
 _curl_fetch "$RAW/lang/ru.sh"           lang/ru.sh
+mkdir -p upscaler
+_curl_fetch "$RAW/upscaler/Dockerfile"  upscaler/Dockerfile
+_curl_fetch "$RAW/upscaler/main.py"     upscaler/main.py
+_curl_fetch "$RAW/upscaler/db.py"       upscaler/db.py
+_curl_fetch "$RAW/upscaler/runners.py"  upscaler/runners.py
 
 echo "⏹  Stopping containers..."
 docker compose down
