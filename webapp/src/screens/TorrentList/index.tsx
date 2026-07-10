@@ -1,7 +1,21 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 import {Box, Button, Checkbox, Divider, Drawer, Loader, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
 import {Collapse} from "@/components/Collapse"
-import {Clapperboard, Folder, FolderInput, HardDrive, ListChecks, MoreHorizontal, Pause, Play, RefreshCw, Save, Trash2, Wand2, XCircle} from "lucide-react"
+import {
+  Clapperboard,
+  Folder,
+  FolderInput,
+  HardDrive,
+  ListChecks,
+  MoreHorizontal,
+  Pause,
+  Play,
+  RefreshCw,
+  Save,
+  Trash2,
+  Wand2,
+  XCircle
+} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
@@ -10,7 +24,7 @@ import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
-import type {Category, CompressionLevel, Torrent, Upscaler, UpscaleInfo, UpscaleResult, UpscaleTarget} from "@/types"
+import type {Category, CompressionLevel, Torrent, UpscaleInfo, Upscaler, UpscaleResult, UpscaleTarget} from "@/types"
 import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
@@ -49,7 +63,7 @@ export function TorrentList() {
         else if (backingUp.current.has(tor.disk_id)) {
           backingUp.current.delete(tor.disk_id)
           toast(tor.has_backup ? t("torrents.backupSaved") : t("torrents.backupFailed"),
-                tor.has_backup ? "ok" : "err")
+            tor.has_backup ? "ok" : "err")
         }
         if (tor.restoring) restoring.current.add(tor.disk_id)
         else if (restoring.current.has(tor.disk_id)) {
@@ -71,8 +85,9 @@ export function TorrentList() {
       setCompressionLevels(c.compression_levels ?? [])
       setUpscaleTargets(c.upscale_targets ?? [])
       setUpscaleTarget(c.upscale_target ?? "2x")
-      setPaused(!!c.upscale_paused)
-    }).catch(() => {})
+      setPaused(c.upscale_paused)
+    }).catch(() => {
+    })
   }, [])
 
   useEffect(() => {
@@ -197,7 +212,7 @@ export function TorrentList() {
     })
 
   // Scrollable checkbox list + a scoped select/deselect-all for one group.
-  const renderUpGroup = (names: string[], files: {name: string; label: string}[]) => {
+  const renderUpGroup = (names: string[], files: { name: string; label: string }[]) => {
     const allOn = names.length > 0 && names.every((n) => upNames.includes(n))
     return (
       <>
@@ -337,7 +352,8 @@ export function TorrentList() {
             {torrents.map((tor) => (
               <ListItem
                 key={tor.disk_id}
-                before={tor.in_qbittorrent ? <TorrentIcon state={tor.state}/> : <HardDrive size={20} style={{color: "var(--tg-theme-hint-color)"}}/>}
+                before={tor.in_qbittorrent ? <TorrentIcon state={tor.state}/> :
+                  <HardDrive size={20} style={{color: "var(--tg-theme-hint-color)"}}/>}
                 after={
                   <div className={s.iconActions}>
                     <button
@@ -352,7 +368,11 @@ export function TorrentList() {
                     </button>
                   </div>
                 }
-                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {done: tor.upscale_done, total: tor.upscale_total, pct: pct(tor.upscale_progress)}) : ""}${tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}${tor.restoring ? " · ♻️ " + t("torrents.restoring") : ""}`}
+                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {
+                  done: tor.upscale_done,
+                  total: tor.upscale_total,
+                  pct: pct(tor.upscale_progress)
+                }) : ""}${tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}${tor.restoring ? " · ♻️ " + t("torrents.restoring") : ""}`}
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
@@ -467,7 +487,10 @@ export function TorrentList() {
         <Stack gap={8} pb={16} px={4}>
           {cats.length > 0 && (
             <Button fullWidth variant="default" leftSection={<FolderInput size={18}/>}
-                    onClick={() => { setMoving(menuFor); setMenuFor(null) }}>
+                    onClick={() => {
+                      setMoving(menuFor);
+                      setMenuFor(null)
+                    }}>
               {t("torrents.move")}
             </Button>
           )}
@@ -482,12 +505,15 @@ export function TorrentList() {
                 {t("torrents.original")}
               </Button>
               <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
-                      onClick={() => { setConfirmDelLinks(menuFor); setMenuFor(null) }}>
+                      onClick={() => {
+                        setConfirmDelLinks(menuFor);
+                        setMenuFor(null)
+                      }}>
                 {t("torrents.delLinks")}
               </Button>
               <Divider my={4}/>
               <Button fullWidth variant="default" leftSection={<Wand2 size={18}/>}
-                      disabled={upscalers.length === 0 || !!menuFor?.upscaling}
+                      disabled={upscalers.length === 0 || menuFor?.upscaling}
                       onClick={() => menuFor && openUpscale(menuFor)}>
                 {t("torrents.upscale")}
               </Button>
@@ -520,13 +546,19 @@ export function TorrentList() {
           )}
           {menuFor?.has_backup && !menuFor?.restoring && (
             <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
-                    onClick={() => { setConfirmDelBackup(menuFor); setMenuFor(null) }}>
+                    onClick={() => {
+                      setConfirmDelBackup(menuFor);
+                      setMenuFor(null)
+                    }}>
               {t("torrents.delBackup")}
             </Button>
           )}
           <Divider my={4}/>
           <Button fullWidth variant="light" color="red" leftSection={<Trash2 size={18}/>}
-                  onClick={() => { setConfirmDel(menuFor); setMenuFor(null) }}>
+                  onClick={() => {
+                    setConfirmDel(menuFor);
+                    setMenuFor(null)
+                  }}>
             {t("common.delete")}
           </Button>
         </Stack>
@@ -593,11 +625,11 @@ export function TorrentList() {
             <Loader size="sm"/>
           </Box>
         ) : (
-        <Stack gap={8} pb={16} px={4}>
-          {upInfo.total > 1 && (
-            <>
-              {upInfo.parsed
-                ? upInfo.groups.map((g) => {
+          <Stack gap={8} pb={16} px={4}>
+            {upInfo.total > 1 && (
+              <>
+                {upInfo.parsed
+                  ? upInfo.groups.map((g) => {
                     const names = g.files.map((f) => f.name)
                     const sel = names.filter((n) => upNames.includes(n)).length
                     const title = g.season != null ? t("torrents.season", {n: g.season}) : t("torrents.upscaleOther")
@@ -608,51 +640,51 @@ export function TorrentList() {
                       </Collapse>
                     )
                   })
-                : renderUpGroup(
+                  : renderUpGroup(
                     upInfo.groups.flatMap((g) => g.files.map((f) => f.name)),
                     upInfo.groups.flatMap((g) => g.files),
                   )}
-              <Divider my={4}/>
-            </>
-          )}
-          {upscaleTargets.length > 0 && (
-            <>
-              <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
-                {t("settings.upscaleTarget")}
-              </Box>
-              <SegmentedControl
-                fullWidth
-                value={upscaleTarget}
-                onChange={setUpscaleTarget}
-                data={upscaleTargets.map((u) => ({value: u.id, label: u.label}))}
-              />
-              <Divider my={4}/>
-            </>
-          )}
-          {compressionLevels.length > 0 && (
-            <>
-              <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
-                {t("torrents.compression")}
-              </Box>
-              <SegmentedControl
-                fullWidth
-                value={compression}
-                onChange={setCompression}
-                data={compressionLevels.map((c) => ({
-                  value: c.id,
-                  label: t(`torrents.compression_${c.id}`, {defaultValue: c.label}),
-                }))}
-              />
-              <Divider my={4}/>
-            </>
-          )}
-          {upscalers.map((u) => (
-            <Button key={u.id} fullWidth variant="light" leftSection={<Wand2 size={18}/>}
-                    onClick={() => upscaleFor && doUpscale(upscaleFor, u.id)}>
-              {u.label}{u.needs_gpu ? ` · ${t("torrents.gpuHint")}` : ""}
-            </Button>
-          ))}
-        </Stack>
+                <Divider my={4}/>
+              </>
+            )}
+            {upscaleTargets.length > 0 && (
+              <>
+                <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                  {t("settings.upscaleTarget")}
+                </Box>
+                <SegmentedControl
+                  fullWidth
+                  value={upscaleTarget}
+                  onChange={setUpscaleTarget}
+                  data={upscaleTargets.map((u) => ({value: u.id, label: u.label}))}
+                />
+                <Divider my={4}/>
+              </>
+            )}
+            {compressionLevels.length > 0 && (
+              <>
+                <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                  {t("torrents.compression")}
+                </Box>
+                <SegmentedControl
+                  fullWidth
+                  value={compression}
+                  onChange={setCompression}
+                  data={compressionLevels.map((c) => ({
+                    value: c.id,
+                    label: t(`torrents.compression_${c.id}`, {defaultValue: c.label}),
+                  }))}
+                />
+                <Divider my={4}/>
+              </>
+            )}
+            {upscalers.map((u) => (
+              <Button key={u.id} fullWidth variant="light" leftSection={<Wand2 size={18}/>}
+                      onClick={() => upscaleFor && doUpscale(upscaleFor, u.id)}>
+                {u.label}{u.needs_gpu ? ` · ${t("torrents.gpuHint")}` : ""}
+              </Button>
+            ))}
+          </Stack>
         )}
       </Drawer>
 
@@ -676,7 +708,8 @@ export function TorrentList() {
         ) : (
           <Stack gap={10} pb={16} px={4}>
             {results.map((r) => (
-              <Box key={r.name} style={{borderBottom: "1px solid var(--tg-theme-secondary-bg-color)", paddingBottom: 8}}>
+              <Box key={r.name}
+                   style={{borderBottom: "1px solid var(--tg-theme-secondary-bg-color)", paddingBottom: 8}}>
                 <Box style={{fontSize: 14, color: "var(--tg-theme-text-color)", wordBreak: "break-all"}}>
                   {r.name}
                 </Box>
