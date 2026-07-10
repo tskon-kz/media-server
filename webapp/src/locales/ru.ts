@@ -35,6 +35,8 @@ export default {
     pretty: "Красивые имена",
     original: "Оригинальная структура",
     delLinks: "Удалить хардлинки",
+    delLinksTitle: "Удалить хардлинки?",
+    delLinksBody: "Ссылки в медиатеке будут удалены. Файлы на диске не затронуты.",
     // Апскейл + бэкап
     upscale: "Апскейл (2x)",
     upscalePick: "Выберите апскейлер",
@@ -43,6 +45,8 @@ export default {
     backup: "Сохранить в бэкап",
     restoreBackup: "Восстановить из бэкапа",
     delBackup: "Удалить бэкап",
+    delBackupTitle: "Удалить бэкап?",
+    delBackupBody: "Сохранённая копия будет безвозвратно удалена.",
     backupSaved: "Бэкап сохранён",
     backupRestored: "Восстановлено из бэкапа",
     backupDeleted: "Бэкап удалён",

@@ -23,7 +23,7 @@ function Root() {
       cssVariablesResolver={cssVariablesResolver}
       forceColorScheme={appearance}
     >
-      <Notifications position="bottom-center" containerWidth={480} zIndex={1000} />
+      <Notifications position="bottom-center" containerWidth={480} zIndex={1000} autoClose={3000} />
       <ThemeSync />
       <App />
     </MantineProvider>

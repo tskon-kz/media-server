@@ -21,6 +21,8 @@ export function TorrentList() {
   const [upscaleFor, setUpscaleFor] = useState<Torrent | null>(null)
   const [upscalers, setUpscalers] = useState<Upscaler[]>([])
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
+  const [confirmDelLinks, setConfirmDelLinks] = useState<Torrent | null>(null)
+  const [confirmDelBackup, setConfirmDelBackup] = useState<Torrent | null>(null)
   const [pull, setPull] = useState(0)
   const [confirmRemove, setConfirmRemove] = useState<Torrent | null>(null)
 
@@ -231,6 +233,7 @@ export function TorrentList() {
         position="bottom"
         radius="lg"
         overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
       >
         <Stack gap={8} pb={16} px={4}>
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
@@ -263,6 +266,7 @@ export function TorrentList() {
         position="bottom"
         radius="lg"
         overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
       >
         <Stack gap={8} pb={16} px={4}>
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
@@ -293,6 +297,7 @@ export function TorrentList() {
         position="bottom"
         radius="lg"
         overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
       >
         <Stack gap={8} pb={16} px={4}>
           {cats.length > 0 && (
@@ -311,8 +316,8 @@ export function TorrentList() {
                       onClick={() => menuFor && doStructure(menuFor, "flat")}>
                 {t("torrents.original")}
               </Button>
-              <Button fullWidth variant="subtle" color="red" leftSection={<Trash2 size={18}/>}
-                      onClick={() => menuFor && doStructure(menuFor, "delete")}>
+              <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
+                      onClick={() => { setConfirmDelLinks(menuFor); setMenuFor(null) }}>
                 {t("torrents.delLinks")}
               </Button>
               <Divider my={4}/>
@@ -335,8 +340,8 @@ export function TorrentList() {
             </Button>
           )}
           {menuFor?.has_backup && (
-            <Button fullWidth variant="subtle" color="red" leftSection={<Trash2 size={18}/>}
-                    onClick={() => menuFor && doDeleteBackup(menuFor)}>
+            <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
+                    onClick={() => { setConfirmDelBackup(menuFor); setMenuFor(null) }}>
               {t("torrents.delBackup")}
             </Button>
           )}
@@ -349,12 +354,59 @@ export function TorrentList() {
       </Drawer>
 
       <Drawer
+        opened={!!confirmDelLinks}
+        onClose={() => setConfirmDelLinks(null)}
+        title={t("torrents.delLinksTitle")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
+      >
+        <Stack gap={8} pb={16} px={4}>
+          <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
+            {t("torrents.delLinksBody")}
+          </Box>
+          <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
+                  onClick={() => confirmDelLinks && doStructure(confirmDelLinks, "delete")}>
+            {t("torrents.delLinks")}
+          </Button>
+          <Button fullWidth variant="default" onClick={() => setConfirmDelLinks(null)}>
+            {t("common.cancel")}
+          </Button>
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={!!confirmDelBackup}
+        onClose={() => setConfirmDelBackup(null)}
+        title={t("torrents.delBackupTitle")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
+      >
+        <Stack gap={8} pb={16} px={4}>
+          <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
+            {t("torrents.delBackupBody")}
+          </Box>
+          <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
+                  onClick={() => confirmDelBackup && doDeleteBackup(confirmDelBackup)}>
+            {t("torrents.delBackup")}
+          </Button>
+          <Button fullWidth variant="default" onClick={() => setConfirmDelBackup(null)}>
+            {t("common.cancel")}
+          </Button>
+        </Stack>
+      </Drawer>
+
+      <Drawer
         opened={!!upscaleFor}
         onClose={() => setUpscaleFor(null)}
         title={t("torrents.upscalePick")}
         position="bottom"
         radius="lg"
         overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
       >
         <Stack gap={8} pb={16} px={4}>
           {upscalers.map((u) => (

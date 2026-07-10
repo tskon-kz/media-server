@@ -35,6 +35,8 @@ export default {
     pretty: "Pretty names",
     original: "Original structure",
     delLinks: "Delete hardlinks",
+    delLinksTitle: "Delete hardlinks?",
+    delLinksBody: "Library links will be removed. Files on disk are not affected.",
     // Upscale + backup
     upscale: "Upscale (2x)",
     upscalePick: "Choose an upscaler",
@@ -43,6 +45,8 @@ export default {
     backup: "Save backup",
     restoreBackup: "Restore from backup",
     delBackup: "Delete backup",
+    delBackupTitle: "Delete backup?",
+    delBackupBody: "The saved backup copy will be permanently deleted.",
     backupSaved: "Backup saved",
     backupRestored: "Restored from backup",
     backupDeleted: "Backup deleted",
