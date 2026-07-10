@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react"
-import {Box, Button, Divider, Drawer, Loader, Progress, Stack, Title} from "@mantine/core"
+import {Box, Button, Divider, Drawer, Loader, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
 import {Clapperboard, Folder, FolderInput, HardDrive, MoreHorizontal, RefreshCw, Save, Trash2, Wand2} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
@@ -9,7 +9,7 @@ import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
-import type {Category, Torrent, Upscaler} from "@/types"
+import type {Category, CompressionLevel, Torrent, Upscaler} from "@/types"
 import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
@@ -20,6 +20,8 @@ export function TorrentList() {
   const [menuFor, setMenuFor] = useState<Torrent | null>(null)
   const [upscaleFor, setUpscaleFor] = useState<Torrent | null>(null)
   const [upscalers, setUpscalers] = useState<Upscaler[]>([])
+  const [compressionLevels, setCompressionLevels] = useState<CompressionLevel[]>([])
+  const [compression, setCompression] = useState("balanced")
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [confirmDelLinks, setConfirmDelLinks] = useState<Torrent | null>(null)
   const [confirmDelBackup, setConfirmDelBackup] = useState<Torrent | null>(null)
@@ -38,7 +40,10 @@ export function TorrentList() {
   }, []) // eslint-disable-line
 
   useEffect(() => {
-    api.config().then((c) => setUpscalers(c.upscalers ?? [])).catch(() => {})
+    api.config().then((c) => {
+      setUpscalers(c.upscalers ?? [])
+      setCompressionLevels(c.compression_levels ?? [])
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -119,7 +124,7 @@ export function TorrentList() {
     setUpscaleFor(null)
     setMenuFor(null)
     try {
-      const r = await api.upscale(tor.disk_id, upscalerId)
+      const r = await api.upscale(tor.disk_id, upscalerId, compression)
       toast(t("torrents.upscaleQueued", {n: r.queued}))
       load()
     } catch (e) {
@@ -409,6 +414,23 @@ export function TorrentList() {
         styles={{title: {width: "100%", textAlign: "center"}}}
       >
         <Stack gap={8} pb={16} px={4}>
+          {compressionLevels.length > 0 && (
+            <>
+              <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                {t("torrents.compression")}
+              </Box>
+              <SegmentedControl
+                fullWidth
+                value={compression}
+                onChange={setCompression}
+                data={compressionLevels.map((c) => ({
+                  value: c.id,
+                  label: t(`torrents.compression_${c.id}`, {defaultValue: c.label}),
+                }))}
+              />
+              <Divider my={4}/>
+            </>
+          )}
           {upscalers.map((u) => (
             <Button key={u.id} fullWidth variant="light" leftSection={<Wand2 size={18}/>}
                     onClick={() => upscaleFor && doUpscale(upscaleFor, u.id)}>

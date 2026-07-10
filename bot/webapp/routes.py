@@ -19,6 +19,7 @@ from aiohttp import web
 from config import (
     ICONS, INCOMING_DIR, BACKUP_DIR, APP_VERSION, current_channel,
     QB_PORT, JF_PORT, JACKETT_PORT, UPSCALERS, UPSCALER_IDS,
+    COMPRESSION_LEVELS, COMPRESSION_IDS,
 )
 import store
 from store import (
@@ -294,6 +295,7 @@ async def config(request):
         "quick_links": links,
         "has_categories": bool(load_cats()),
         "upscalers": UPSCALERS,
+        "compression_levels": COMPRESSION_LEVELS,
     })
 
 
@@ -567,7 +569,8 @@ def _cat_id_for(tor, cats: list) -> int | None:
     return cat["id"] if cat else None
 
 
-def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None) -> tuple[int, str]:
+def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
+                  compression: str = "balanced") -> tuple[int, str]:
     """Snap the torrent out of qB (keeping files), then queue one upscale job per
     video file. Returns (queued_count, disk_id the jobs are keyed on)."""
     # get_video_files also returns sidecars (subs/audio) for the linker; only real
@@ -585,7 +588,7 @@ def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None) -> tuple[
             upsert_disk_entry(disk_id, os.path.basename(tor.content_path.rstrip("/")),
                               cat_id, _compute_disk_size(tor.content_path))
     for src in files:
-        add_upscale_job(disk_id, src, upscaler, user_id)
+        add_upscale_job(disk_id, src, upscaler, user_id, compression=compression)
     return len(files), disk_id
 
 
@@ -596,6 +599,9 @@ async def torrent_upscale(request):
     upscaler = body.get("upscaler")
     if upscaler not in UPSCALER_IDS:
         return _err("unknown upscaler")
+    compression = body.get("compression") or "balanced"
+    if compression not in COMPRESSION_IDS:
+        return _err("unknown compression level")
     cats = load_cats()
     tor = await _resolve_torrent(disk_id)
     if not tor:
@@ -605,7 +611,7 @@ async def torrent_upscale(request):
     if _qb_disk_id(tor) in get_active_upscale_disk_ids():
         return _err(t("upscale_in_progress"))
     user_id = request.get("user_id")
-    queued, new_disk_id = await _thread(queue_upscale, tor, cats, upscaler, user_id)
+    queued, new_disk_id = await _thread(queue_upscale, tor, cats, upscaler, user_id, compression)
     if not queued:
         return _err("no video files to upscale")
     return web.json_response({"queued": queued, "disk_id": new_disk_id})

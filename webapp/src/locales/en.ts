@@ -40,6 +40,9 @@ export default {
     // Upscale + backup
     upscale: "Upscale (2x)",
     upscalePick: "Choose an upscaler",
+    compression: "Compression",
+    compression_balanced: "Balanced",
+    compression_aggressive: "Smaller file",
     upscaleQueued: "Queued: {{n}} file(s). This can take a while.",
     upscaling: "upscaling {{pct}}",
     backup: "Save backup",

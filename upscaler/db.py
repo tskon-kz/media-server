@@ -34,14 +34,14 @@ def claim_next_job() -> dict | None:
     cur = _conn.execute(
         "UPDATE upscale_jobs SET status='running' "
         "WHERE id = (SELECT id FROM upscale_jobs WHERE status='queued' ORDER BY id LIMIT 1) "
-        "RETURNING id, disk_id, src_path, upscaler, scale"
+        "RETURNING id, disk_id, src_path, upscaler, scale, compression"
     )
     row = cur.fetchone()
     _conn.commit()
     if not row:
         return None
     return {"id": row[0], "disk_id": row[1], "src_path": row[2],
-            "upscaler": row[3], "scale": row[4]}
+            "upscaler": row[3], "scale": row[4], "compression": row[5]}
 
 
 def set_progress(job_id: int, progress: float):

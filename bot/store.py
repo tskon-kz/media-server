@@ -56,7 +56,8 @@ def _create_tables():
             progress REAL NOT NULL DEFAULT 0,
             error    TEXT,
             user_id  INTEGER,
-            notified INTEGER NOT NULL DEFAULT 0
+            notified INTEGER NOT NULL DEFAULT 0,
+            compression TEXT NOT NULL DEFAULT 'balanced'
         );
         CREATE TABLE IF NOT EXISTS done_notified (
             hash TEXT PRIMARY KEY
@@ -82,6 +83,18 @@ def _migrate():
         _conn.commit()
     except Exception:
         pass
+
+    # Additive columns for pre-existing upscale_jobs tables. Each future encode
+    # setting is one more idempotent ADD COLUMN here — CREATE TABLE only helps
+    # fresh installs.
+    _ensure_column("upscale_jobs", "compression", "TEXT NOT NULL DEFAULT 'balanced'")
+
+
+def _ensure_column(table: str, col: str, decl: str):
+    existing = [r[1] for r in _conn.execute(f"PRAGMA table_info({table})")]
+    if col not in existing:
+        _conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+        _conn.commit()
 
 
 def init():
@@ -392,17 +405,20 @@ def _row_to_upscale_job(row) -> dict:
     return {
         "id": row[0], "disk_id": row[1], "src_path": row[2], "upscaler": row[3],
         "scale": row[4], "status": row[5], "progress": row[6], "error": row[7],
-        "user_id": row[8], "notified": row[9],
+        "user_id": row[8], "notified": row[9], "compression": row[10],
     }
 
 
-_UPSCALE_COLS = "id, disk_id, src_path, upscaler, scale, status, progress, error, user_id, notified"
+_UPSCALE_COLS = ("id, disk_id, src_path, upscaler, scale, status, progress, "
+                 "error, user_id, notified, compression")
 
 
-def add_upscale_job(disk_id: str, src_path: str, upscaler: str, user_id: int | None, scale: int = 2) -> int:
+def add_upscale_job(disk_id: str, src_path: str, upscaler: str, user_id: int | None,
+                    scale: int = 2, compression: str = "balanced") -> int:
     cur = _conn.execute(
-        "INSERT INTO upscale_jobs (disk_id, src_path, upscaler, scale, user_id) VALUES (?, ?, ?, ?, ?)",
-        (disk_id, src_path, upscaler, scale, user_id),
+        "INSERT INTO upscale_jobs (disk_id, src_path, upscaler, scale, user_id, compression) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (disk_id, src_path, upscaler, scale, user_id, compression),
     )
     _conn.commit()
     return cur.lastrowid

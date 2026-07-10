@@ -57,9 +57,9 @@ export const api = {
     req<{ mode: string; linked?: number; pending?: number; xdev?: boolean }>(
       "POST", "/api/torrents/structure", { disk_id: diskId, mode },
     ),
-  upscale: (diskId: string, upscaler: string) =>
+  upscale: (diskId: string, upscaler: string, compression: string) =>
     req<{ queued: number; disk_id: string }>(
-      "POST", "/api/torrents/upscale", { disk_id: diskId, upscaler },
+      "POST", "/api/torrents/upscale", { disk_id: diskId, upscaler, compression },
     ),
   backup: (diskId: string) =>
     req<{ backed_up: boolean }>("POST", "/api/torrents/backup", { disk_id: diskId }),

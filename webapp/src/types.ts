@@ -24,6 +24,11 @@ export interface Upscaler {
   needs_gpu: boolean;
 }
 
+export interface CompressionLevel {
+  id: string;
+  label: string;
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -56,6 +61,7 @@ export interface AppConfig {
   quick_links: QuickLinks | null;
   has_categories: boolean;
   upscalers: Upscaler[];
+  compression_levels: CompressionLevel[];
 }
 
 export interface Settings {

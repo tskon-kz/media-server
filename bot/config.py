@@ -65,6 +65,15 @@ UPSCALERS = [
 ]
 UPSCALER_IDS = frozenset(u["id"] for u in UPSCALERS)
 
+# How hard to compress the re-encoded output. The `id` is the contract with
+# upscaler/runners.py (which maps it to concrete libx264 CRF / VAAPI QP values);
+# more levels/settings will be added here later. `balanced` is the default.
+COMPRESSION_LEVELS = [
+    {"id": "balanced",   "label": "Balanced"},
+    {"id": "aggressive", "label": "Smaller file"},
+]
+COMPRESSION_IDS = frozenset(c["id"] for c in COMPRESSION_LEVELS)
+
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
     {"name": "Series", "path": "/media/series", "jf_type": "tvshows"},

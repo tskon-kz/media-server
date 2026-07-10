@@ -40,6 +40,9 @@ export default {
     // Апскейл + бэкап
     upscale: "Апскейл (2x)",
     upscalePick: "Выберите апскейлер",
+    compression: "Сжатие",
+    compression_balanced: "Баланс",
+    compression_aggressive: "Меньше размер",
     upscaleQueued: "В очереди: {{n}} файл(ов). Это займёт время.",
     upscaling: "upscaling {{pct}}",
     backup: "Сохранить в бэкап",

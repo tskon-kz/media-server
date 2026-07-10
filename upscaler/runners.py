@@ -43,8 +43,25 @@ FFPROBE_BIN       = os.environ.get("FFPROBE_BIN", "ffprobe")
 # image; passed to the libplacebo filter's custom_shader_path.
 ANIME4K_SHADER    = os.environ.get("ANIME4K_SHADER", "/opt/anime4k/anime4k.glsl")
 
+# Compression presets — the `id` is the contract with the bot's config.py /
+# COMPRESSION_LEVELS. `crf` drives the CPU libx264 paths (anime4k + cas-on-CPU);
+# `qp` drives the VAAPI encode (cas on an iGPU). Higher = smaller file. On a 2x
+# upscale the added detail is synthetic, so it compresses well with little visible
+# loss — hence `aggressive` leans notably harder. More levels/knobs land here.
+COMPRESSION = {
+    "balanced":   {"crf": "20", "qp": "22"},
+    "aggressive": {"crf": "23", "qp": "25"},
+}
+DEFAULT_COMPRESSION = "balanced"
+
+
+def _quality(compression: str | None) -> dict:
+    return COMPRESSION.get(compression or DEFAULT_COMPRESSION, COMPRESSION[DEFAULT_COMPRESSION])
+
+
 # CPU H.264 encode, shared as the fallback (and the anime4k encode tail).
-CPU_CODEC = ["-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p"]
+def _cpu_codec(crf: str) -> list[str]:
+    return ["-c:v", "libx264", "-crf", crf, "-preset", "fast", "-pix_fmt", "yuv420p"]
 
 # VAAPI hardware H.264 encode. `auto` = use it when the device probes OK; `off`
 # forces the CPU libx264 path (e.g. for a broken driver). Same /dev/dri already
@@ -104,20 +121,21 @@ def _probe_vaapi() -> bool:
         return False
 
 
-def _video_encode(scale_filter: str | None) -> tuple[list, str, list]:
+def _video_encode(scale_filter: str | None, quality: dict) -> tuple[list, str, list]:
     """Encoder command fragments for the CPU (``cas``) backend.
 
     Returns ``(pre_input_args, video_filter, codec_args)``. ``scale_filter`` is the
     caller's scaling stage (or None) that the hwupload tail is appended to.
-    VAAPI when available (H.264 encode on the iGPU), else CPU libx264.
+    VAAPI when available (H.264 encode on the iGPU), else CPU libx264. ``quality``
+    supplies the compression level (`qp` for VAAPI, `crf` for libx264).
     """
     parts = [p for p in (scale_filter,) if p]
     if has_vaapi():
         parts.append("format=nv12,hwupload")
         return (["-vaapi_device", VAAPI_DEVICE],
                 ",".join(parts),
-                ["-c:v", "h264_vaapi", "-qp", "18"])
-    return ([], ",".join(parts), CPU_CODEC)
+                ["-c:v", "h264_vaapi", "-qp", quality["qp"]])
+    return ([], ",".join(parts), _cpu_codec(quality["crf"]))
 
 
 def _ffprobe_value(src: str, *args: str) -> float:
@@ -273,14 +291,17 @@ def run(job: dict, progress_cb):
     if not _has_video(src):
         raise UpscaleError(f"no decodable video stream in {os.path.basename(src)}")
 
+    quality = _quality(job.get("compression"))
+    log.info("compression=%s (crf=%s qp=%s)", job.get("compression") or DEFAULT_COMPRESSION,
+             quality["crf"], quality["qp"])
     if upscaler == "cas":
         pre_input, vfilter, codec = _video_encode(
-            f"scale=iw*{scale}:ih*{scale}:flags=lanczos,cas=strength=0.4")
+            f"scale=iw*{scale}:ih*{scale}:flags=lanczos,cas=strength=0.4", quality)
         _run_single(src, pre_input, vfilter, codec, progress_cb)
     elif upscaler == "anime4k":
         if not has_vulkan():
             raise UpscaleError("no Vulkan GPU (/dev/dri) — the AI upscaler is unavailable")
-        _run_anime4k(src, scale, progress_cb)
+        _run_anime4k(src, scale, quality, progress_cb)
     else:
         raise UpscaleError(f"unknown upscaler: {upscaler}")
 
@@ -349,7 +370,7 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
             _cleanup(tmp_out)
 
 
-def _run_anime4k(src: str, scale: int, progress_cb):
+def _run_anime4k(src: str, scale: int, quality: dict, progress_cb):
     """Upscale with the Anime4K neural shaders as a single libplacebo (Vulkan) pass,
     then bring the frames back to system memory (``hwdownload``) and H.264-encode on
     the CPU. The libplacebo shader work is the expensive part and runs on the GPU;
@@ -367,7 +388,7 @@ def _run_anime4k(src: str, scale: int, progress_cb):
                f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
                f"custom_shader_path={ANIME4K_SHADER},"
                f"hwdownload,format=nv12,format=yuv420p")
-    codec = CPU_CODEC + _source_color_args(src) + ["-profile:v", "high"]
+    codec = _cpu_codec(quality["crf"]) + _source_color_args(src) + ["-profile:v", "high"]
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
                 vfilter, codec, progress_cb)
 
