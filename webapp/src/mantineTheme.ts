@@ -33,6 +33,10 @@ export const mantineTheme = createTheme({
         position: "bottom",
         overlayProps: { blur: 2 },
       },
+      styles: {
+        content: { background: "var(--tg-theme-section-bg-color)" },
+        header: { background: "var(--tg-theme-section-bg-color)" },
+      },
     },
   },
 });
