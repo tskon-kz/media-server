@@ -58,6 +58,8 @@ export default {
     upscaleResumed: "Апскейл продолжен",
     upscaleRemoveQueue: "Убрать из очереди",
     upscaleCancelled: "Убрано из очереди",
+    upscaleResults: "Результаты апскейла",
+    upscaleResultsEmpty: "Пока нет заапскейленных файлов",
     backup: "Сохранить в бэкап",
     restoreBackup: "Восстановить из бэкапа",
     delBackup: "Удалить бэкап",

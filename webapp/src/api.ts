@@ -2,6 +2,7 @@ import { initData } from "./telegram";
 import type {
   AppConfig, Category, JellyfinUser, SearchResult, Settings, Torrent, UpdateInfo,
   UpscaleInfo,
+  UpscaleResult,
 } from "./types";
 
 // All requests carry the Telegram initData in the Authorization header
@@ -66,6 +67,8 @@ export const api = {
     ),
   upscaleInfo: (diskId: string) =>
     req<UpscaleInfo>("GET", `/api/torrents/upscale/info?disk_id=${encodeURIComponent(diskId)}`),
+  upscaleResults: (diskId: string) =>
+    req<{ results: UpscaleResult[] }>("GET", `/api/torrents/upscale/results?disk_id=${encodeURIComponent(diskId)}`),
   cancelUpscale: (diskId: string) =>
     req<{ cancelled: boolean }>("POST", "/api/torrents/upscale/cancel", { disk_id: diskId }),
   setUpscalePaused: (paused: boolean) =>

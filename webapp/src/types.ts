@@ -17,6 +17,7 @@ export interface Torrent {
   upscale_progress: number;
   upscale_done: number;
   upscale_total: number;
+  has_upscale_results: boolean;
   has_backup: boolean;
   backing_up: boolean;
 }
@@ -42,6 +43,13 @@ export interface UpscaleInfo {
   total: number;
   files: { name: string; upscaled: boolean }[];
   is_series: boolean;
+}
+
+export interface UpscaleResult {
+  name: string;
+  upscaler: string;
+  compression: string;
+  target: string;
 }
 
 export interface Category {

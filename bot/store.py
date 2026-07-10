@@ -60,11 +60,6 @@ def _create_tables():
             compression TEXT NOT NULL DEFAULT 'balanced',
             target   TEXT NOT NULL DEFAULT '2x'
         );
-        CREATE TABLE IF NOT EXISTS upscaled_files (
-            disk_id  TEXT NOT NULL,
-            src_path TEXT NOT NULL,
-            PRIMARY KEY (disk_id, src_path)
-        );
         CREATE TABLE IF NOT EXISTS done_notified (
             hash TEXT PRIMARY KEY
         );
@@ -103,6 +98,28 @@ def _migrate():
     # fresh installs.
     _ensure_column("upscale_jobs", "compression", "TEXT NOT NULL DEFAULT 'balanced'")
     _ensure_column("upscale_jobs", "target", "TEXT NOT NULL DEFAULT '2x'")
+
+    # The old `upscaled_files` table was merged into `upscale_jobs`: a status='done'
+    # row now IS the "already upscaled" record and additionally carries the settings
+    # used (which the upscale-results view shows). Backfill any legacy records as
+    # done jobs (unknown settings) so the skip survives, then drop the table.
+    try:
+        legacy = _conn.execute("SELECT disk_id, src_path FROM upscaled_files").fetchall()
+        for disk_id, src_path in legacy:
+            exists = _conn.execute(
+                "SELECT 1 FROM upscale_jobs WHERE disk_id=? AND src_path=? AND status='done'",
+                (disk_id, src_path),
+            ).fetchone()
+            if not exists:
+                _conn.execute(
+                    "INSERT INTO upscale_jobs (disk_id, src_path, upscaler, scale, "
+                    "status, progress, notified) VALUES (?, ?, '', 2, 'done', 1, 1)",
+                    (disk_id, src_path),
+                )
+        _conn.execute("DROP TABLE upscaled_files")
+        _conn.commit()
+    except sqlite3.OperationalError:
+        pass  # table already gone (fresh install or prior migration)
 
 
 def _ensure_column(table: str, col: str, decl: str):
@@ -406,9 +423,10 @@ def upsert_disk_entries_batch(rows: list[tuple[str, str, int, int]]):
 def delete_disk_entry(disk_id: str):
     _conn.execute("DELETE FROM disk_entries WHERE disk_id=?", (disk_id,))
     _conn.commit()
-    # Physically removing the content invalidates the "already upscaled" record —
-    # re-downloaded files are pristine again and should be upscalable.
-    clear_upscaled_files(disk_id)
+    # Physically removing the content invalidates every upscale record for it — the
+    # done rows (the "already upscaled" skip list + results) and any leftover jobs.
+    # Re-downloaded files are pristine again and should be upscalable from scratch.
+    delete_upscale_jobs_by_disk_id(disk_id)
 
 
 def update_disk_entry_size(disk_id: str, size: int):
@@ -460,18 +478,22 @@ def get_upscale_jobs_by_disk_id(disk_id: str) -> list[dict]:
 
 
 def get_active_upscale_status() -> dict[str, dict]:
-    """Map disk_id -> {cur, done, total} for torrents with queued/running jobs.
+    """Map disk_id -> {cur, done, total} for torrents with an in-flight batch.
 
     ``cur`` is the currently-running file's progress (0..1), ``done`` how many files
     of the batch have finished, ``total`` the batch size — so the UI can show both a
-    per-episode bar and a ``13/220`` counter."""
+    per-episode bar and a ``13/220`` counter.
+
+    Scoped to ``notified=0`` so it reflects only the current batch: done rows from
+    earlier, already-notified batches persist as the skip/results record and must
+    not inflate the counter."""
     rows = _conn.execute(
         "SELECT disk_id, "
         "MAX(CASE WHEN status='running' THEN progress ELSE 0 END), "
         "SUM(status='done'), COUNT(*) "
-        "FROM upscale_jobs "
-        "WHERE disk_id IN (SELECT disk_id FROM upscale_jobs "
-        "WHERE status IN ('queued', 'running')) GROUP BY disk_id"
+        "FROM upscale_jobs WHERE notified=0 AND disk_id IN "
+        "(SELECT disk_id FROM upscale_jobs "
+        "WHERE status IN ('queued', 'running') AND notified=0) GROUP BY disk_id"
     ).fetchall()
     return {r[0]: {"cur": r[1] or 0.0, "done": r[2] or 0, "total": r[3] or 0}
             for r in rows}
@@ -485,25 +507,44 @@ def cancel_queued_upscale(disk_id: str):
     _conn.commit()
 
 
-# ---- already-upscaled record (persists across job deletion) ----
+# ---- already-upscaled record (a status='done' job row) ----
+#
+# There is no separate table: a finished job persists as the record of what was
+# upscaled and with which settings. Re-queueing keeps these rows (see
+# clear_incomplete_upscale_jobs) so previously-done files are skipped.
 
-def mark_file_upscaled(disk_id: str, src_path: str):
-    _conn.execute(
-        "INSERT OR IGNORE INTO upscaled_files (disk_id, src_path) VALUES (?, ?)",
-        (disk_id, src_path),
-    )
-    _conn.commit()
-
-
-def get_upscaled_files(disk_id: str) -> set[str]:
+def get_done_upscale_src_paths(disk_id: str) -> set[str]:
+    """src_paths already upscaled for a disk — used to skip them on re-queue."""
     rows = _conn.execute(
-        "SELECT src_path FROM upscaled_files WHERE disk_id=?", (disk_id,)
+        "SELECT src_path FROM upscale_jobs WHERE disk_id=? AND status='done'",
+        (disk_id,),
     ).fetchall()
     return {r[0] for r in rows}
 
 
-def clear_upscaled_files(disk_id: str):
-    _conn.execute("DELETE FROM upscaled_files WHERE disk_id=?", (disk_id,))
+def get_done_upscale_jobs(disk_id: str) -> list[dict]:
+    """Finished jobs (with their settings) for the upscale-results view."""
+    rows = _conn.execute(
+        f"SELECT {_UPSCALE_COLS} FROM upscale_jobs WHERE disk_id=? AND status='done' "
+        "ORDER BY src_path", (disk_id,)
+    ).fetchall()
+    return [_row_to_upscale_job(r) for r in rows]
+
+
+def get_upscaled_disk_ids() -> set[str]:
+    """disk_ids that have at least one finished upscale — for the list-item flag."""
+    rows = _conn.execute(
+        "SELECT DISTINCT disk_id FROM upscale_jobs WHERE status='done'"
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def clear_incomplete_upscale_jobs(disk_id: str):
+    """Drop queued/running/errored rows for a disk but KEEP done rows, so a
+    re-queue starts clean while preserving the already-upscaled record."""
+    _conn.execute(
+        "DELETE FROM upscale_jobs WHERE disk_id=? AND status != 'done'", (disk_id,)
+    )
     _conn.commit()
 
 

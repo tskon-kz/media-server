@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 import {Box, Button, Checkbox, Divider, Drawer, Loader, NumberInput, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
 import {Collapse} from "@/components/Collapse"
-import {Clapperboard, Folder, FolderInput, HardDrive, MoreHorizontal, Pause, Play, RefreshCw, Save, Trash2, Wand2, XCircle} from "lucide-react"
+import {Clapperboard, Folder, FolderInput, HardDrive, ListChecks, MoreHorizontal, Pause, Play, RefreshCw, Save, Trash2, Wand2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
@@ -10,7 +10,7 @@ import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
-import type {Category, CompressionLevel, Torrent, Upscaler, UpscaleInfo, UpscaleTarget} from "@/types"
+import type {Category, CompressionLevel, Torrent, Upscaler, UpscaleInfo, UpscaleResult, UpscaleTarget} from "@/types"
 import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
@@ -30,6 +30,8 @@ export function TorrentList() {
   const [upFrom, setUpFrom] = useState(1)
   const [upTo, setUpTo] = useState(1)
   const [upNames, setUpNames] = useState<string[]>([])
+  const [resultsFor, setResultsFor] = useState<Torrent | null>(null)
+  const [results, setResults] = useState<UpscaleResult[] | null>(null)
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [confirmDelLinks, setConfirmDelLinks] = useState<Torrent | null>(null)
   const [confirmDelBackup, setConfirmDelBackup] = useState<Torrent | null>(null)
@@ -208,6 +210,19 @@ export function TorrentList() {
       toast(t("torrents.upscaleCancelled"))
       load()
     } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const openResults = async (tor: Torrent) => {
+    setResultsFor(tor)
+    setMenuFor(null)
+    setResults(null)
+    try {
+      const r = await api.upscaleResults(tor.disk_id)
+      setResults(r.results)
+    } catch (e) {
+      setResultsFor(null)
       toast((e as Error).message, "err")
     }
   }
@@ -413,6 +428,12 @@ export function TorrentList() {
                       onClick={() => menuFor && openUpscale(menuFor)}>
                 {t("torrents.upscale")}
               </Button>
+              {menuFor?.has_upscale_results && (
+                <Button fullWidth variant="default" leftSection={<ListChecks size={18}/>}
+                        onClick={() => menuFor && openResults(menuFor)}>
+                  {t("torrents.upscaleResults")}
+                </Button>
+              )}
               {menuFor?.upscaling && (
                 <>
                   <Button fullWidth variant="default"
@@ -595,6 +616,39 @@ export function TorrentList() {
             </Button>
           ))}
         </Stack>
+        )}
+      </Drawer>
+
+      <Drawer
+        opened={!!resultsFor}
+        onClose={() => setResultsFor(null)}
+        title={t("torrents.upscaleResults")}
+        position="bottom"
+        radius="lg"
+        overlayProps={{blur: 2}}
+        styles={{title: {width: "100%", textAlign: "center"}}}
+      >
+        {!results ? (
+          <Box style={{textAlign: "center", padding: "24px 0"}}>
+            <Loader size="sm"/>
+          </Box>
+        ) : results.length === 0 ? (
+          <Box style={{textAlign: "center", padding: "24px 0", color: "var(--tg-theme-hint-color)", fontSize: 14}}>
+            {t("torrents.upscaleResultsEmpty")}
+          </Box>
+        ) : (
+          <Stack gap={10} pb={16} px={4}>
+            {results.map((r) => (
+              <Box key={r.name} style={{borderBottom: "1px solid var(--tg-theme-secondary-bg-color)", paddingBottom: 8}}>
+                <Box style={{fontSize: 14, color: "var(--tg-theme-text-color)", wordBreak: "break-all"}}>
+                  {r.name}
+                </Box>
+                <Box style={{fontSize: 13, color: "var(--tg-theme-hint-color)", marginTop: 2}}>
+                  {`${r.upscaler} · ${r.target} · ${t(`torrents.compression_${r.compression}`, {defaultValue: r.compression})}`}
+                </Box>
+              </Box>
+            ))}
+          </Stack>
         )}
       </Drawer>
     </Box>

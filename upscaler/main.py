@@ -51,8 +51,7 @@ def main():
         log.info("job %d: %s %s", job["id"], job["upscaler"], job["src_path"])
         try:
             runners.run(job, lambda p: db.set_progress(job["id"], p))
-            db.mark_upscaled(job["disk_id"], job["src_path"])
-            db.finish(job["id"])
+            db.finish(job["id"])  # status='done' is the "already upscaled" record
             log.info("job %d done", job["id"])
         except Exception as e:
             log.exception("job %d failed", job["id"])

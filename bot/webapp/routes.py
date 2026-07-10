@@ -28,7 +28,8 @@ from store import (
     get_creds, get_qb_status, set_qb_status,
     load_disk_entries, upsert_disk_entry, upsert_disk_entries_batch, delete_disk_entry,
     add_upscale_job, get_active_upscale_status, delete_upscale_jobs_by_disk_id,
-    cancel_queued_upscale, get_upscaled_files, clear_upscaled_files,
+    cancel_queued_upscale, get_done_upscale_src_paths, clear_incomplete_upscale_jobs,
+    get_done_upscale_jobs, get_upscaled_disk_ids,
 )
 from api import (
     jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
@@ -361,12 +362,14 @@ async def torrents_list(request):
 
     active_upscales = get_active_upscale_status()
     active_backups = store.get_active_backup_disk_ids()
+    upscaled_disk_ids = get_upscaled_disk_ids()
     for item in result:
         st = active_upscales.get(item["disk_id"])
         item["upscaling"] = st is not None
         item["upscale_progress"] = st["cur"] if st else 0
         item["upscale_done"] = st["done"] if st else 0
         item["upscale_total"] = st["total"] if st else 0
+        item["has_upscale_results"] = item["disk_id"] in upscaled_disk_ids
         item["has_backup"] = _has_backup(item["disk_id"])
         item["backing_up"] = item["disk_id"] in active_backups
 
@@ -610,8 +613,10 @@ def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
         hi = end if end is not None else len(files)
         files = files[lo:hi]
     disk_id = _qb_disk_id(tor)
-    delete_upscale_jobs_by_disk_id(disk_id)  # clear any stale error jobs from previous attempts
-    already = get_upscaled_files(disk_id)
+    # Clear stale queued/error rows from previous attempts but keep the done rows —
+    # they are the "already upscaled" record that lets us skip finished files.
+    clear_incomplete_upscale_jobs(disk_id)
+    already = get_done_upscale_src_paths(disk_id)
     files = [f for f in files if f not in already]
     if getattr(tor, "hash", ""):
         # Remove from the client but keep the files: the upscaler rewrites them in
@@ -634,11 +639,28 @@ async def torrent_upscale_info(request):
     if not tor:
         return _err("torrent not found", status=404)
     files = await _thread(_upscale_files, tor)
-    already = get_upscaled_files(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
+    already = get_done_upscale_src_paths(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
     items = [{"name": os.path.basename(f), "upscaled": f in already} for f in files]
     cat = _cat_for(tor, load_cats())
     is_series = bool(cat) and cat.get("jf_type") == "tvshows"
     return web.json_response({"total": len(items), "files": items, "is_series": is_series})
+
+
+@routes.get("/api/torrents/upscale/results")
+async def torrent_upscale_results(request):
+    """Finished-upscale details for a disk: which files, upscaler and settings."""
+    disk_id = (request.query.get("disk_id") or "").strip()
+    tor = await _resolve_torrent(disk_id)
+    key = _qb_disk_id(tor) if tor and getattr(tor, "hash", "") else disk_id
+    label = {u["id"]: u["label"] for u in UPSCALERS}
+    target_label = {u["id"]: u["label"] for u in UPSCALE_TARGETS}
+    results = [{
+        "name": os.path.basename(j["src_path"]),
+        "upscaler": label.get(j["upscaler"], j["upscaler"] or "?"),
+        "compression": j["compression"],
+        "target": target_label.get(j["target"], j["target"]),
+    } for j in get_done_upscale_jobs(key)]
+    return web.json_response({"results": results})
 
 
 @routes.post("/api/torrents/upscale/cancel")
@@ -770,9 +792,8 @@ async def torrent_backup_restore(request):
         elif os.path.lexists(dst):
             os.remove(dst)
         os.rename(tmp, dst)
-        # The restored source is pristine again: drop the "already upscaled" record
-        # and any stale jobs so a fresh full range can be queued.
-        clear_upscaled_files(disk_id)
+        # The restored source is pristine again: drop every upscale record (done +
+        # stale jobs) so a fresh full range can be queued.
         delete_upscale_jobs_by_disk_id(disk_id)
         store.update_disk_entry_size(disk_id, _compute_disk_size(dst))
         delete_torrent_links(tor, cats)

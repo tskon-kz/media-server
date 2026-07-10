@@ -58,6 +58,8 @@ export default {
     upscaleResumed: "Upscaling resumed",
     upscaleRemoveQueue: "Remove from queue",
     upscaleCancelled: "Removed from queue",
+    upscaleResults: "Upscale results",
+    upscaleResultsEmpty: "No upscaled files yet",
     backup: "Save backup",
     restoreBackup: "Restore from backup",
     delBackup: "Delete backup",

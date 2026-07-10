@@ -75,16 +75,6 @@ def is_paused() -> bool:
         return False
 
 
-def mark_upscaled(disk_id: str, src_path: str):
-    """Record a successfully upscaled file so re-queueing skips it. Survives the
-    bot deleting the job rows on the next queue."""
-    _conn.execute(
-        "INSERT OR IGNORE INTO upscaled_files (disk_id, src_path) VALUES (?, ?)",
-        (disk_id, src_path),
-    )
-    _conn.commit()
-
-
 def set_progress(job_id: int, progress: float):
     _conn.execute("UPDATE upscale_jobs SET progress=? WHERE id=?",
                   (max(0.0, min(1.0, progress)), job_id))
