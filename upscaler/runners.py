@@ -147,6 +147,28 @@ def _probe_duration(src: str) -> float:
     return 0.0
 
 
+def _probe_total_frames(src: str) -> int:
+    """Total video frames, for the progress-bar denominator when `_probe_duration`
+    fails (some anime MKVs carry no container *and* no stream duration, which would
+    otherwise leave a single-file job's bar stuck at 0 the whole render — batches
+    hide this behind their per-file completion steps, single files can't).
+
+    `nb_frames` is a cheap tag read but often absent in MKV; fall back to
+    `-count_packets` (demux only, no decode — fast even on a weak host)."""
+    n = _ffprobe_value(src, "-select_streams", "v:0", "-show_entries", "stream=nb_frames")
+    if n > 0:
+        return int(n)
+    n = _ffprobe_value(src, "-count_packets", "-select_streams", "v:0",
+                       "-show_entries", "stream=nb_read_packets")
+    return int(n) if n > 0 else 0
+
+
+def _parse_progress_field(line: str, key: str) -> str | None:
+    """`value` of an ffmpeg `-progress` ``key=value`` line, else None."""
+    prefix = key + "="
+    return line[len(prefix):].strip() if line.startswith(prefix) else None
+
+
 def _parse_out_time(val: str) -> float | None:
     """Seconds from ffmpeg's `-progress` ``out_time`` value (``HH:MM:SS.ffffff``).
     Returns None for the ``N/A`` ffmpeg emits before the first frame."""
@@ -267,6 +289,10 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     Temp next to src: a single sequential write the HDD handles fine, and it keeps
     the final swap a same-filesystem atomic rename."""
     duration = _probe_duration(src)
+    # Frame count is the fallback denominator when duration is unknown — without
+    # one, a single-file job's bar never moves (batches hide it behind completions).
+    total_frames = _probe_total_frames(src) if duration <= 0 else 0
+    log.info("progress denominator: duration=%.1fs total_frames=%d", duration, total_frames)
     ext = os.path.splitext(src)[1] or ".mkv"
     fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
     os.close(fd)
@@ -291,13 +317,20 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     success = False
     try:
         for line in proc.stdout:
-            # Parse the unambiguous `out_time=HH:MM:SS.ffffff` field. (`out_time_ms`
+            # Primary: the unambiguous `out_time=HH:MM:SS.ffffff` field. (`out_time_ms`
             # is milliseconds in some builds and microseconds in others — jellyfin-
             # ffmpeg's ms reading left the bar stuck near zero.)
-            if duration and line.startswith("out_time="):
-                secs = _parse_out_time(line.split("=", 1)[1].strip())
-                if secs is not None:
-                    progress_cb(min(1.0, secs / duration))
+            if duration > 0:
+                val = _parse_progress_field(line, "out_time")
+                if val is not None:
+                    secs = _parse_out_time(val)
+                    if secs is not None:
+                        progress_cb(min(1.0, secs / duration))
+            # Fallback when duration is unknown: encoded `frame=` over total frames.
+            elif total_frames > 0:
+                val = _parse_progress_field(line, "frame")
+                if val is not None and val.isdigit():
+                    progress_cb(min(1.0, int(val) / total_frames))
         code = proc.wait()
         if code != 0:
             errf.seek(0)
