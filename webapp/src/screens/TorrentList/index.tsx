@@ -224,6 +224,7 @@ export function TorrentList() {
   }
 
   const doDeleteBackup = async (tor: Torrent) => {
+    setConfirmDelBackup(null)
     setMenuFor(null)
     try {
       await api.deleteBackup(tor.disk_id)
