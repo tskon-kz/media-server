@@ -314,11 +314,9 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     Temp next to src: a single sequential write the HDD handles fine, and it keeps
     the final swap a same-filesystem atomic rename."""
     duration = _probe_duration(src)
-    # Frame count is the fallback denominator when duration is unknown — without
-    # one, a single-file job's bar never moves (batches hide it behind completions).
-    # Probe it unconditionally now: it's also the fallback *within* a run when a
-    # status line carries `frame=` but `time=N/A` (which can happen during the slow
-    # libplacebo/Vulkan start), so the bar can move on frames until `time=` appears.
+    # Frame count is the fallback denominator: when duration is unknown, and also
+    # within a run when a status line has `frame=` but `time=N/A` (slow libplacebo
+    # start), so the bar moves on frames until `time=` appears.
     total_frames = _probe_total_frames(src)
     log.info("progress denominator: duration=%.1fs total_frames=%d", duration, total_frames)
     ext = os.path.splitext(src)[1] or ".mkv"
@@ -344,14 +342,12 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     tail = collections.deque(maxlen=40)
     success = False
-    status_lines_seen = 0
-    last_reported = -1.0
     try:
         for line in proc.stderr:
             tail.append(line)
             frac = None
-            # Prefer time-based progress; fall back to frame-based when `time=` is
-            # absent or `N/A` (seen during the slow libplacebo/Vulkan start).
+            # Prefer time-based progress; fall back to frame= when time= is absent
+            # or N/A (seen during the slow libplacebo/Vulkan start).
             if duration > 0:
                 m = _TIME_RE.search(line)
                 if m:
@@ -362,19 +358,8 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
                 m = _FRAME_RE.search(line)
                 if m:
                     frac = int(m.group(1)) / total_frames
-            # Diagnostics: log the first status updates raw so a stuck bar can be
-            # traced to what ffmpeg actually emits for this file, then log each
-            # reported step. Cheap: only status lines (those with time=/frame=) hit.
-            if ("time=" in line or "frame=" in line):
-                if status_lines_seen < 15:
-                    log.info("ffmpeg status[%d]: %s", status_lines_seen, line.strip())
-                status_lines_seen += 1
             if frac is not None:
-                frac = min(1.0, frac)
-                if frac - last_reported >= 0.005 or frac >= 1.0:
-                    log.info("progress -> %.3f", frac)
-                    last_reported = frac
-                progress_cb(frac)
+                progress_cb(min(1.0, frac))
         code = proc.wait()
         if code != 0:
             raise UpscaleError(f"ffmpeg exited {code}: {''.join(tail).strip()[-1500:]}")
