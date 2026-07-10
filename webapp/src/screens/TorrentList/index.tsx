@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react"
-import {Box, Button, Checkbox, Divider, Drawer, Loader, NumberInput, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
+import {Box, Button, Checkbox, Divider, Drawer, Loader, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
 import {Collapse} from "@/components/Collapse"
 import {Clapperboard, Folder, FolderInput, HardDrive, ListChecks, MoreHorizontal, Pause, Play, RefreshCw, Save, Trash2, Wand2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
@@ -27,8 +27,6 @@ export function TorrentList() {
   const [upscaleTarget, setUpscaleTarget] = useState("2x")
   const [paused, setPaused] = useState(false)
   const [upInfo, setUpInfo] = useState<UpscaleInfo | null>(null)
-  const [upFrom, setUpFrom] = useState(1)
-  const [upTo, setUpTo] = useState(1)
   const [upNames, setUpNames] = useState<string[]>([])
   const [resultsFor, setResultsFor] = useState<Torrent | null>(null)
   const [results, setResults] = useState<UpscaleResult[] | null>(null)
@@ -151,11 +149,8 @@ export function TorrentList() {
     try {
       const info = await api.upscaleInfo(tor.disk_id)
       setUpInfo(info)
-      // Series: default the episode range to first-not-upscaled .. end.
-      const firstUndone = info.files.findIndex((f) => !f.upscaled)
-      setUpFrom(firstUndone >= 0 ? firstUndone + 1 : 1)
-      setUpTo(info.total || 1)
-      // Movie file-picker: pre-check every file that isn't already upscaled.
+      // Pre-check every file that isn't already upscaled; the user can then
+      // tweak the checkboxes (extras/season 0 make a numeric range ambiguous).
       setUpNames(info.files.filter((f) => !f.upscaled).map((f) => f.name))
     } catch (e) {
       setUpscaleFor(null)
@@ -164,18 +159,14 @@ export function TorrentList() {
   }
 
   const doUpscale = async (tor: Torrent, upscalerId: string) => {
-    // Series: send the episode range. Movie: send the checked file names (or,
-    // for a single-file movie, nothing — the whole thing is queued).
-    const multiFileMovie = upInfo && !upInfo.is_series && upInfo.total > 1
-    const sel = upInfo?.is_series
-      ? {start: upFrom, end: upTo}
-      : multiFileMovie
-        ? {names: upNames}
-        : {}
-    if (multiFileMovie && upNames.length === 0) {
+    // Multi-file: send the checked file names. Single file: nothing — the whole
+    // thing is queued.
+    const multiFile = !!upInfo && upInfo.total > 1
+    if (multiFile && upNames.length === 0) {
       toast(t("torrents.upscaleNoFiles"), "err")
       return
     }
+    const sel = multiFile ? {names: upNames} : {}
     setUpscaleFor(null)
     setMenuFor(null)
     try {
@@ -189,6 +180,9 @@ export function TorrentList() {
 
   const toggleUpName = (name: string) =>
     setUpNames((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name])
+
+  const toggleAllUpNames = () =>
+    setUpNames((prev) => prev.length === (upInfo?.total ?? 0) ? [] : (upInfo?.files.map((f) => f.name) ?? []))
 
   const doTogglePause = async () => {
     const next = !paused
@@ -539,42 +533,31 @@ export function TorrentList() {
           </Box>
         ) : (
         <Stack gap={8} pb={16} px={4}>
-          {(upInfo.is_series || upInfo.total > 1) && (
+          {upInfo.total > 1 && (
             <>
-              {upInfo.files.some((f) => f.upscaled) && (
-                <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
-                  {t("torrents.upscaleAlreadyDone", {n: upInfo.files.filter((f) => f.upscaled).length})}
-                </Box>
-              )}
-              {upInfo.is_series ? (
-                <>
-                  <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
-                    {t("torrents.upscaleRange")}
+              <Collapse title={t("torrents.upscaleWhat", {n: upNames.length, total: upInfo.total})}>
+                <Stack gap={6} py={4}>
+                  {upInfo.files.some((f) => f.upscaled) && (
+                    <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                      {t("torrents.upscaleAlreadyDone", {n: upInfo.files.filter((f) => f.upscaled).length})}
+                    </Box>
+                  )}
+                  <Box style={{display: "flex", justifyContent: "flex-end"}}>
+                    <Button variant="subtle" size="compact-xs" onClick={toggleAllUpNames}>
+                      {upNames.length === upInfo.total ? t("torrents.deselectAll") : t("torrents.selectAll")}
+                    </Button>
                   </Box>
-                  <Box style={{display: "flex", gap: 8}}>
-                    <NumberInput style={{flex: 1}} label={t("torrents.upscaleFrom")} min={1}
-                                 max={upInfo.total} value={upFrom}
-                                 onChange={(v) => setUpFrom(Number(v) || 1)}/>
-                    <NumberInput style={{flex: 1}} label={t("torrents.upscaleTo")} min={1}
-                                 max={upInfo.total} value={upTo}
-                                 onChange={(v) => setUpTo(Number(v) || 1)}/>
-                  </Box>
-                </>
-              ) : (
-                <Collapse title={t("torrents.upscaleFiles", {n: upNames.length, total: upInfo.total})}>
-                  <Stack gap={6} py={4}>
-                    {upInfo.files.map((f) => (
-                      <Checkbox
-                        key={f.name}
-                        label={f.upscaled ? `${f.name} · ${t("torrents.upscaleFileDone")}` : f.name}
-                        checked={upNames.includes(f.name)}
-                        onChange={() => toggleUpName(f.name)}
-                        styles={{label: {fontSize: 13, wordBreak: "break-all"}}}
-                      />
-                    ))}
-                  </Stack>
-                </Collapse>
-              )}
+                  {upInfo.files.map((f) => (
+                    <Checkbox
+                      key={f.name}
+                      label={f.upscaled ? `${f.name} · ${t("torrents.upscaleFileDone")}` : f.name}
+                      checked={upNames.includes(f.name)}
+                      onChange={() => toggleUpName(f.name)}
+                      styles={{label: {fontSize: 13, wordBreak: "break-all"}}}
+                    />
+                  ))}
+                </Stack>
+              </Collapse>
               <Divider my={4}/>
             </>
           )}
