@@ -71,7 +71,7 @@ export const api = {
   setUpscalePaused: (paused: boolean) =>
     req<{ paused: boolean }>("POST", "/api/upscale/pause", { paused }),
   backup: (diskId: string) =>
-    req<{ backed_up: boolean }>("POST", "/api/torrents/backup", { disk_id: diskId }),
+    req<{ backing_up: boolean }>("POST", "/api/torrents/backup", { disk_id: diskId }),
   restoreBackup: (diskId: string) =>
     req<{ restored: boolean }>("POST", "/api/torrents/backup/restore", { disk_id: diskId }),
   deleteBackup: (diskId: string) =>

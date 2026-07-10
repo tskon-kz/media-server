@@ -63,6 +63,8 @@ export default {
     delBackup: "Удалить бэкап",
     delBackupTitle: "Удалить бэкап?",
     delBackupBody: "Сохранённая копия будет безвозвратно удалена.",
+    backupStarted: "Бэкап запущен — для большого объёма это займёт время",
+    backingUp: "идёт бэкап…",
     backupSaved: "Бэкап сохранён",
     backupRestored: "Восстановлено из бэкапа",
     backupDeleted: "Бэкап удалён",

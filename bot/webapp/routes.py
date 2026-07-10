@@ -367,6 +367,7 @@ async def torrents_list(request):
         item["upscale_done"] = st["done"] if st else 0
         item["upscale_total"] = st["total"] if st else 0
         item["has_backup"] = _has_backup(item["disk_id"])
+        item["backing_up"] = item["disk_id"] in _backups_in_progress
 
     return web.json_response({
         "torrents": result,
@@ -690,6 +691,38 @@ async def torrent_upscale(request):
     return web.json_response({"queued": queued, "disk_id": new_disk_id})
 
 
+# Canonical disk_ids whose backup copy is currently being written. Exposed to the
+# torrent list as `backing_up` so the UI can show progress and disable the button.
+_backups_in_progress: set[str] = set()
+_backups_lock = threading.Lock()
+
+
+def _run_backup(src: str, dst: str, key: str):
+    """Copy into a `.partial` sibling, then atomically rename into place, so a
+    half-finished copy is never seen as a valid backup (`_has_backup` checks dst).
+    Runs in a daemon thread: a 157 GB copytree can't finish inside the tunnel
+    timeout, so the request returns immediately and this reaps in the background."""
+    partial = f"{dst}.partial"
+    try:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if os.path.lexists(partial):
+            _rm_in_background(partial)
+        # Mirror the source layout exactly (dir → dir, file → file) so restore,
+        # which branches on isdir(backup), stays consistent.
+        if os.path.isdir(src):
+            shutil.copytree(src, partial)
+        else:
+            shutil.copy2(src, partial)
+        if os.path.lexists(dst):
+            _rm_in_background(dst)
+        os.replace(partial, dst)
+    except Exception:
+        shutil.rmtree(partial, ignore_errors=True)
+    finally:
+        with _backups_lock:
+            _backups_in_progress.discard(key)
+
+
 @routes.post("/api/torrents/backup")
 async def torrent_backup(request):
     body = await _json(request)
@@ -698,21 +731,17 @@ async def torrent_backup(request):
     if not tor:
         return _err("torrent not found", status=404)
     # Key the backup on the canonical <slug>/<name>, not a raw qb:<hash> id.
-    dst = _backup_path(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
+    key = _qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id
+    dst = _backup_path(key)
     if not dst:
         return _err("invalid disk_id")
-    src = tor.content_path
-
-    def _f():
-        if os.path.exists(dst):
-            shutil.rmtree(dst, ignore_errors=True)
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        if os.path.isdir(src):
-            shutil.copytree(src, dst)
-        else:
-            shutil.copy2(src, dst)
-    await _thread(_f)
-    return web.json_response({"backed_up": True})
+    with _backups_lock:
+        if key in _backups_in_progress:
+            return web.json_response({"backing_up": True})
+        _backups_in_progress.add(key)
+    threading.Thread(target=_run_backup, args=(tor.content_path, dst, key),
+                     daemon=True).start()
+    return web.json_response({"backing_up": True})
 
 
 @routes.post("/api/torrents/backup/restore")
@@ -767,16 +796,23 @@ def _rm_in_background(path: str):
     the request path. Renaming to a sibling is atomic and instant, so the caller
     can return before the slow rmtree runs — otherwise a large backup delete blows
     past the Cloudflare tunnel timeout (524)."""
-    if not os.path.exists(path):
+    if not os.path.lexists(path):
         return
     trash = f"{path}.trash-{os.getpid()}-{time.time_ns()}"
     try:
         os.rename(path, trash)
     except OSError:
         trash = path  # different fs / rename failed: fall back to deleting in place
-    threading.Thread(
-        target=lambda: shutil.rmtree(trash, ignore_errors=True), daemon=True
-    ).start()
+
+    def _reap():
+        if os.path.isdir(trash) and not os.path.islink(trash):
+            shutil.rmtree(trash, ignore_errors=True)
+        else:
+            try:
+                os.remove(trash)
+            except OSError:
+                pass
+    threading.Thread(target=_reap, daemon=True).start()
 
 
 @routes.post("/api/torrents/backup/delete")

@@ -18,6 +18,7 @@ export interface Torrent {
   upscale_done: number;
   upscale_total: number;
   has_backup: boolean;
+  backing_up: boolean;
 }
 
 export interface Upscaler {
