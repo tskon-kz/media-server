@@ -161,7 +161,8 @@ def _is_error_line(line: str) -> bool:
     if stripped.startswith(("Metadata:", "Stream #", "Input #", "Output #",
                             "Duration:", "BPS", "DURATION", "NUMBER_OF_",
                             "_STATISTICS_", "encoder", "handler_name",
-                            "vendor_id", "title", "creation_time", "language")):
+                            "vendor_id", "title", "creation_time", "language",
+                            "configuration:", "ffmpeg version", "lib")):
         return False
     return bool(_ERROR_RE.search(stripped))
 
@@ -218,6 +219,18 @@ def _probe_color(src: str) -> dict:
     return parsed
 
 
+# ffprobe names the BT.470 transfer differently than libx264's `-color_trc`
+# accepts (bt470bg/bt470m are only valid for space/primaries), so remap. Anything
+# outside the accepted set is dropped rather than passed through — a missing
+# transfer tag is harmless; a rejected one aborts the whole encode.
+_TRC_ENCODER_REMAP = {"bt470bg": "gamma28", "bt470m": "gamma22"}
+_TRC_ENCODER_ACCEPTED = {
+    "bt709", "gamma22", "gamma28", "smpte170m", "smpte240m", "linear", "log100",
+    "log316", "iec61966-2-4", "bt1361e", "iec61966-2-1", "bt2020-10", "bt2020-12",
+    "smpte2084", "smpte428", "arib-std-b67",
+}
+
+
 def _source_color_args(src: str) -> list[str]:
     """Re-attach the source's colour tags to the encoder (hwdownload drops them);
     hardcoding BT.709 would tint SD/DVD (BT.601) sources cool."""
@@ -226,8 +239,15 @@ def _source_color_args(src: str) -> list[str]:
     parsed = _probe_color(src)
     args: list[str] = []
     for f, flag in flags.items():
-        if f in parsed:
-            args += [flag, parsed[f]]
+        if f not in parsed:
+            continue
+        value = parsed[f]
+        if f == "color_transfer":
+            value = _TRC_ENCODER_REMAP.get(value, value)
+            if value not in _TRC_ENCODER_ACCEPTED:
+                log.info("dropping unsupported color_trc %r for %s", parsed[f], flag)
+                continue
+        args += [flag, value]
     return args
 
 
@@ -318,7 +338,7 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=TEMP_PREFIX, dir=os.path.dirname(src))
     os.close(fd)
     cmd = [
-        FFMPEG_BIN, "-y", *pre_input, "-i", src,
+        FFMPEG_BIN, "-hide_banner", "-y", *pre_input, "-i", src,
         # Not `-map 0`: that pulls embedded cover-art as extra video streams `-c:v`
         # would re-encode into bogus tracks. `?` = optional.
         "-map", "0:v:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?",
