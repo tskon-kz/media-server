@@ -40,7 +40,7 @@ from api import (
 )
 from parser import (
     process_torrent_rename, create_flat_hardlinks,
-    delete_torrent_links, delete_all_cat_contents, get_video_files,
+    delete_torrent_links, get_video_files,
     VIDEO_EXTENSIONS,
 )
 import keyboards as kb
@@ -531,7 +531,7 @@ async def torrent_move(request):
 
 @routes.post("/api/torrents/structure")
 async def torrent_structure(request):
-    """mode: pretty | flat | delete — mirrors structure_menu_kb."""
+    """mode: pretty | flat | delete."""
     body = await _json(request)
     disk_id = (body.get("disk_id") or "").strip()
     mode = body.get("mode")

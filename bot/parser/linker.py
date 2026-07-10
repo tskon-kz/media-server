@@ -6,7 +6,7 @@ import os
 import shutil
 
 from config import INCOMING_DIR
-from store import add_rename_job, delete_rename_jobs_by_hash, delete_all_rename_jobs
+from store import add_rename_job, delete_rename_jobs_by_hash
 
 from .constants import SIDECAR_EXTENSIONS, MEDIA_EXTENSIONS
 from .filenames import tor_fallback_title, parse_filename, is_extra
@@ -212,22 +212,3 @@ def delete_torrent_links(tor, cats: list[dict]):
             parent = os.path.dirname(parent)
 
     delete_rename_jobs_by_hash(tor.hash)
-
-
-def delete_all_cat_contents(cats: list[dict]):
-    """Delete all contents of every category directory."""
-    for cat in cats:
-        cat_path = cat["path"]
-        if not os.path.isdir(cat_path):
-            continue
-        for item in os.listdir(cat_path):
-            item_path = os.path.join(cat_path, item)
-            try:
-                if os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-                else:
-                    os.unlink(item_path)
-                log.info("Removed: %s", item_path)
-            except OSError as e:
-                log.warning("Could not remove %s: %s", item_path, e)
-    delete_all_rename_jobs()

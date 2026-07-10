@@ -43,11 +43,7 @@ export default {
     compression: "Compression",
     compression_balanced: "Balanced",
     compression_aggressive: "Smaller file",
-    upscaleRange: "Episodes",
-    upscaleFrom: "From",
-    upscaleTo: "To",
     upscaleAlreadyDone: "{{n}} already upscaled",
-    upscaleFiles: "Files: {{n}}/{{total}} selected",
     upscaleWhat: "What to upscale: {{n}}/{{total}}",
     selectAll: "Select all",
     deselectAll: "Deselect all",
@@ -84,7 +80,6 @@ export default {
     removeFromClientBody: "Files on disk and library links will remain.",
     removedFromClient: "Removed from client",
     deleteFromDisk: "Delete from disk",
-    diskOnly: "On disk",
     sizeUnknown: "N/A",
   },
 
@@ -101,8 +96,6 @@ export default {
   // Search screen
   search: {
     title: "Search",
-    addViaSearch: "Add via search",
-    inputHeader: "Search Jackett",
     placeholder: "Search Jackett…",
     empty: "No results",
     emptyHint: "Try a different query",

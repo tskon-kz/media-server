@@ -6,7 +6,6 @@ WAL-mode file on the shared ``bot-data`` volume.
 """
 import os
 import sqlite3
-import time
 
 DB_PATH = os.environ.get("DB_PATH", "/app/data/media_server.db")
 

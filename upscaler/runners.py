@@ -4,8 +4,7 @@ afterwards points at the upscaled data with no extra disk cost.
 
 Both backends are a single GPU (Vulkan/libplacebo) ffmpeg pass — real-time even
 on a weak iGPU, reporting real progress. The upscaled frames come back to system
-memory (``hwdownload``) and are H.264-encoded on the CPU (libx264); the
-Vulkan→VAAPI encode handoff is left as a future optimisation. Both need a
+memory (``hwdownload``) and are H.264-encoded on the CPU (libx264). Both need a
 ``/dev/dri`` device.
 
 - ``anime4k`` — the Anime4K neural GLSL shaders (``custom_shader_path``). Best for
@@ -63,7 +62,7 @@ def _quality(compression: str | None) -> dict:
     return COMPRESSION.get(compression or DEFAULT_COMPRESSION, COMPRESSION[DEFAULT_COMPRESSION])
 
 
-# CPU H.264 encode, shared as the fallback (and the anime4k encode tail).
+# CPU H.264 encode tail, shared by both GPU backends after hwdownload.
 def _cpu_codec(crf: str) -> list[str]:
     return ["-c:v", "libx264", "-crf", crf, "-preset", "fast", "-pix_fmt", "yuv420p"]
 
@@ -414,10 +413,8 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
 
 def _run_libplacebo(src: str, ow: str, oh: str, quality: dict, progress_cb, shader: str | None):
     """GPU upscale as a single libplacebo (Vulkan) pass, then bring the frames back
-    to system memory (``hwdownload``) and H.264-encode on the CPU. The libplacebo
-    work is the expensive part and runs on the GPU; the Vulkan→VAAPI encode handoff
-    (two hw devices in one graph) is left as a future optimisation, so encode stays
-    on libx264 here.
+    to system memory (``hwdownload``) and H.264-encode on the CPU (libx264). The
+    libplacebo work is the expensive part and runs on the GPU.
 
     Two modes share this path:
       * ``shader`` set  — the Anime4K neural GLSL shaders (``custom_shader_path``).

@@ -1,19 +1,18 @@
-# Upscaler worker: jellyfin-ffmpeg (libplacebo + VAAPI, AMD/Intel via /dev/dri).
+# Upscaler worker: jellyfin-ffmpeg (libplacebo/Vulkan, AMD/Intel via /dev/dri).
 # Pinned to bookworm so the base debian release can't drift out from under the
 # hardcoded `bookworm` jellyfin apt line below.
 FROM python:3.11-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# jellyfin-ffmpeg ships the `libplacebo` filter the Anime4K backend needs (stock
-# Debian ffmpeg has none) plus VAAPI H.264 encode and libx264. Pulled from the
-# Jellyfin apt repo. Mesa Vulkan/VAAPI drivers + vulkan-tools/vainfo stay so the
-# runtime `vulkaninfo`/`vainfo` probes reflect the host GPU's real capability.
+# jellyfin-ffmpeg ships the `libplacebo` filter both GPU backends need (stock
+# Debian ffmpeg has none) plus libx264 for the CPU H.264 encode tail. Pulled from
+# the Jellyfin apt repo. Mesa Vulkan drivers + vulkan-tools stay so the runtime
+# `vulkaninfo` probe reflects the host GPU's real capability.
 RUN set -eux; \
     apt-get update && apt-get install -y --no-install-recommends \
         gnupg curl wget ca-certificates \
-        libvulkan1 mesa-vulkan-drivers vulkan-tools \
-        mesa-va-drivers vainfo; \
+        libvulkan1 mesa-vulkan-drivers vulkan-tools; \
     mkdir -p /etc/apt/keyrings; \
     curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key \
         | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg; \

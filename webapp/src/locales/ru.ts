@@ -43,11 +43,7 @@ export default {
     compression: "Сжатие",
     compression_balanced: "Баланс",
     compression_aggressive: "Меньше размер",
-    upscaleRange: "Эпизоды",
-    upscaleFrom: "С",
-    upscaleTo: "По",
     upscaleAlreadyDone: "{{n}} уже готово",
-    upscaleFiles: "Файлы: выбрано {{n}}/{{total}}",
     upscaleWhat: "Что апскейлить: {{n}}/{{total}}",
     selectAll: "Выбрать все",
     deselectAll: "Снять все",
@@ -84,7 +80,6 @@ export default {
     removeFromClientBody: "Файлы на диске и ссылки в медиатеке останутся.",
     removedFromClient: "Убран из клиента",
     deleteFromDisk: "Удалить с диска",
-    diskOnly: "На диске",
     sizeUnknown: "н/д",
   },
 
@@ -101,8 +96,6 @@ export default {
   // Search screen
   search: {
     title: "Поиск",
-    addViaSearch: "Добавить через поиск",
-    inputHeader: "Поиск Jackett",
     placeholder: "Поиск Jackett…",
     empty: "Нет результатов",
     emptyHint: "Попробуйте другой запрос",

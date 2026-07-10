@@ -16,7 +16,6 @@ from .linker import (
     create_flat_hardlink_for_job,
     create_flat_hardlinks,
     delete_torrent_links,
-    delete_all_cat_contents,
 )
 
 __all__ = [
@@ -27,5 +26,5 @@ __all__ = [
     "find_cat",
     "count_parseable_files", "process_torrent_rename",
     "create_flat_hardlink_for_job", "create_flat_hardlinks",
-    "delete_torrent_links", "delete_all_cat_contents",
+    "delete_torrent_links",
 ]

@@ -410,11 +410,6 @@ def delete_rename_jobs_by_hash(torrent_hash: str):
     _conn.commit()
 
 
-def delete_all_rename_jobs():
-    _conn.execute("DELETE FROM rename_jobs")
-    _conn.commit()
-
-
 # ---- disk entries ----
 
 def upsert_disk_entry(disk_id: str, name: str, cat_id: int, size: int):

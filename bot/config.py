@@ -33,9 +33,6 @@ WEBAPP_URL       = os.environ.get("WEBAPP_URL", "")  # static override for named
 # MUST stay off in production.
 WEBAPP_DEV_MODE  = os.environ.get("WEBAPP_DEV_MODE", "").lower() in ("1", "true", "yes")
 
-SEARCH_PAGE_SIZE  = 5
-BOT_SEARCH_LIMIT  = 30
-
 # Torznab categories sent to Jackett so search returns only video content:
 # Movies (2000–2080) and TV (5000–5080).
 SEARCH_CATEGORIES = [
@@ -67,8 +64,8 @@ UPSCALERS = [
 UPSCALER_IDS = frozenset(u["id"] for u in UPSCALERS)
 
 # How hard to compress the re-encoded output. The `id` is the contract with
-# upscaler/runners.py (which maps it to concrete libx264 CRF / VAAPI QP values);
-# more levels/settings will be added here later. `balanced` is the default.
+# upscaler/runners.py (which maps it to a concrete libx264 CRF value).
+# `balanced` is the default.
 COMPRESSION_LEVELS = [
     {"id": "balanced",   "label": "Balanced"},
     {"id": "aggressive", "label": "Smaller file"},
