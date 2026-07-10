@@ -221,12 +221,10 @@ def _has_video(src: str) -> bool:
         return False
 
 
-def _source_color_args(src: str) -> list[str]:
-    """Re-attach the source's colour tags (hwdownload drops them). Only known
-    values are emitted; hardcoding BT.709 would tint SD/DVD (BT.601) sources cool."""
+def _probe_color(src: str) -> dict:
+    """Parse the source's colour metadata (space/transfer/primaries/range), keeping
+    only known values. Empty when the source is untagged."""
     fields = ("color_space", "color_transfer", "color_primaries", "color_range")
-    flags = {"color_space": "-colorspace", "color_transfer": "-color_trc",
-             "color_primaries": "-color_primaries", "color_range": "-color_range"}
     try:
         out = subprocess.run(
             [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
@@ -235,18 +233,52 @@ def _source_color_args(src: str) -> list[str]:
             capture_output=True, text=True, timeout=60,
         ).stdout
     except Exception:
-        return []
-    parsed = {}
+        return {}
+    parsed: dict = {}
     for line in out.splitlines():
         if "=" in line:
             k, v = line.split("=", 1)
-            parsed[k.strip()] = v.strip()
+            k, v = k.strip(), v.strip()
+            if v and v.lower() not in ("unknown", "unspecified", "n/a"):
+                parsed[k] = v
+    return parsed
+
+
+def _source_color_args(src: str) -> list[str]:
+    """Re-attach the source's colour tags to the encoder (hwdownload drops them).
+    Only known values are emitted; hardcoding BT.709 would tint SD/DVD (BT.601)
+    sources cool."""
+    flags = {"color_space": "-colorspace", "color_transfer": "-color_trc",
+             "color_primaries": "-color_primaries", "color_range": "-color_range"}
+    parsed = _probe_color(src)
     args: list[str] = []
-    for f in fields:
-        val = parsed.get(f, "")
-        if val and val.lower() not in ("unknown", "unspecified", "n/a"):
-            args += [flags[f], val]
+    for f, flag in flags.items():
+        if f in parsed:
+            args += [flag, parsed[f]]
     return args
+
+
+def _libplacebo_color_opts(src: str) -> str:
+    """libplacebo output-colour options pinned to the source, so its internal
+    linear-light round-trip is an identity conversion (in == out) and colours don't
+    shift. Without this libplacebo targets its default working space (BT.709-ish)
+    while we re-tag the output as the source's space, producing a cool/blue tint on
+    BT.601 (SD/DVD) footage. Empty string when the source is untagged (let
+    libplacebo pass through)."""
+    parsed = _probe_color(src)
+    opts = []
+    if "color_space" in parsed:
+        opts.append(f"colorspace={parsed['color_space']}")
+    if "color_primaries" in parsed:
+        opts.append(f"color_primaries={parsed['color_primaries']}")
+    if "color_transfer" in parsed:
+        opts.append(f"color_trc={parsed['color_transfer']}")
+    rng = parsed.get("color_range", "")
+    if rng in ("tv", "limited"):
+        opts.append("range=tv")
+    elif rng in ("pc", "full"):
+        opts.append("range=pc")
+    return (":" + ":".join(opts)) if opts else ""
 
 
 def _validate_output(tmp_out: str, src_duration: float):
@@ -401,8 +433,9 @@ def _run_libplacebo(src: str, ow: str, oh: str, quality: dict, progress_cb, shad
     convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid, so
     the yuv420p normalisation is a separate filter link after the download."""
     scaler = f"custom_shader_path={shader}" if shader else "upscaler=ewa_lanczossharp"
+    color = _libplacebo_color_opts(src)
     vfilter = (f"format=nv12,hwupload,"
-               f"libplacebo=w={ow}:h={oh}:{scaler},"
+               f"libplacebo=w={ow}:h={oh}:{scaler}{color},"
                f"hwdownload,format=nv12,format=yuv420p")
     codec = _cpu_codec(quality["crf"]) + _source_color_args(src) + ["-profile:v", "high"]
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
