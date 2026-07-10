@@ -251,11 +251,14 @@ def _run_anime4k(src: str, scale: int, progress_cb):
 
     ``format=nv12,hwupload`` is explicit (not relying on libplacebo's auto-upload):
     it normalises 10-bit anime sources to an 8-bit format Vulkan accepts and puts
-    the frames on the GPU before the shader — the implicit path throws EINVAL."""
+    the frames on the GPU before the shader — the implicit path throws EINVAL.
+    ``hwdownload`` can only emit the Vulkan frame's own sw_format (nv12, what we
+    uploaded), so we download as nv12 and let the encoder's ``-pix_fmt yuv420p``
+    convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid."""
     vfilter = (f"format=nv12,hwupload,"
                f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
                f"custom_shader_path={ANIME4K_SHADER},"
-               f"hwdownload,format=yuv420p")
+               f"hwdownload,format=nv12")
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
                 vfilter, CPU_CODEC, progress_cb)
 
