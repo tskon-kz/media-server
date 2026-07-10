@@ -50,6 +50,7 @@ export default {
     upscaleNoFiles: "Выберите хотя бы один файл",
     upscaleQueued: "В очереди: {{n}} файл(ов). Это займёт время.",
     upscaling: "{{done}}/{{total}} · {{pct}}",
+    upscaleQueueLabel: "Апскейл {{done}}/{{total}}",
     upscalePause: "Пауза апскейла",
     upscaleResume: "Продолжить апскейл",
     upscalePaused: "Апскейл на паузе",

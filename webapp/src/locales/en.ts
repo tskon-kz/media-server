@@ -50,6 +50,7 @@ export default {
     upscaleNoFiles: "Select at least one file",
     upscaleQueued: "Queued: {{n}} file(s). This can take a while.",
     upscaling: "{{done}}/{{total}} · {{pct}}",
+    upscaleQueueLabel: "Upscaling {{done}}/{{total}}",
     upscalePause: "Pause upscaling",
     upscaleResume: "Resume upscaling",
     upscalePaused: "Upscaling paused",

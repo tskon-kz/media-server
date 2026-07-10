@@ -21,3 +21,37 @@
   display: flex;
   align-items: center;
 }
+
+.queueBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  z-index: 99;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--tg-theme-section-bg-color);
+  border-top: 1px solid rgba(128, 128, 128, 0.15);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.queueInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--tg-theme-text-color);
+  min-width: 0;
+}
+
+.queueActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}

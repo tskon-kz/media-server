@@ -240,10 +240,9 @@ export function TorrentList() {
     }
   }
 
-  const doCancelQueue = async (tor: Torrent) => {
-    setMenuFor(null)
+  const doCancelQueue = async (list: Torrent[]) => {
     try {
-      await api.cancelUpscale(tor.disk_id)
+      await Promise.all(list.map((tor) => api.cancelUpscale(tor.disk_id)))
       toast(t("torrents.upscaleCancelled"))
       load()
     } catch (e) {
@@ -308,6 +307,10 @@ export function TorrentList() {
     )
   }
 
+  const upscalingTorrents = torrents.filter((tor) => tor.upscaling)
+  const queueDone = upscalingTorrents.reduce((n, tor) => n + tor.upscale_done, 0)
+  const queueTotal = upscalingTorrents.reduce((n, tor) => n + tor.upscale_total, 0)
+
   return (
     <Box onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       <Box style={{display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 4px"}}
@@ -365,6 +368,28 @@ export function TorrentList() {
           </ListSection>
         )}
       </Box>
+
+      {/* Spacer so the last items can scroll clear of the floating queue bar. */}
+      {upscalingTorrents.length > 0 && <div style={{height: 72}}/>}
+
+      {upscalingTorrents.length > 0 && (
+        <div className={s.queueBar}>
+          <div className={s.queueInfo}>
+            <span>✨</span>
+            <span>{t("torrents.upscaleQueueLabel", {done: queueDone, total: queueTotal})}</span>
+          </div>
+          <div className={s.queueActions}>
+            <button className={s.iconBtn} onClick={doTogglePause}
+                    title={paused ? t("torrents.upscaleResume") : t("torrents.upscalePause")}>
+              {paused ? <Play size={20}/> : <Pause size={20}/>}
+            </button>
+            <button className={`${s.iconBtn} ${s.danger}`} onClick={() => doCancelQueue(upscalingTorrents)}
+                    title={t("torrents.upscaleRemoveQueue")}>
+              <XCircle size={20}/>
+            </button>
+          </div>
+        </div>
+      )}
 
       <Drawer
         opened={!!confirmDel}
@@ -471,19 +496,6 @@ export function TorrentList() {
                         onClick={() => menuFor && openResults(menuFor)}>
                   {t("torrents.upscaleResults")}
                 </Button>
-              )}
-              {menuFor?.upscaling && (
-                <>
-                  <Button fullWidth variant="default"
-                          leftSection={paused ? <Play size={18}/> : <Pause size={18}/>}
-                          onClick={doTogglePause}>
-                    {paused ? t("torrents.upscaleResume") : t("torrents.upscalePause")}
-                  </Button>
-                  <Button fullWidth variant="outline" color="red" leftSection={<XCircle size={18}/>}
-                          onClick={() => menuFor && doCancelQueue(menuFor)}>
-                    {t("torrents.upscaleRemoveQueue")}
-                  </Button>
-                </>
               )}
             </>
           )}
