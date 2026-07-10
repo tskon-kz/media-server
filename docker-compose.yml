@@ -74,9 +74,10 @@ services:
 
   upscaler:
     # Video upscaler worker: polls the shared SQLite queue and rewrites files in
-    # place. ffmpeg works on CPU; the Real-ESRGAN AI backend needs a Vulkan
-    # device. /dev/dri covers AMD/Intel iGPUs; NVIDIA users add a runtime
-    # override in docker-compose.override.yml. Built locally, not pulled.
+    # place with a single ffmpeg pass. The `cas` backend (lanczos + sharpen) works
+    # on CPU; the `anime4k` backend runs the Anime4K neural shaders via libplacebo
+    # and needs a Vulkan device. /dev/dri covers AMD/Intel iGPUs; NVIDIA users add
+    # a runtime override in docker-compose.override.yml. Built locally, not pulled.
     build:
       context: .
       dockerfile: upscaler/Dockerfile
@@ -85,19 +86,9 @@ services:
     volumes:
       - ./bot-data:/app/data                 # shared SQLite job queue
       - ${MEDIA_PATH:-./media}:/media        # same media paths as the other services
-    environment:
-      # Fast scratch for the AI upscaler's intermediate frames — pointed at the
-      # tmpfs below so frame churn stays in RAM, never on the (often USB) media HDD.
-      - UPSCALE_TMPDIR=/upscale-tmp
-    tmpfs:
-      # RAM-backed scratch. Only one short video segment's frames live here at a
-      # time (see UPSCALE_SEGMENT_SECONDS), so a few GB is plenty; the size cap
-      # just guards against runaway use. Low-RAM hosts can shrink this or drop the
-      # tmpfs block entirely (frames then fall back to the container's disk /tmp).
-      - /upscale-tmp:size=6g
     devices:
       # Vulkan (AMD/Intel iGPU). CPU-only hosts (no /dev/dri) must comment this
-      # out — only the ffmpeg backend works there; the AI backend needs a GPU.
+      # out — only the `cas` backend works there; `anime4k` needs a GPU.
       - /dev/dri:/dev/dri
     depends_on:
       - telegram-bot

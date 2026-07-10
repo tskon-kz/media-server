@@ -55,11 +55,13 @@ CLOUDFLARED_CONTAINER = "media-server-cloudflared"
 
 # Available upscalers offered to the user. `needs_gpu` ones require a Vulkan
 # device (`/dev/dri`) in the upscaler container; without it the worker fails the
-# job with a clear error. `ffmpeg` is the CPU-safe classical resize (lanczos).
-# The `id` is the contract with upscaler/runners.py.
+# job with a clear error. `cas` is the CPU-safe path (lanczos + FidelityFX CAS
+# sharpen); `anime4k` runs the Anime4K neural shaders as a single GPU pass via
+# ffmpeg's libplacebo filter — real-time even on an iGPU. The `id` is the
+# contract with upscaler/runners.py.
 UPSCALERS = [
-    {"id": "ffmpeg",     "label": "ffmpeg (lanczos)", "needs_gpu": False},
-    {"id": "realesrgan", "label": "Real-ESRGAN (AI)", "needs_gpu": True},
+    {"id": "cas",     "label": "Sharpen (CPU, fast)", "needs_gpu": False},
+    {"id": "anime4k", "label": "Anime4K (GPU AI)",    "needs_gpu": True},
 ]
 UPSCALER_IDS = frozenset(u["id"] for u in UPSCALERS)
 

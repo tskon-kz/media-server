@@ -1,43 +1,44 @@
-# Upscaler worker: ffmpeg (CPU) + ncnn-vulkan AI binaries (AMD/Intel via /dev/dri).
-FROM python:3.11-slim
+# Upscaler worker: jellyfin-ffmpeg (libplacebo + VAAPI, AMD/Intel via /dev/dri).
+# Pinned to bookworm so the base debian release can't drift out from under the
+# hardcoded `bookworm` jellyfin apt line below.
+FROM python:3.11-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ffmpeg/ffprobe for classical scaling + frame extract/reassemble; Vulkan loader
-# and Mesa drivers so the ncnn binaries can use an AMD/Intel iGPU; vulkan-tools
-# for the runtime `vulkaninfo` availability check; mesa-va-drivers + vainfo for
-# VAAPI hardware H.264 encoding (ffmpeg's Debian build already enables VAAPI).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg \
-        libvulkan1 \
-        mesa-vulkan-drivers \
-        vulkan-tools \
-        mesa-va-drivers \
-        vainfo \
-        libgomp1 \
-        wget \
-        unzip \
-        ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Prebuilt Real-ESRGAN ncnn-vulkan upscaler (binary + bundled models, including
-# the video-optimised realesr-animevideov3 model the runner uses). Pinned release,
-# normalised to /opt/realesrgan/ with the binary at the root and a models/ subdir
-# (the release zip nests everything one level deep).
+# jellyfin-ffmpeg ships the `libplacebo` filter the Anime4K backend needs (stock
+# Debian ffmpeg has none) plus VAAPI H.264 encode and libx264. Pulled from the
+# Jellyfin apt repo. Mesa Vulkan/VAAPI drivers + vulkan-tools/vainfo stay so the
+# runtime `vulkaninfo`/`vainfo` probes reflect the host GPU's real capability.
 RUN set -eux; \
-    bin="realesrgan-ncnn-vulkan"; \
-    url="https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip"; \
-    wget -q -O /tmp/dl.zip "$url"; \
-    mkdir -p /opt/realesrgan && unzip -q /tmp/dl.zip -d /opt/realesrgan; \
-    found="$(find /opt/realesrgan -name "$bin" -type f | head -1)"; \
-    srcdir="$(dirname "$found")"; \
-    if [ "$srcdir" != "/opt/realesrgan" ]; then mv "$srcdir"/* /opt/realesrgan/; fi; \
-    chmod +x "/opt/realesrgan/$bin"; \
-    ln -s "/opt/realesrgan/$bin" "/usr/local/bin/$bin"; \
-    rm -f /tmp/dl.zip
+    apt-get update && apt-get install -y --no-install-recommends \
+        gnupg curl wget ca-certificates \
+        libvulkan1 mesa-vulkan-drivers vulkan-tools \
+        mesa-va-drivers vainfo; \
+    mkdir -p /etc/apt/keyrings; \
+    curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key \
+        | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg; \
+    echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg] https://repo.jellyfin.org/debian bookworm main" \
+        > /etc/apt/sources.list.d/jellyfin.list; \
+    apt-get update && apt-get install -y --no-install-recommends jellyfin-ffmpeg7; \
+    rm -rf /var/lib/apt/lists/*
 
-ENV REALESRGAN_BIN=/usr/local/bin/realesrgan-ncnn-vulkan \
-    REALESRGAN_MODELS=/opt/realesrgan/models \
+# Anime4K neural GLSL shaders, concatenated into one libplacebo hook file (Mode A:
+# clamp highlights -> CNN restore -> CNN 2x upscale, medium variants — light enough
+# for an iGPU). Pinned to a release tag so the build is reproducible.
+RUN set -eux; \
+    mkdir -p /opt/anime4k; \
+    base="https://raw.githubusercontent.com/bloc97/Anime4K/v4.0.1/glsl"; \
+    for f in Restore/Anime4K_Clamp_Highlights.glsl \
+             Restore/Anime4K_Restore_CNN_M.glsl \
+             Upscale/Anime4K_Upscale_CNN_x2_M.glsl; do \
+        wget -q "$base/$f" -O - >> /opt/anime4k/anime4k.glsl; \
+        echo >> /opt/anime4k/anime4k.glsl; \
+    done; \
+    test -s /opt/anime4k/anime4k.glsl
+
+ENV FFMPEG_BIN=/usr/lib/jellyfin-ffmpeg/ffmpeg \
+    FFPROBE_BIN=/usr/lib/jellyfin-ffmpeg/ffprobe \
+    ANIME4K_SHADER=/opt/anime4k/anime4k.glsl \
     DB_PATH=/app/data/media_server.db \
     PYTHONUNBUFFERED=1
 
