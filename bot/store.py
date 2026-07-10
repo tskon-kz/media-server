@@ -71,6 +71,14 @@ def _create_tables():
             user_id  INTEGER,
             notified INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS restore_jobs (
+            disk_id  TEXT PRIMARY KEY,
+            name     TEXT NOT NULL DEFAULT '',
+            status   TEXT NOT NULL DEFAULT 'running',
+            error    TEXT,
+            user_id  INTEGER,
+            notified INTEGER NOT NULL DEFAULT 0
+        );
     """)
     _conn.commit()
 
@@ -142,6 +150,11 @@ def init():
     # user gets a notification instead of a backup stuck "in progress" forever.
     _conn.execute(
         "UPDATE backup_jobs SET status='error', error='interrupted', notified=0 "
+        "WHERE status='running'"
+    )
+    # Same reasoning for restore copies (also run in a webapp thread in-process).
+    _conn.execute(
+        "UPDATE restore_jobs SET status='error', error='interrupted', notified=0 "
         "WHERE status='running'"
     )
 
@@ -603,6 +616,50 @@ def get_unnotified_backup_jobs() -> list[dict]:
 
 def mark_backup_notified(disk_id: str):
     _conn.execute("UPDATE backup_jobs SET notified=1 WHERE disk_id=?", (disk_id,))
+    _conn.commit()
+
+
+# ---- restore jobs (async restore-from-backup copy + Telegram notification) ----
+
+def start_restore_job(disk_id: str, name: str, user_id: int | None):
+    """Mark a restore as in flight; resets any prior result so the completion
+    notification fires again."""
+    _conn.execute(
+        "INSERT INTO restore_jobs (disk_id, name, status, error, user_id, notified) "
+        "VALUES (?, ?, 'running', NULL, ?, 0) "
+        "ON CONFLICT(disk_id) DO UPDATE SET "
+        "name=excluded.name, status='running', error=NULL, user_id=excluded.user_id, notified=0",
+        (disk_id, name, user_id),
+    )
+    _conn.commit()
+
+
+def finish_restore_job(disk_id: str, error: str | None = None):
+    _conn.execute(
+        "UPDATE restore_jobs SET status=?, error=? WHERE disk_id=?",
+        ("error" if error else "done", error, disk_id),
+    )
+    _conn.commit()
+
+
+def get_active_restore_disk_ids() -> set[str]:
+    rows = _conn.execute(
+        "SELECT disk_id FROM restore_jobs WHERE status='running'"
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def get_unnotified_restore_jobs() -> list[dict]:
+    rows = _conn.execute(
+        "SELECT disk_id, name, status, error, user_id FROM restore_jobs "
+        "WHERE status IN ('done', 'error') AND notified=0"
+    ).fetchall()
+    return [{"disk_id": r[0], "name": r[1], "status": r[2],
+             "error": r[3], "user_id": r[4]} for r in rows]
+
+
+def mark_restore_notified(disk_id: str):
+    _conn.execute("UPDATE restore_jobs SET notified=1 WHERE disk_id=?", (disk_id,))
     _conn.commit()
 
 

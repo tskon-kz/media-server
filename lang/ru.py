@@ -104,6 +104,8 @@ M = {
     "upscale_in_progress": "Апскейл для этого элемента уже запущен",
     "backup_done": "💾 {name} — бэкап сохранён",
     "backup_error": "❌ {name} — ошибка бэкапа: {e}",
+    "restore_done": "♻️ {name} — восстановлено из бэкапа",
+    "restore_error": "❌ {name} — ошибка восстановления: {e}",
     "settings_media_mgmt": "Медиатека",
     "media_mgmt_title": "📚 *Управление медиатекой*",
     "structure_menu_title": "🗂 *Управление структурой*",

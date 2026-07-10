@@ -20,6 +20,7 @@ export interface Torrent {
   has_upscale_results: boolean;
   has_backup: boolean;
   backing_up: boolean;
+  restoring: boolean;
 }
 
 export interface Upscaler {

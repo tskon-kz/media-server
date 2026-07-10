@@ -362,6 +362,7 @@ async def torrents_list(request):
 
     active_upscales = get_active_upscale_status()
     active_backups = store.get_active_backup_disk_ids()
+    active_restores = store.get_active_restore_disk_ids()
     upscaled_disk_ids = get_upscaled_disk_ids()
     for item in result:
         st = active_upscales.get(item["disk_id"])
@@ -372,6 +373,7 @@ async def torrents_list(request):
         item["has_upscale_results"] = item["disk_id"] in upscaled_disk_ids
         item["has_backup"] = _has_backup(item["disk_id"])
         item["backing_up"] = item["disk_id"] in active_backups
+        item["restoring"] = item["disk_id"] in active_restores
 
     return web.json_response({
         "torrents": result,
@@ -761,19 +763,13 @@ async def torrent_backup(request):
     return web.json_response({"backing_up": True})
 
 
-@routes.post("/api/torrents/backup/restore")
-async def torrent_backup_restore(request):
-    body = await _json(request)
-    disk_id = (body.get("disk_id") or "").strip()
-    backup = _backup_path(disk_id)
-    if not backup or not os.path.exists(backup):
-        return _err("backup not found", status=404)
-    tor = await _resolve_torrent(disk_id)
-    if tor is None:
-        return _err("torrent not found", status=404)
-    cats = load_cats()
-
-    def _f():
+def _run_restore(tor, backup: str, disk_id: str, cats):
+    """Restore a backup into the live download location, in a daemon thread — a
+    large copytree can't finish inside the tunnel timeout (526/524), so the
+    request returns immediately and this reaps in the background, mirroring
+    `_run_backup`. The result (done/error) lands in `restore_jobs`;
+    `job_check_restore` turns it into a persistent Telegram notification."""
+    try:
         dst = tor.content_path
         # Copy the backup to a temp sibling first, then swap it in — never delete
         # the live content until the fresh copy is fully in place, so a failed
@@ -802,9 +798,28 @@ async def torrent_backup_restore(request):
         else:
             create_flat_hardlinks(tor, cats)
         jf("POST", "/Library/Refresh")
+        store.finish_restore_job(disk_id)
+    except Exception as e:
+        store.finish_restore_job(disk_id, error=str(e)[:500])
 
-    await _thread(_f)
-    return web.json_response({"restored": True})
+
+@routes.post("/api/torrents/backup/restore")
+async def torrent_backup_restore(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    backup = _backup_path(disk_id)
+    if not backup or not os.path.exists(backup):
+        return _err("backup not found", status=404)
+    tor = await _resolve_torrent(disk_id)
+    if tor is None:
+        return _err("torrent not found", status=404)
+    if disk_id in store.get_active_restore_disk_ids():
+        return web.json_response({"restoring": True})
+    cats = load_cats()
+    store.start_restore_job(disk_id, kb.short_name(tor.name), request.get("user_id"))
+    threading.Thread(target=_run_restore, args=(tor, backup, disk_id, cats),
+                     daemon=True).start()
+    return web.json_response({"restoring": True})
 
 
 def _rm_in_background(path: str):

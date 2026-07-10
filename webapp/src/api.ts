@@ -76,7 +76,7 @@ export const api = {
   backup: (diskId: string) =>
     req<{ backing_up: boolean }>("POST", "/api/torrents/backup", { disk_id: diskId }),
   restoreBackup: (diskId: string) =>
-    req<{ restored: boolean }>("POST", "/api/torrents/backup/restore", { disk_id: diskId }),
+    req<{ restoring: boolean }>("POST", "/api/torrents/backup/restore", { disk_id: diskId }),
   deleteBackup: (diskId: string) =>
     req<{ deleted: boolean }>("POST", "/api/torrents/backup/delete", { disk_id: diskId }),
 

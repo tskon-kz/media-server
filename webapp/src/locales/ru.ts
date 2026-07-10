@@ -72,6 +72,8 @@ export default {
     backingUp: "идёт бэкап…",
     backupSaved: "Бэкап сохранён",
     backupFailed: "Не удалось сделать бэкап",
+    backupRestoreStarted: "Восстановление запущено — для большого объёма это займёт время",
+    restoring: "идёт восстановление…",
     backupRestored: "Восстановлено из бэкапа",
     backupDeleted: "Бэкап удалён",
     gpuHint: "нужен GPU",

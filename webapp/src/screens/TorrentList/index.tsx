@@ -38,6 +38,8 @@ export function TorrentList() {
 
   // disk_ids with a backup copy in flight, so we can toast when it completes.
   const backingUp = useRef<Set<string>>(new Set())
+  // disk_ids with a restore copy in flight, so we can toast when it completes.
+  const restoring = useRef<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     try {
@@ -48,6 +50,11 @@ export function TorrentList() {
           backingUp.current.delete(tor.disk_id)
           toast(tor.has_backup ? t("torrents.backupSaved") : t("torrents.backupFailed"),
                 tor.has_backup ? "ok" : "err")
+        }
+        if (tor.restoring) restoring.current.add(tor.disk_id)
+        else if (restoring.current.has(tor.disk_id)) {
+          restoring.current.delete(tor.disk_id)
+          toast(t("torrents.backupRestored"), "ok")
         }
       }
       setTorrents(tr.torrents)
@@ -237,7 +244,8 @@ export function TorrentList() {
     setMenuFor(null)
     try {
       await api.restoreBackup(tor.disk_id)
-      toast(t("torrents.backupRestored"))
+      restoring.current.add(tor.disk_id)
+      toast(t("torrents.backupRestoreStarted"))
       load()
     } catch (e) {
       toast((e as Error).message, "err")
@@ -305,7 +313,7 @@ export function TorrentList() {
                     </button>
                   </div>
                 }
-                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {done: tor.upscale_done, total: tor.upscale_total, pct: pct(tor.upscale_progress)}) : ""}${tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}`}
+                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {done: tor.upscale_done, total: tor.upscale_total, pct: pct(tor.upscale_progress)}) : ""}${tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}${tor.restoring ? " · ♻️ " + t("torrents.restoring") : ""}`}
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
@@ -447,6 +455,10 @@ export function TorrentList() {
             <Button fullWidth variant="default" leftSection={<Loader size={16}/>} disabled>
               {t("torrents.backingUp")}
             </Button>
+          ) : menuFor?.restoring ? (
+            <Button fullWidth variant="default" leftSection={<Loader size={16}/>} disabled>
+              {t("torrents.restoring")}
+            </Button>
           ) : menuFor?.has_backup ? (
             <Button fullWidth variant="default" leftSection={<Save size={18}/>}
                     onClick={() => menuFor && doRestoreBackup(menuFor)}>
@@ -458,7 +470,7 @@ export function TorrentList() {
               {t("torrents.backup")}
             </Button>
           )}
-          {menuFor?.has_backup && (
+          {menuFor?.has_backup && !menuFor?.restoring && (
             <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
                     onClick={() => { setConfirmDelBackup(menuFor); setMenuFor(null) }}>
               {t("torrents.delBackup")}
