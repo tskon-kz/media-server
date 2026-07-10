@@ -416,10 +416,15 @@ def get_upscale_jobs_by_disk_id(disk_id: str) -> list[dict]:
 
 
 def get_active_upscale_disk_ids() -> dict[str, float]:
-    """Map disk_id -> mean progress for torrents with queued/running jobs (for the UI)."""
+    """Map disk_id -> mean progress for torrents with queued/running jobs (for the UI).
+
+    Averages over *all* jobs of the batch (finished ones count as progress=1.0), so
+    the bar climbs toward 100% as files complete. Averaging only queued/running jobs
+    dropped finished ones from the mean, pinning multi-file batches near zero."""
     rows = _conn.execute(
         "SELECT disk_id, AVG(progress) FROM upscale_jobs "
-        "WHERE status IN ('queued', 'running') GROUP BY disk_id"
+        "WHERE disk_id IN (SELECT disk_id FROM upscale_jobs "
+        "WHERE status IN ('queued', 'running')) GROUP BY disk_id"
     ).fetchall()
     return {r[0]: r[1] for r in rows}
 

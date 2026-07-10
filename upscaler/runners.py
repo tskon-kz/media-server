@@ -118,16 +118,36 @@ def _video_encode(scale_filter: str | None) -> tuple[list, str, list]:
     return ([], ",".join(parts), CPU_CODEC)
 
 
-def _probe_duration(src: str) -> float:
+def _ffprobe_value(src: str, *args: str) -> float:
+    """Run ffprobe returning a single numeric field; 0.0 on any failure/empty/N/A."""
     try:
         out = subprocess.run(
-            [FFPROBE_BIN, "-v", "error", "-show_entries", "format=duration",
+            [FFPROBE_BIN, "-v", "error", *args,
              "-of", "default=noprint_wrappers=1:nokey=1", src],
             capture_output=True, text=True, timeout=60, check=True,
-        ).stdout.strip()
-        return float(out)
+        ).stdout.strip().splitlines()
+        val = out[0].strip() if out else ""
+        if not val or val.startswith("N/A"):
+            return 0.0
+        return float(val)
     except Exception:
         return 0.0
+
+
+def _probe_duration(src: str) -> float:
+    """Media duration in seconds for the progress-bar denominator.
+
+    Many MKVs carry no container-level `format=duration` (only per-stream), so a
+    single probe would return 0 and leave the progress bar stuck at zero the whole
+    render. Fall back to the first video stream's own duration."""
+    for args in (
+        ("-show_entries", "format=duration"),
+        ("-select_streams", "v:0", "-show_entries", "stream=duration"),
+    ):
+        dur = _ffprobe_value(src, *args)
+        if dur > 0:
+            return dur
+    return 0.0
 
 
 def _parse_out_time(val: str) -> float | None:
