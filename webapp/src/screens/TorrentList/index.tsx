@@ -368,11 +368,22 @@ export function TorrentList() {
                     </button>
                   </div>
                 }
-                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {
-                  done: tor.upscale_done,
-                  total: tor.upscale_total,
-                  pct: pct(tor.upscale_progress)
-                }) : ""}${tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}${tor.restoring ? " · ♻️ " + t("torrents.restoring") : ""}`}
+                subtitle={
+                  <>
+                    {tor.progress < 1 ? pct(tor.progress) + " · " : ""}
+                    {tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}
+                    {tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}
+                    {tor.upscaling && (
+                      <> · <Wand2 size={12} style={{display: "inline", verticalAlign: "-2px"}}/> {t("torrents.upscaling", {
+                        done: tor.upscale_done,
+                        total: tor.upscale_total,
+                        pct: pct(tor.upscale_progress),
+                      })}</>
+                    )}
+                    {tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}
+                    {tor.restoring ? " · ♻️ " + t("torrents.restoring") : ""}
+                  </>
+                }
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
@@ -395,7 +406,7 @@ export function TorrentList() {
       {upscalingTorrents.length > 0 && (
         <div className={s.queueBar}>
           <div className={s.queueInfo}>
-            <span>✨</span>
+            <Wand2 size={16}/>
             <span>{t("torrents.upscaleQueueLabel", {done: queueDone, total: queueTotal})}</span>
           </div>
           <div className={s.queueActions}>
