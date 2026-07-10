@@ -4,9 +4,10 @@ import styles from "./Collapse.module.scss";
 
 interface Props {
   className?: string
-  title: string;
+  title: ReactNode;
   children: ReactNode | ReactNode[];
   defaultOpen?: boolean;
+  variant?: "plain";
 }
 
 export function Collapse(props: Props) {
@@ -15,7 +16,7 @@ export function Collapse(props: Props) {
   return (
     <div className={`${styles.card}${props.className ? ` ${props.className}` : ""}`}>
       <button
-        className={`${styles.header} ${open ? styles.headerOpen : ""}`}
+        className={`${styles.header} ${props.variant === "plain" ? styles.headerPlain : ""} ${open ? styles.headerOpen : ""}`}
         onClick={() => setOpen((o) => !o)}
       >
         <span>{props.title}</span>

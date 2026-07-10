@@ -156,9 +156,8 @@ export function TorrentList() {
     try {
       const info = await api.upscaleInfo(tor.disk_id)
       setUpInfo(info)
-      // Pre-check every file that isn't already upscaled; the user can then
-      // tweak the checkboxes (extras/season 0 make a numeric range ambiguous).
-      setUpNames(info.files.filter((f) => !f.upscaled).map((f) => f.name))
+      // Already-upscaled files aren't returned, so pre-check everything.
+      setUpNames(info.groups.flatMap((g) => g.files.map((f) => f.name)))
     } catch (e) {
       setUpscaleFor(null)
       toast((e as Error).message, "err")
@@ -188,8 +187,41 @@ export function TorrentList() {
   const toggleUpName = (name: string) =>
     setUpNames((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name])
 
-  const toggleAllUpNames = () =>
-    setUpNames((prev) => prev.length === (upInfo?.total ?? 0) ? [] : (upInfo?.files.map((f) => f.name) ?? []))
+  // Select/deselect every file in a group (season). Toggles to whichever state
+  // isn't already fully applied.
+  const toggleGroup = (names: string[]) =>
+    setUpNames((prev) => {
+      const allOn = names.every((n) => prev.includes(n))
+      const rest = prev.filter((n) => !names.includes(n))
+      return allOn ? rest : [...rest, ...names]
+    })
+
+  // Scrollable checkbox list + a scoped select/deselect-all for one group.
+  const renderUpGroup = (names: string[], files: {name: string; label: string}[]) => {
+    const allOn = names.length > 0 && names.every((n) => upNames.includes(n))
+    return (
+      <>
+        <Box style={{display: "flex", justifyContent: "flex-end"}}>
+          <Button variant="subtle" size="compact-xs" onClick={() => toggleGroup(names)}>
+            {allOn ? t("torrents.deselectAll") : t("torrents.selectAll")}
+          </Button>
+        </Box>
+        <Box style={{maxHeight: "40vh", overflowY: "auto"}}>
+          <Stack gap={6} py={4}>
+            {files.map((f) => (
+              <Checkbox
+                key={f.name}
+                label={f.label}
+                checked={upNames.includes(f.name)}
+                onChange={() => toggleUpName(f.name)}
+                styles={{label: {fontSize: 13, wordBreak: "break-all"}}}
+              />
+            ))}
+          </Stack>
+        </Box>
+      </>
+    )
+  }
 
   const doTogglePause = async () => {
     const next = !paused
@@ -547,29 +579,22 @@ export function TorrentList() {
         <Stack gap={8} pb={16} px={4}>
           {upInfo.total > 1 && (
             <>
-              <Collapse title={t("torrents.upscaleWhat", {n: upNames.length, total: upInfo.total})}>
-                <Stack gap={6} py={4}>
-                  {upInfo.files.some((f) => f.upscaled) && (
-                    <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
-                      {t("torrents.upscaleAlreadyDone", {n: upInfo.files.filter((f) => f.upscaled).length})}
-                    </Box>
+              {upInfo.parsed
+                ? upInfo.groups.map((g) => {
+                    const names = g.files.map((f) => f.name)
+                    const sel = names.filter((n) => upNames.includes(n)).length
+                    const title = g.season != null ? t("torrents.season", {n: g.season}) : t("torrents.upscaleOther")
+                    return (
+                      <Collapse key={g.season ?? "other"} variant="plain"
+                                title={`${title} · ${sel}/${names.length}`}>
+                        {renderUpGroup(names, g.files)}
+                      </Collapse>
+                    )
+                  })
+                : renderUpGroup(
+                    upInfo.groups.flatMap((g) => g.files.map((f) => f.name)),
+                    upInfo.groups.flatMap((g) => g.files),
                   )}
-                  <Box style={{display: "flex", justifyContent: "flex-end"}}>
-                    <Button variant="subtle" size="compact-xs" onClick={toggleAllUpNames}>
-                      {upNames.length === upInfo.total ? t("torrents.deselectAll") : t("torrents.selectAll")}
-                    </Button>
-                  </Box>
-                  {upInfo.files.map((f) => (
-                    <Checkbox
-                      key={f.name}
-                      label={f.upscaled ? `${f.name} · ${t("torrents.upscaleFileDone")}` : f.name}
-                      checked={upNames.includes(f.name)}
-                      onChange={() => toggleUpName(f.name)}
-                      styles={{label: {fontSize: 13, wordBreak: "break-all"}}}
-                    />
-                  ))}
-                </Stack>
-              </Collapse>
               <Divider my={4}/>
             </>
           )}

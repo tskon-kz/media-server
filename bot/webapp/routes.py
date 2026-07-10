@@ -33,9 +33,10 @@ from config import (
 )
 from parser import (
     process_torrent_rename, create_flat_hardlinks,
-    delete_torrent_links, get_video_files,
-    VIDEO_EXTENSIONS,
+    delete_torrent_links, get_video_files, parse_filename, is_extra,
+    tor_fallback_title, VIDEO_EXTENSIONS,
 )
+from parser.naming import season_episode_widths
 from store import (
     t, load_cats, save_cats, set_lang, set_config, get_config,
     get_creds, get_qb_status, set_qb_status,
@@ -645,18 +646,62 @@ def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
     return len(files), disk_id
 
 
+def _upscale_info(tor, is_series: bool, already: set) -> dict:
+    """Grouped, parser-shortened file list for the upscale picker. Already-upscaled
+    files are dropped entirely (they'd be skipped anyway). For a series, files are
+    grouped by parsed season with short SxxExxx labels; extras/unparseable go to an
+    ``other`` group (season null). Non-series/unparseable → one flat group of names."""
+    files = [f for f in _upscale_files(tor) if f not in already]
+    total = len(files)
+
+    if not is_series:
+        one = [{"name": os.path.basename(f), "label": os.path.basename(f)} for f in files]
+        return {"total": total, "is_series": is_series, "parsed": False,
+                "groups": [{"season": None, "files": one}] if one else []}
+
+    content_root = tor.content_path
+    fallback_title = tor_fallback_title(tor)
+    parsed = []   # (src, filename, parse_dict)
+    other = []    # extras / unparseable
+    for f in files:
+        fn = os.path.basename(f)
+        p = None if is_extra(f, content_root) else parse_filename(fn, "tvshows", fallback_title)
+        if p:
+            parsed.append((f, fn, p))
+        else:
+            other.append(f)
+
+    widths = season_episode_widths(parsed)
+    by_season: dict = {}
+    for src, fn, p in parsed:
+        w = widths.get((p["title"], p["season"]), 2)
+        label = f"S{p['season']:02d}E{p['episode']:0{w}d}"
+        by_season.setdefault(p["season"], []).append({"name": fn, "label": label})
+
+    groups = []
+    for season in sorted(by_season):
+        files_sorted = sorted(by_season[season], key=lambda x: x["label"])
+        groups.append({"season": season, "files": files_sorted})
+    if other:
+        groups.append({"season": None,
+                       "files": [{"name": os.path.basename(f), "label": os.path.basename(f)}
+                                 for f in other]})
+
+    return {"total": total, "is_series": is_series,
+            "parsed": bool(parsed), "groups": groups}
+
+
 @routes.get("/api/torrents/upscale/info")
 async def torrent_upscale_info(request):
     disk_id = (request.query.get("disk_id") or "").strip()
     tor = await _resolve_torrent(disk_id)
     if not tor:
         return _err("torrent not found", status=404)
-    files = await _thread(_upscale_files, tor)
     already = get_done_upscale_src_paths(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
-    items = [{"name": os.path.basename(f), "upscaled": f in already} for f in files]
     cat = _cat_for(tor, load_cats())
     is_series = bool(cat) and cat.get("jf_type") == "tvshows"
-    return web.json_response({"total": len(items), "files": items, "is_series": is_series})
+    info = await _thread(_upscale_info, tor, is_series, already)
+    return web.json_response(info)
 
 
 @routes.get("/api/torrents/upscale/results")

@@ -22,6 +22,12 @@
   transition: border-color 0.2s ease;
 }
 
+.headerPlain {
+  text-transform: none;
+  font-weight: 500;
+  color: var(--tg-theme-link-color);
+}
+
 .headerOpen {
   border-bottom-color: rgba(128, 128, 128, 0.12);
 }

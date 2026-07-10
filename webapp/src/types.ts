@@ -40,10 +40,21 @@ export interface UpscaleTarget {
   height: number;
 }
 
+export interface UpscaleFile {
+  name: string;
+  label: string;
+}
+
+export interface UpscaleGroup {
+  season: number | null;
+  files: UpscaleFile[];
+}
+
 export interface UpscaleInfo {
   total: number;
-  files: { name: string; upscaled: boolean }[];
   is_series: boolean;
+  parsed: boolean;
+  groups: UpscaleGroup[];
 }
 
 export interface UpscaleResult {
