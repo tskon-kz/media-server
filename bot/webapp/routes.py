@@ -569,9 +569,13 @@ async def torrent_structure(request):
 # Shared blocking helpers so the Telegram callbacks can reuse the exact same
 # logic via _thread — no business logic duplicated between the two surfaces.
 
-def _cat_id_for(tor, cats: list) -> int | None:
+def _cat_for(tor, cats: list) -> dict | None:
     slug = os.path.basename(tor.save_path.rstrip("/"))
-    cat = next((c for c in cats if os.path.basename(c["path"].rstrip("/")) == slug), None)
+    return next((c for c in cats if os.path.basename(c["path"].rstrip("/")) == slug), None)
+
+
+def _cat_id_for(tor, cats: list) -> int | None:
+    cat = _cat_for(tor, cats)
     return cat["id"] if cat else None
 
 
@@ -585,12 +589,20 @@ def _upscale_files(tor) -> list[str]:
 
 def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
                   compression: str = "balanced", target: str = "2x",
-                  start: int | None = None, end: int | None = None) -> tuple[int, str]:
+                  start: int | None = None, end: int | None = None,
+                  names: list[str] | None = None) -> tuple[int, str]:
     """Snap the torrent out of qB (keeping files), then queue one upscale job per
-    video file in the chosen 1-based range, skipping files already upscaled.
-    Returns (queued_count, disk_id the jobs are keyed on)."""
+    video file to process, skipping files already upscaled.
+    Returns (queued_count, disk_id the jobs are keyed on).
+
+    Selection is either an explicit set of basenames (``names`` — used by the
+    movie file-picker) or a 1-based ``start``/``end`` range (used by the series
+    episode range). When neither is given, every video file is queued."""
     files = _upscale_files(tor)
-    if start is not None or end is not None:
+    if names:
+        wanted = set(names)
+        files = [f for f in files if os.path.basename(f) in wanted]
+    elif start is not None or end is not None:
         lo = max(1, start or 1) - 1
         hi = end if end is not None else len(files)
         files = files[lo:hi]
@@ -621,7 +633,9 @@ async def torrent_upscale_info(request):
     files = await _thread(_upscale_files, tor)
     already = get_upscaled_files(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
     items = [{"name": os.path.basename(f), "upscaled": f in already} for f in files]
-    return web.json_response({"total": len(items), "files": items})
+    cat = _cat_for(tor, load_cats())
+    is_series = bool(cat) and cat.get("jf_type") == "tvshows"
+    return web.json_response({"total": len(items), "files": items, "is_series": is_series})
 
 
 @routes.post("/api/torrents/upscale/cancel")
@@ -656,6 +670,9 @@ async def torrent_upscale(request):
         return _err("unknown upscale target")
     start = body.get("start")
     end = body.get("end")
+    names = body.get("names")
+    if names is not None and not isinstance(names, list):
+        return _err("names must be a list")
     cats = load_cats()
     tor = await _resolve_torrent(disk_id)
     if not tor:
@@ -666,7 +683,7 @@ async def torrent_upscale(request):
         return _err(t("upscale_in_progress"))
     user_id = request.get("user_id")
     queued, new_disk_id = await _thread(
-        queue_upscale, tor, cats, upscaler, user_id, compression, target, start, end)
+        queue_upscale, tor, cats, upscaler, user_id, compression, target, start, end, names)
     if not queued:
         return _err("no video files to upscale")
     return web.json_response({"queued": queued, "disk_id": new_disk_id})

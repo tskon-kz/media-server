@@ -40,6 +40,7 @@ export interface UpscaleTarget {
 export interface UpscaleInfo {
   total: number;
   files: { name: string; upscaled: boolean }[];
+  is_series: boolean;
 }
 
 export interface Category {

@@ -59,10 +59,10 @@ export const api = {
       "POST", "/api/torrents/structure", { disk_id: diskId, mode },
     ),
   upscale: (diskId: string, upscaler: string, compression: string, target: string,
-            start?: number, end?: number) =>
+            sel: { start?: number; end?: number; names?: string[] }) =>
     req<{ queued: number; disk_id: string }>(
       "POST", "/api/torrents/upscale",
-      { disk_id: diskId, upscaler, compression, target, start, end },
+      { disk_id: diskId, upscaler, compression, target, ...sel },
     ),
   upscaleInfo: (diskId: string) =>
     req<UpscaleInfo>("GET", `/api/torrents/upscale/info?disk_id=${encodeURIComponent(diskId)}`),

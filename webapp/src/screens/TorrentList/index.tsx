@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
-import {Box, Button, Divider, Drawer, Loader, NumberInput, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
+import {Box, Button, Checkbox, Divider, Drawer, Loader, NumberInput, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
+import {Collapse} from "@/components/Collapse"
 import {Clapperboard, Folder, FolderInput, HardDrive, MoreHorizontal, Pause, Play, RefreshCw, Save, Trash2, Wand2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
@@ -9,7 +10,7 @@ import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
-import type {Category, CompressionLevel, Torrent, Upscaler, UpscaleInfo} from "@/types"
+import type {Category, CompressionLevel, Torrent, Upscaler, UpscaleInfo, UpscaleTarget} from "@/types"
 import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
@@ -22,11 +23,13 @@ export function TorrentList() {
   const [upscalers, setUpscalers] = useState<Upscaler[]>([])
   const [compressionLevels, setCompressionLevels] = useState<CompressionLevel[]>([])
   const [compression, setCompression] = useState("balanced")
+  const [upscaleTargets, setUpscaleTargets] = useState<UpscaleTarget[]>([])
   const [upscaleTarget, setUpscaleTarget] = useState("2x")
   const [paused, setPaused] = useState(false)
   const [upInfo, setUpInfo] = useState<UpscaleInfo | null>(null)
   const [upFrom, setUpFrom] = useState(1)
   const [upTo, setUpTo] = useState(1)
+  const [upNames, setUpNames] = useState<string[]>([])
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [confirmDelLinks, setConfirmDelLinks] = useState<Torrent | null>(null)
   const [confirmDelBackup, setConfirmDelBackup] = useState<Torrent | null>(null)
@@ -48,6 +51,7 @@ export function TorrentList() {
     api.config().then((c) => {
       setUpscalers(c.upscalers ?? [])
       setCompressionLevels(c.compression_levels ?? [])
+      setUpscaleTargets(c.upscale_targets ?? [])
       setUpscaleTarget(c.upscale_target ?? "2x")
       setPaused(!!c.upscale_paused)
     }).catch(() => {})
@@ -134,10 +138,12 @@ export function TorrentList() {
     try {
       const info = await api.upscaleInfo(tor.disk_id)
       setUpInfo(info)
-      // Default the range to the first not-yet-upscaled file .. the end.
+      // Series: default the episode range to first-not-upscaled .. end.
       const firstUndone = info.files.findIndex((f) => !f.upscaled)
       setUpFrom(firstUndone >= 0 ? firstUndone + 1 : 1)
       setUpTo(info.total || 1)
+      // Movie file-picker: pre-check every file that isn't already upscaled.
+      setUpNames(info.files.filter((f) => !f.upscaled).map((f) => f.name))
     } catch (e) {
       setUpscaleFor(null)
       toast((e as Error).message, "err")
@@ -145,16 +151,31 @@ export function TorrentList() {
   }
 
   const doUpscale = async (tor: Torrent, upscalerId: string) => {
+    // Series: send the episode range. Movie: send the checked file names (or,
+    // for a single-file movie, nothing — the whole thing is queued).
+    const multiFileMovie = upInfo && !upInfo.is_series && upInfo.total > 1
+    const sel = upInfo?.is_series
+      ? {start: upFrom, end: upTo}
+      : multiFileMovie
+        ? {names: upNames}
+        : {}
+    if (multiFileMovie && upNames.length === 0) {
+      toast(t("torrents.upscaleNoFiles"), "err")
+      return
+    }
     setUpscaleFor(null)
     setMenuFor(null)
     try {
-      const r = await api.upscale(tor.disk_id, upscalerId, compression, upscaleTarget, upFrom, upTo)
+      const r = await api.upscale(tor.disk_id, upscalerId, compression, upscaleTarget, sel)
       toast(t("torrents.upscaleQueued", {n: r.queued}))
       load()
     } catch (e) {
       toast((e as Error).message, "err")
     }
   }
+
+  const toggleUpName = (name: string) =>
+    setUpNames((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name])
 
   const doTogglePause = async () => {
     const next = !paused
@@ -480,23 +501,59 @@ export function TorrentList() {
           </Box>
         ) : (
         <Stack gap={8} pb={16} px={4}>
-          <>
-            <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
-              {t("torrents.upscaleRange")}
-              {upInfo.files.some((f) => f.upscaled)
-                ? " · " + t("torrents.upscaleAlreadyDone", {n: upInfo.files.filter((f) => f.upscaled).length})
-                : ""}
-            </Box>
-            <Box style={{display: "flex", gap: 8}}>
-              <NumberInput style={{flex: 1}} label={t("torrents.upscaleFrom")} min={1}
-                           max={upInfo.total} value={upFrom}
-                           onChange={(v) => setUpFrom(Number(v) || 1)}/>
-              <NumberInput style={{flex: 1}} label={t("torrents.upscaleTo")} min={1}
-                           max={upInfo.total} value={upTo}
-                           onChange={(v) => setUpTo(Number(v) || 1)}/>
-            </Box>
-            <Divider my={4}/>
-          </>
+          {(upInfo.is_series || upInfo.total > 1) && (
+            <>
+              {upInfo.files.some((f) => f.upscaled) && (
+                <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                  {t("torrents.upscaleAlreadyDone", {n: upInfo.files.filter((f) => f.upscaled).length})}
+                </Box>
+              )}
+              {upInfo.is_series ? (
+                <>
+                  <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                    {t("torrents.upscaleRange")}
+                  </Box>
+                  <Box style={{display: "flex", gap: 8}}>
+                    <NumberInput style={{flex: 1}} label={t("torrents.upscaleFrom")} min={1}
+                                 max={upInfo.total} value={upFrom}
+                                 onChange={(v) => setUpFrom(Number(v) || 1)}/>
+                    <NumberInput style={{flex: 1}} label={t("torrents.upscaleTo")} min={1}
+                                 max={upInfo.total} value={upTo}
+                                 onChange={(v) => setUpTo(Number(v) || 1)}/>
+                  </Box>
+                </>
+              ) : (
+                <Collapse title={t("torrents.upscaleFiles", {n: upNames.length, total: upInfo.total})}>
+                  <Stack gap={6} py={4}>
+                    {upInfo.files.map((f) => (
+                      <Checkbox
+                        key={f.name}
+                        label={f.upscaled ? `${f.name} · ${t("torrents.upscaleFileDone")}` : f.name}
+                        checked={upNames.includes(f.name)}
+                        onChange={() => toggleUpName(f.name)}
+                        styles={{label: {fontSize: 13, wordBreak: "break-all"}}}
+                      />
+                    ))}
+                  </Stack>
+                </Collapse>
+              )}
+              <Divider my={4}/>
+            </>
+          )}
+          {upscaleTargets.length > 0 && (
+            <>
+              <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+                {t("settings.upscaleTarget")}
+              </Box>
+              <SegmentedControl
+                fullWidth
+                value={upscaleTarget}
+                onChange={setUpscaleTarget}
+                data={upscaleTargets.map((u) => ({value: u.id, label: u.label}))}
+              />
+              <Divider my={4}/>
+            </>
+          )}
           {compressionLevels.length > 0 && (
             <>
               <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
