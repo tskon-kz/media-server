@@ -18,8 +18,10 @@ the same speed class as a plain resize — no explode-to-PNG frame churn):
 Requires a libplacebo-enabled ffmpeg (jellyfin-ffmpeg); ``FFMPEG_BIN`` points at
 it. Stock Debian ffmpeg has no libplacebo, so the ``anime4k`` backend would fail.
 """
+import collections
 import logging
 import os
+import re
 import subprocess
 import tempfile
 
@@ -163,10 +165,12 @@ def _probe_total_frames(src: str) -> int:
     return int(n) if n > 0 else 0
 
 
-def _parse_progress_field(line: str, key: str) -> str | None:
-    """`value` of an ffmpeg `-progress` ``key=value`` line, else None."""
-    prefix = key + "="
-    return line[len(prefix):].strip() if line.startswith(prefix) else None
+# ffmpeg's stderr status line: `frame=  123 fps=.. q=.. size=.. time=00:00:04.56 ..`.
+# We read progress from stderr (not `-progress pipe:1`): stderr is unbuffered and
+# flushed on every `\r` update, whereas pipe:1's 32KB AVIO buffer leaves the bar
+# stuck at 0 during a slow Vulkan/libplacebo start until it finally fills.
+_TIME_RE  = re.compile(r"time=(\S+)")
+_FRAME_RE = re.compile(r"frame=\s*(\d+)")
 
 
 def _parse_out_time(val: str) -> float | None:
@@ -305,44 +309,40 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
         "-vf", vfilter,
         *codec,
         "-c:a", "copy", "-c:s", "copy", "-c:t", "copy",
-        "-progress", "pipe:1", "-nostats", tmp_out,
+        tmp_out,
     ]
     log.info("ffmpeg cmd: %s", " ".join(cmd))
-    # Progress is read live off stdout; stderr goes to a temp file so a failing
-    # ffmpeg's actual error (filtergraph/option, e.g. a bad libplacebo config) is
-    # surfaced instead of a bare exit code. Reading it from a file avoids the
-    # two-pipe deadlock a second PIPE would risk.
-    errf = tempfile.TemporaryFile()
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=errf, text=True)
+    # Progress is read live off ffmpeg's stderr status line. text=True in universal-
+    # newline mode splits on the `\r` ffmpeg uses to refresh that line, so each
+    # update arrives as its own iterable "line". The same stream carries any real
+    # error, so we keep a rolling tail to surface it on a nonzero exit (stdout is
+    # discarded — nothing is written there without `-progress`, so no deadlock).
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    tail = collections.deque(maxlen=40)
     success = False
     try:
-        for line in proc.stdout:
-            # Primary: the unambiguous `out_time=HH:MM:SS.ffffff` field. (`out_time_ms`
-            # is milliseconds in some builds and microseconds in others — jellyfin-
-            # ffmpeg's ms reading left the bar stuck near zero.)
+        for line in proc.stderr:
+            tail.append(line)
             if duration > 0:
-                val = _parse_progress_field(line, "out_time")
-                if val is not None:
-                    secs = _parse_out_time(val)
+                m = _TIME_RE.search(line)
+                if m:
+                    secs = _parse_out_time(m.group(1))
                     if secs is not None:
                         progress_cb(min(1.0, secs / duration))
             # Fallback when duration is unknown: encoded `frame=` over total frames.
             elif total_frames > 0:
-                val = _parse_progress_field(line, "frame")
-                if val is not None and val.isdigit():
-                    progress_cb(min(1.0, int(val) / total_frames))
+                m = _FRAME_RE.search(line)
+                if m:
+                    progress_cb(min(1.0, int(m.group(1)) / total_frames))
         code = proc.wait()
         if code != 0:
-            errf.seek(0)
-            tail = errf.read().decode("utf-8", "replace").strip()[-1500:]
-            raise UpscaleError(f"ffmpeg exited {code}: {tail}")
+            raise UpscaleError(f"ffmpeg exited {code}: {''.join(tail).strip()[-1500:]}")
         # Validate before the destructive swap — never overwrite a good source
         # with a broken encode.
         _validate_output(tmp_out, duration)
         _replace(src, tmp_out)
         success = True
     finally:
-        errf.close()
         if proc.poll() is None:
             proc.kill()
         if not success:
