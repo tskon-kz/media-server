@@ -1,21 +1,7 @@
-"""Upscaler backends. Each produces a 2x (or `scale`x) version of a video file
-and atomically replaces the original in place, so the library relink the bot runs
-afterwards points at the upscaled data with no extra disk cost.
-
-Both backends are a single GPU (Vulkan/libplacebo) ffmpeg pass — real-time even
-on a weak iGPU, reporting real progress. The upscaled frames come back to system
-memory (``hwdownload``) and are H.264-encoded on the CPU (libx264). Both need a
-``/dev/dri`` device.
-
-- ``anime4k`` — the Anime4K neural GLSL shaders (``custom_shader_path``). Best for
-  anime line art; wrong for live-action, where it over-sharpens grain/texture.
-- ``fsr``     — libplacebo's high-quality anti-ring polar scaler
-  (``ewa_lanczossharp``), an FSR-class clean upscale for films/series. Not neural,
-  but artifact-free on real footage where Anime4K misbehaves.
-
-Requires a libplacebo-enabled ffmpeg (jellyfin-ffmpeg); ``FFMPEG_BIN`` points at
-it. Stock Debian ffmpeg has no libplacebo, so both backends would fail.
-"""
+"""Upscaler backends: single Vulkan/libplacebo ffmpeg pass, CPU libx264 encode,
+atomic in-place replace. `anime4k` = neural GLSL shaders (anime); `fsr` =
+ewa_lanczossharp polar scaler (live-action). Needs jellyfin-ffmpeg (libplacebo)
+and /dev/dri."""
 import collections
 import logging
 import os
@@ -25,34 +11,20 @@ import tempfile
 
 log = logging.getLogger("upscaler")
 
-# Only real video files can be upscaled. The bot filters sidecars (subs/audio)
-# out before queueing, but stale jobs queued by older bot builds may still name a
-# subtitle/audio file — skip those cleanly instead of erroring on a non-video.
+# Skip stale jobs from older builds that named a sidecar instead of a video.
 VIDEO_EXTENSIONS = {
     ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v", ".ts", ".m2ts", ".flv", ".webm",
 }
 
-# ffmpeg/ffprobe binaries. The Dockerfile points these at jellyfin-ffmpeg, which
-# ships the libplacebo filter the `anime4k` backend needs (stock ffmpeg has none).
-FFMPEG_BIN        = os.environ.get("FFMPEG_BIN", "ffmpeg")
-FFPROBE_BIN       = os.environ.get("FFPROBE_BIN", "ffprobe")
-
-# Anime4K GLSL shader preset (a combined libplacebo hook file) bundled in the
-# image; passed to the libplacebo filter's custom_shader_path.
-ANIME4K_SHADER    = os.environ.get("ANIME4K_SHADER", "/opt/anime4k/anime4k.glsl")
-
-# Prefix for the in-place-encode temp file (written next to the source). Shared so
-# startup recovery can find and delete temps left by an interrupted encode.
+FFMPEG_BIN = os.environ.get("FFMPEG_BIN", "ffmpeg")
+FFPROBE_BIN = os.environ.get("FFPROBE_BIN", "ffprobe")
+ANIME4K_SHADER = os.environ.get("ANIME4K_SHADER", "/opt/anime4k/anime4k.glsl")
 TEMP_PREFIX = ".upscale_"
 
-# Compression presets — the `id` is the contract with the bot's config.py /
-# COMPRESSION_LEVELS. `crf` drives the libx264 encode (both GPU backends bring
-# frames back to the CPU to encode). Both presets sit in a visually-transparent
-# CRF range so the "compression level" choice only trades file size, never
-# picture quality — the upscaled detail compresses well, so even the smaller-file
-# preset stays clean. Lower = higher quality / bigger file.
+# `id` is the contract with the bot's config.COMPRESSION_LEVELS. Both CRFs are
+# visually transparent — the choice trades file size, not quality.
 COMPRESSION = {
-    "balanced":   {"crf": "18"},
+    "balanced": {"crf": "18"},
     "aggressive": {"crf": "20"},
 }
 DEFAULT_COMPRESSION = "balanced"
@@ -62,17 +34,15 @@ def _quality(compression: str | None) -> dict:
     return COMPRESSION.get(compression or DEFAULT_COMPRESSION, COMPRESSION[DEFAULT_COMPRESSION])
 
 
-# CPU H.264 encode tail, shared by both GPU backends after hwdownload.
 def _cpu_codec(crf: str) -> list[str]:
     return ["-c:v", "libx264", "-crf", crf, "-preset", "fast", "-pix_fmt", "yuv420p"]
+
 
 class UpscaleError(Exception):
     pass
 
 
-# GPU capabilities don't change while the container lives, and this worker is a
-# long-running poll loop, so probe once and memoise instead of shelling out per
-# job. None = not yet probed.
+# Probed once and memoised — GPU caps don't change during the container's life.
 _vulkan_cached: bool | None = None
 
 
@@ -111,11 +81,11 @@ def _ffprobe_value(src: str, *args: str) -> float:
 
 
 def _probe_duration(src: str) -> float:
-    """Media duration (s) for the progress-bar denominator. Many MKVs lack
-    container-level `format=duration`, so fall back to the video stream's own."""
+    """Media duration (s). Falls back to the video stream when the container
+    lacks `format=duration` (common in MKV)."""
     for args in (
-        ("-show_entries", "format=duration"),
-        ("-select_streams", "v:0", "-show_entries", "stream=duration"),
+            ("-show_entries", "format=duration"),
+            ("-select_streams", "v:0", "-show_entries", "stream=duration"),
     ):
         dur = _ffprobe_value(src, *args)
         if dur > 0:
@@ -124,13 +94,8 @@ def _probe_duration(src: str) -> float:
 
 
 def _probe_total_frames(src: str) -> int:
-    """Total video frames, for the progress-bar denominator when `_probe_duration`
-    fails (some anime MKVs carry no container *and* no stream duration, which would
-    otherwise leave a single-file job's bar stuck at 0 the whole render — batches
-    hide this behind their per-file completion steps, single files can't).
-
-    `nb_frames` is a cheap tag read but often absent in MKV; fall back to
-    `-count_packets` (demux only, no decode — fast even on a weak host)."""
+    """Frame count — the progress denominator when duration is unknown. `nb_frames`
+    is often absent in MKV; fall back to `-count_packets` (demux only, no decode)."""
     n = _ffprobe_value(src, "-select_streams", "v:0", "-show_entries", "stream=nb_frames")
     if n > 0:
         return int(n)
@@ -159,12 +124,9 @@ def _probe_dims(src: str) -> tuple[int, int]:
 
 
 def _scale_dims(src: str, target: str) -> tuple[str, str] | None:
-    """Output (width, height) as ffmpeg scale expressions for the chosen target.
-
-    - ``2x`` (or an unknown target / unreadable source): double each dimension.
-    - a resolution target (1080/2K/4K): scale to that height keeping aspect,
-      rounded to an even width. Returns ``None`` when the source already meets or
-      exceeds the target height — nothing to upscale, so the file is skipped."""
+    """Output (width, height) scale exprs. `2x`/unknown target = double each dim;
+    a resolution target scales to that height keeping aspect. None = source already
+    at/above target, skip."""
     th = _TARGET_HEIGHTS.get(target or "")
     if not th:
         return "iw*2", "ih*2"
@@ -178,17 +140,34 @@ def _scale_dims(src: str, target: str) -> tuple[str, str] | None:
     return str(ow), str(th)
 
 
-# ffmpeg's stderr status line: `frame=  123 fps=.. q=.. size=.. time=00:00:04.56 ..`.
-# We read progress from stderr (not `-progress pipe:1`): stderr is unbuffered and
-# flushed on every `\r` update, whereas pipe:1's 32KB AVIO buffer leaves the bar
-# stuck at 0 during a slow Vulkan/libplacebo start until it finally fills.
-_TIME_RE  = re.compile(r"time=(\S+)")
+# Progress is read off stderr's status line (unbuffered, flushed per `\r`), not
+# `-progress pipe:1` (its 32KB buffer stalls the bar during slow Vulkan startup).
+_TIME_RE = re.compile(r"time=(\S+)")
 _FRAME_RE = re.compile(r"frame=\s*(\d+)")
+
+_ERROR_RE = re.compile(
+    r"error|invalid|failed|unable|cannot|no such|not found|"
+    r"unsupported|conversion|impossible|denied|permission|"
+    r"out of memory|killed|device|vulkan|libplacebo|filtergraph|"
+    r"\[.*@ .*\] ",
+    re.IGNORECASE,
+)
+
+
+def _is_error_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if stripped.startswith(("Metadata:", "Stream #", "Input #", "Output #",
+                            "Duration:", "BPS", "DURATION", "NUMBER_OF_",
+                            "_STATISTICS_", "encoder", "handler_name",
+                            "vendor_id", "title", "creation_time", "language")):
+        return False
+    return bool(_ERROR_RE.search(stripped))
 
 
 def _parse_out_time(val: str) -> float | None:
-    """Seconds from ffmpeg's `-progress` ``out_time`` value (``HH:MM:SS.ffffff``).
-    Returns None for the ``N/A`` ffmpeg emits before the first frame."""
+    """Seconds from an `HH:MM:SS.ffffff` time; None for the `N/A` before frame 1."""
     if not val or val.startswith("N/A"):
         return None
     try:
@@ -199,15 +178,12 @@ def _parse_out_time(val: str) -> float | None:
 
 
 def _replace(src: str, tmp_out: str):
-    """Swap the upscaled file in for the original, preserving the extension so the
-    bot's linker still recognises the file. ``tmp_out`` is written next to ``src``
-    so this stays a same-filesystem atomic rename."""
+    """Same-filesystem atomic swap (tmp_out is written next to src)."""
     os.replace(tmp_out, src)
 
 
 def _has_video(src: str) -> bool:
-    """True if ffprobe finds at least one video stream. Guards against being
-    handed a broken/truncated file or a non-video the linker mislabelled."""
+    """True if ffprobe finds a video stream (guards broken/mislabelled files)."""
     try:
         out = subprocess.run(
             [FFPROBE_BIN, "-v", "error", "-select_streams", "v",
@@ -221,8 +197,7 @@ def _has_video(src: str) -> bool:
 
 
 def _probe_color(src: str) -> dict:
-    """Parse the source's colour metadata (space/transfer/primaries/range), keeping
-    only known values. Empty when the source is untagged."""
+    """Source colour metadata (space/transfer/primaries/range), known values only."""
     fields = ("color_space", "color_transfer", "color_primaries", "color_range")
     try:
         out = subprocess.run(
@@ -244,9 +219,8 @@ def _probe_color(src: str) -> dict:
 
 
 def _source_color_args(src: str) -> list[str]:
-    """Re-attach the source's colour tags to the encoder (hwdownload drops them).
-    Only known values are emitted; hardcoding BT.709 would tint SD/DVD (BT.601)
-    sources cool."""
+    """Re-attach the source's colour tags to the encoder (hwdownload drops them);
+    hardcoding BT.709 would tint SD/DVD (BT.601) sources cool."""
     flags = {"color_space": "-colorspace", "color_transfer": "-color_trc",
              "color_primaries": "-color_primaries", "color_range": "-color_range"}
     parsed = _probe_color(src)
@@ -258,12 +232,9 @@ def _source_color_args(src: str) -> list[str]:
 
 
 def _libplacebo_color_opts(src: str) -> str:
-    """libplacebo output-colour options pinned to the source, so its internal
-    linear-light round-trip is an identity conversion (in == out) and colours don't
-    shift. Without this libplacebo targets its default working space (BT.709-ish)
-    while we re-tag the output as the source's space, producing a cool/blue tint on
-    BT.601 (SD/DVD) footage. Empty string when the source is untagged (let
-    libplacebo pass through)."""
+    """libplacebo output-colour pinned to the source so its linear-light round-trip
+    is identity and colours don't shift (else BT.601 footage gets a cool tint).
+    Empty when untagged."""
     parsed = _probe_color(src)
     opts = []
     if "color_space" in parsed:
@@ -281,9 +252,8 @@ def _libplacebo_color_opts(src: str) -> str:
 
 
 def _validate_output(tmp_out: str, src_duration: float):
-    """Sanity-check the encode before the destructive swap so a broken-but-exit-0
-    output can't lose the source. Needs a valid video stream and a duration close
-    to the source; raises ``UpscaleError`` otherwise (job errors, original kept)."""
+    """Guard the destructive swap: require a valid video stream and a duration
+    close to the source, else raise (original kept)."""
     try:
         out = subprocess.run(
             [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
@@ -298,7 +268,6 @@ def _validate_output(tmp_out: str, src_duration: float):
         raise UpscaleError(
             f"upscaled output has no valid video stream (ffprobe: {out.stderr.strip() or out.stdout.strip()})")
     out_duration = _probe_duration(tmp_out)
-    # Allow a small tolerance; a wildly-off duration means a truncated/corrupt file.
     if src_duration > 0 and out_duration > 0 and abs(out_duration - src_duration) > max(2.0, src_duration * 0.02):
         raise UpscaleError(
             f"upscaled output duration {out_duration:.1f}s differs from source {src_duration:.1f}s")
@@ -311,8 +280,6 @@ def run(job: dict, progress_cb):
     if not os.path.isfile(src):
         raise UpscaleError(f"source missing: {src}")
     if os.path.splitext(src)[1].lower() not in VIDEO_EXTENSIONS:
-        # Sidecar (subtitle/audio) that slipped in from an older queueing build —
-        # not something to upscale. Skip it cleanly so the batch isn't tainted.
         log.info("skipping non-video file %s", os.path.basename(src))
         return
     if not _has_video(src):
@@ -320,8 +287,7 @@ def run(job: dict, progress_cb):
 
     dims = _scale_dims(src, target)
     if dims is None:
-        # Source already at/above the target resolution — nothing to do. Report a
-        # full bar so the batch counter advances and the file is marked upscaled.
+        # Already at/above target; full bar so the batch counter advances.
         log.info("skipping %s: already >= target %s", os.path.basename(src), target)
         progress_cb(1.0)
         return
@@ -343,16 +309,9 @@ def run(job: dict, progress_cb):
 
 
 def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], progress_cb):
-    """One-pass ffmpeg upscale: apply ``vfilter`` to the video stream, copy every
-    other stream (all audio dubs, subtitles, attachments/fonts) verbatim, and swap
-    the result in for the original. ``-progress pipe:1`` gives a real progress bar.
-
-    Temp next to src: a single sequential write the HDD handles fine, and it keeps
-    the final swap a same-filesystem atomic rename."""
+    """One-pass upscale: apply `vfilter` to video, copy all other streams verbatim,
+    atomically swap in for the original."""
     duration = _probe_duration(src)
-    # Frame count is the fallback denominator: when duration is unknown, and also
-    # within a run when a status line has `frame=` but `time=N/A` (slow libplacebo
-    # start), so the bar moves on frames until `time=` appears.
     total_frames = _probe_total_frames(src)
     log.info("progress denominator: duration=%.1fs total_frames=%d", duration, total_frames)
     ext = os.path.splitext(src)[1] or ".mkv"
@@ -360,9 +319,8 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     os.close(fd)
     cmd = [
         FFMPEG_BIN, "-y", *pre_input, "-i", src,
-        # Primary video + all audio/subs/attachments, NOT `-map 0`: a blanket map
-        # pulls in embedded cover-art/ad images as extra video streams that `-c:v`
-        # re-encodes into bogus tracks Jellyfin can't play. `?` = optional.
+        # Not `-map 0`: that pulls embedded cover-art as extra video streams `-c:v`
+        # would re-encode into bogus tracks. `?` = optional.
         "-map", "0:v:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?",
         "-vf", vfilter,
         *codec,
@@ -370,20 +328,21 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
         tmp_out,
     ]
     log.info("ffmpeg cmd: %s", " ".join(cmd))
-    # Progress is read live off ffmpeg's stderr status line. text=True in universal-
-    # newline mode splits on the `\r` ffmpeg uses to refresh that line, so each
-    # update arrives as its own iterable "line". The same stream carries any real
-    # error, so we keep a rolling tail to surface it on a nonzero exit (stdout is
-    # discarded — nothing is written there without `-progress`, so no deadlock).
+    # text=True splits on the `\r` ffmpeg uses to refresh its status line, so each
+    # progress update arrives as its own line.
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     tail = collections.deque(maxlen=40)
+    # Separate ring of error-looking lines: the per-stream metadata dump can fill
+    # `tail` on a many-track source and bury the actual error.
+    errors = collections.deque(maxlen=15)
     success = False
     try:
         for line in proc.stderr:
             tail.append(line)
+            if _is_error_line(line):
+                errors.append(line)
             frac = None
-            # Prefer time-based progress; fall back to frame= when time= is absent
-            # or N/A (seen during the slow libplacebo/Vulkan start).
+            # Prefer time=; fall back to frame= when time= is absent/N/A.
             if duration > 0:
                 m = _TIME_RE.search(line)
                 if m:
@@ -398,9 +357,8 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
                 progress_cb(min(1.0, frac))
         code = proc.wait()
         if code != 0:
-            raise UpscaleError(f"ffmpeg exited {code}: {''.join(tail).strip()[-1500:]}")
-        # Validate before the destructive swap — never overwrite a good source
-        # with a broken encode.
+            detail = "".join(errors) if errors else "".join(tail)
+            raise UpscaleError(f"ffmpeg exited {code}: {detail.strip()[-1500:]}")
         _validate_output(tmp_out, duration)
         _replace(src, tmp_out)
         success = True
@@ -412,23 +370,12 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
 
 
 def _run_libplacebo(src: str, ow: str, oh: str, quality: dict, progress_cb, shader: str | None):
-    """GPU upscale as a single libplacebo (Vulkan) pass, then bring the frames back
-    to system memory (``hwdownload``) and H.264-encode on the CPU (libx264). The
-    libplacebo work is the expensive part and runs on the GPU.
+    """Single Vulkan/libplacebo pass, then hwdownload + CPU libx264. `shader` set =
+    Anime4K neural shaders; None = ewa_lanczossharp polar scaler.
 
-    Two modes share this path:
-      * ``shader`` set  — the Anime4K neural GLSL shaders (``custom_shader_path``).
-        Best for anime line art; wrong for live-action (over-sharpens grain).
-      * ``shader`` None — libplacebo's high-quality anti-ring polar scaler
-        (``ewa_lanczossharp``), an FSR-class clean upscale suited to films/series.
-
-    ``format=nv12,hwupload`` is explicit (not relying on libplacebo's auto-upload):
-    it normalises 10-bit sources to an 8-bit format Vulkan accepts and puts the
-    frames on the GPU before the filter — the implicit path throws EINVAL.
-    ``hwdownload`` can only emit the Vulkan frame's own sw_format (nv12, what we
-    uploaded), so we download as nv12 and let the encoder's ``-pix_fmt yuv420p``
-    convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid, so
-    the yuv420p normalisation is a separate filter link after the download."""
+    `format=nv12,hwupload` is explicit: it normalises 10-bit sources to 8-bit and
+    uploads before the filter (the implicit path throws EINVAL). hwdownload can only
+    emit the uploaded sw_format (nv12), so yuv420p conversion is a separate link."""
     scaler = f"custom_shader_path={shader}" if shader else "upscaler=ewa_lanczossharp"
     color = _libplacebo_color_opts(src)
     vfilter = (f"format=nv12,hwupload,"
@@ -447,11 +394,8 @@ def _cleanup(path: str):
 
 
 def cleanup_temp_files(directories):
-    """Remove leftover ``.upscale_*`` temp files from interrupted encodes.
-
-    An encode killed mid-write (container stopped) leaves its temp output next to
-    the source; the swap never happened so the original is intact, but the temp
-    is dead weight. Called at startup for the dirs of jobs being re-queued."""
+    """Remove leftover `.upscale_*` temps from interrupted encodes. Called at
+    startup for the dirs of re-queued jobs (the original is always intact)."""
     for directory in {d for d in directories if d}:
         try:
             names = os.listdir(directory)
