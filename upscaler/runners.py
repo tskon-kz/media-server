@@ -135,11 +135,8 @@ def _ffprobe_value(src: str, *args: str) -> float:
 
 
 def _probe_duration(src: str) -> float:
-    """Media duration in seconds for the progress-bar denominator.
-
-    Many MKVs carry no container-level `format=duration` (only per-stream), so a
-    single probe would return 0 and leave the progress bar stuck at zero the whole
-    render. Fall back to the first video stream's own duration."""
+    """Media duration (s) for the progress-bar denominator. Many MKVs lack
+    container-level `format=duration`, so fall back to the video stream's own."""
     for args in (
         ("-show_entries", "format=duration"),
         ("-select_streams", "v:0", "-show_entries", "stream=duration"),
@@ -184,14 +181,38 @@ def _has_video(src: str) -> bool:
         return False
 
 
-def _validate_output(tmp_out: str, src_duration: float):
-    """Sanity-check the freshly encoded file *before* it overwrites the original.
+def _source_color_args(src: str) -> list[str]:
+    """Re-attach the source's colour tags (hwdownload drops them). Only known
+    values are emitted; hardcoding BT.709 would tint SD/DVD (BT.601) sources cool."""
+    fields = ("color_space", "color_transfer", "color_primaries", "color_range")
+    flags = {"color_space": "-colorspace", "color_transfer": "-color_trc",
+             "color_primaries": "-color_primaries", "color_range": "-color_range"}
+    try:
+        out = subprocess.run(
+            [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=" + ",".join(fields),
+             "-of", "default=noprint_wrappers=1", src],
+            capture_output=True, text=True, timeout=60,
+        ).stdout
+    except Exception:
+        return []
+    parsed = {}
+    for line in out.splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            parsed[k.strip()] = v.strip()
+    args: list[str] = []
+    for f in fields:
+        val = parsed.get(f, "")
+        if val and val.lower() not in ("unknown", "unspecified", "n/a"):
+            args += [flags[f], val]
+    return args
 
-    The swap is destructive (``os.replace``), so a broken-but-exit-0 encode would
-    otherwise lose the source for good. Confirm a decodable video stream with sane
-    dimensions and a duration close to the source. Raises ``UpscaleError`` (with
-    the ffprobe output) on any failure so the job is marked errored and the
-    original is left untouched."""
+
+def _validate_output(tmp_out: str, src_duration: float):
+    """Sanity-check the encode before the destructive swap so a broken-but-exit-0
+    output can't lose the source. Needs a valid video stream and a duration close
+    to the source; raises ``UpscaleError`` otherwise (job errors, original kept)."""
     try:
         out = subprocess.run(
             [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
@@ -251,12 +272,9 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     os.close(fd)
     cmd = [
         FFMPEG_BIN, "-y", *pre_input, "-i", src,
-        # Map only the primary video stream plus all audio/subs/attachments —
-        # NOT `-map 0`. A blanket map pulls in embedded cover-art/ad images that
-        # are stored as extra "video" streams; `-c:v` then re-encodes them into
-        # bogus h264 tracks (pix_fmt unknown, level -99, 30000 fps) that make
-        # Jellyfin refuse to play the file. The `?` makes each optional so a file
-        # with e.g. no subtitles doesn't error out. Only the video is filtered.
+        # Primary video + all audio/subs/attachments, NOT `-map 0`: a blanket map
+        # pulls in embedded cover-art/ad images as extra video streams that `-c:v`
+        # re-encodes into bogus tracks Jellyfin can't play. `?` = optional.
         "-map", "0:v:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?",
         "-vf", vfilter,
         *codec,
@@ -316,12 +334,7 @@ def _run_anime4k(src: str, scale: int, progress_cb):
                f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
                f"custom_shader_path={ANIME4K_SHADER},"
                f"hwdownload,format=nv12,format=yuv420p")
-    # Tag the output BT.709 explicitly — the libplacebo/hwdownload path drops the
-    # source colour metadata, leaving it "unknown" and some clients guessing.
-    codec = CPU_CODEC + [
-        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-        "-profile:v", "high",
-    ]
+    codec = CPU_CODEC + _source_color_args(src) + ["-profile:v", "high"]
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
                 vfilter, codec, progress_cb)
 
