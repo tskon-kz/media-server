@@ -53,15 +53,16 @@ BOT_IMAGE      = f"ghcr.io/{REPO_OWNER}/media-server-bot"
 BOT_CONTAINER  = "media-server-telegram-bot"
 CLOUDFLARED_CONTAINER = "media-server-cloudflared"
 
-# Available upscalers offered to the user. `needs_gpu` ones require a Vulkan
-# device (`/dev/dri`) in the upscaler container; without it the worker fails the
-# job with a clear error. `cas` is the CPU-safe path (lanczos + FidelityFX CAS
-# sharpen); `anime4k` runs the Anime4K neural shaders as a single GPU pass via
-# ffmpeg's libplacebo filter — real-time even on an iGPU. The `id` is the
-# contract with upscaler/runners.py.
+# Available upscalers offered to the user. All run a single GPU pass through
+# ffmpeg's libplacebo filter (Vulkan), so they need a `/dev/dri` device in the
+# upscaler container; without it the worker fails the job with a clear error.
+# `anime4k` runs the Anime4K neural shaders — best for anime line art, wrong for
+# live-action (over-sharpens grain/texture). `fsr` is libplacebo's high-quality
+# anti-ring scaler (FSR-class), the clean choice for films/series. The `id` is
+# the contract with upscaler/runners.py.
 UPSCALERS = [
-    {"id": "cas",     "label": "Sharpen (CPU, fast)", "needs_gpu": False},
-    {"id": "anime4k", "label": "Anime4K (GPU AI)",    "needs_gpu": True},
+    {"id": "anime4k", "label": "Anime4K (GPU AI, anime)", "needs_gpu": True},
+    {"id": "fsr",     "label": "FSR (GPU, movies)",       "needs_gpu": True},
 ]
 UPSCALER_IDS = frozenset(u["id"] for u in UPSCALERS)
 

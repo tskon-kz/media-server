@@ -74,10 +74,11 @@ services:
 
   upscaler:
     # Video upscaler worker: polls the shared SQLite queue and rewrites files in
-    # place with a single ffmpeg pass. The `cas` backend (lanczos + sharpen) works
-    # on CPU; the `anime4k` backend runs the Anime4K neural shaders via libplacebo
-    # and needs a Vulkan device. /dev/dri covers AMD/Intel iGPUs; NVIDIA users add
-    # a runtime override in docker-compose.override.yml. Built locally, not pulled.
+    # place with a single ffmpeg pass. Both backends run on the GPU via libplacebo
+    # (Vulkan) and need a /dev/dri device: `anime4k` runs the Anime4K neural
+    # shaders (anime), `fsr` a high-quality anti-ring scaler (films). /dev/dri
+    # covers AMD/Intel iGPUs; NVIDIA users add a runtime override in
+    # docker-compose.override.yml. Built locally, not pulled.
     build:
       context: .
       dockerfile: upscaler/Dockerfile
@@ -87,8 +88,7 @@ services:
       - ./bot-data:/app/data                 # shared SQLite job queue
       - ${MEDIA_PATH:-./media}:/media        # same media paths as the other services
     devices:
-      # Vulkan (AMD/Intel iGPU). CPU-only hosts (no /dev/dri) must comment this
-      # out — only the `cas` backend works there; `anime4k` needs a GPU.
+      # Vulkan (AMD/Intel iGPU) — required: both backends are GPU-only now.
       - /dev/dri:/dev/dri
     depends_on:
       - telegram-bot

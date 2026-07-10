@@ -2,21 +2,20 @@
 and atomically replaces the original in place, so the library relink the bot runs
 afterwards points at the upscaled data with no extra disk cost.
 
-Both backends are a single ffmpeg pass (so both report real progress and stay in
-the same speed class as a plain resize — no explode-to-PNG frame churn):
+Both backends are a single GPU (Vulkan/libplacebo) ffmpeg pass — real-time even
+on a weak iGPU, reporting real progress. The upscaled frames come back to system
+memory (``hwdownload``) and are H.264-encoded on the CPU (libx264); the
+Vulkan→VAAPI encode handoff is left as a future optimisation. Both need a
+``/dev/dri`` device.
 
-- ``cas``     — lanczos upscale + AMD FidelityFX Contrast Adaptive Sharpening
-  (``cas`` filter). CPU-only scaling, works everywhere; H.264 encode moves to the
-  iGPU (VAAPI) when available, else CPU libx264. Not neural, but visibly sharper
-  than a plain resize.
-- ``anime4k`` — the Anime4K neural shaders run as a GPU pass through ffmpeg's
-  ``libplacebo`` filter (Vulkan; needs ``/dev/dri``). Real-time even on a weak
-  iGPU — a completely different weight class from a per-frame CNN. The upscaled
-  frames come back to system memory (``hwdownload``) and are H.264-encoded on the
-  CPU; the Vulkan→VAAPI encode handoff is left as a future optimisation.
+- ``anime4k`` — the Anime4K neural GLSL shaders (``custom_shader_path``). Best for
+  anime line art; wrong for live-action, where it over-sharpens grain/texture.
+- ``fsr``     — libplacebo's high-quality anti-ring polar scaler
+  (``ewa_lanczossharp``), an FSR-class clean upscale for films/series. Not neural,
+  but artifact-free on real footage where Anime4K misbehaves.
 
 Requires a libplacebo-enabled ffmpeg (jellyfin-ffmpeg); ``FFMPEG_BIN`` points at
-it. Stock Debian ffmpeg has no libplacebo, so the ``anime4k`` backend would fail.
+it. Stock Debian ffmpeg has no libplacebo, so both backends would fail.
 """
 import collections
 import logging
@@ -48,17 +47,14 @@ ANIME4K_SHADER    = os.environ.get("ANIME4K_SHADER", "/opt/anime4k/anime4k.glsl"
 TEMP_PREFIX = ".upscale_"
 
 # Compression presets — the `id` is the contract with the bot's config.py /
-# COMPRESSION_LEVELS. `crf` drives the CPU libx264 paths (anime4k + cas-on-CPU);
-# `qp` drives the VAAPI encode (cas on an iGPU). Higher = smaller file. On a 2x
-# upscale the added detail is synthetic, so it compresses well with little visible
-# loss — hence `aggressive` leans notably harder. More levels/knobs land here.
-# Both presets are kept in a visually-transparent CRF/QP range so the
-# "compression level" choice only trades file size, never picture quality — on a
-# 2x upscale the added detail is synthetic and compresses well, so even the
-# smaller-file preset stays clean. Lower = higher quality / bigger file.
+# COMPRESSION_LEVELS. `crf` drives the libx264 encode (both GPU backends bring
+# frames back to the CPU to encode). Both presets sit in a visually-transparent
+# CRF range so the "compression level" choice only trades file size, never
+# picture quality — the upscaled detail compresses well, so even the smaller-file
+# preset stays clean. Lower = higher quality / bigger file.
 COMPRESSION = {
-    "balanced":   {"crf": "18", "qp": "20"},
-    "aggressive": {"crf": "20", "qp": "22"},
+    "balanced":   {"crf": "18"},
+    "aggressive": {"crf": "20"},
 }
 DEFAULT_COMPRESSION = "balanced"
 
@@ -71,26 +67,6 @@ def _quality(compression: str | None) -> dict:
 def _cpu_codec(crf: str) -> list[str]:
     return ["-c:v", "libx264", "-crf", crf, "-preset", "fast", "-pix_fmt", "yuv420p"]
 
-# VAAPI hardware H.264 encode. `auto` = use it when the device probes OK; `off`
-# forces the CPU libx264 path (e.g. for a broken driver). Same /dev/dri already
-# mounted for the AI backend.
-VAAPI_DEVICE      = os.environ.get("VAAPI_DEVICE", "/dev/dri/renderD128")
-HWENC             = os.environ.get("UPSCALE_HWENC", "auto").lower()
-
-# `cas` (Sharpen, CPU) filter chain, tuned for soft DVD-anime sources:
-#   hqdn3d — a light denoise/deblock run *before* the upscale so the sharpen
-#     enhances real detail, not DVD blocking/mosquito noise. Values are low
-#     enough not to smear line art.
-#   scale — accurate_rnd + full_chroma_int give cleaner chroma/gradient handling
-#     than bare lanczos, which matters on anime's flat colour fields.
-#   cas — AMD FidelityFX Contrast Adaptive Sharpening. Contrast-adaptive, so it
-#     sharpens line art without the halos a plain unsharp mask leaves. 0.4 was
-#     barely visible on a DVD source; 0.8 is clearly visible without ringing.
-CAS_DENOISE       = "hqdn3d=1.5:1.5:6:6"
-CAS_SCALE_FLAGS   = "lanczos+accurate_rnd+full_chroma_int"
-CAS_STRENGTH      = "0.8"
-
-
 class UpscaleError(Exception):
     pass
 
@@ -99,7 +75,6 @@ class UpscaleError(Exception):
 # long-running poll loop, so probe once and memoise instead of shelling out per
 # job. None = not yet probed.
 _vulkan_cached: bool | None = None
-_vaapi_cached: bool | None = None
 
 
 def has_vulkan() -> bool:
@@ -118,45 +93,6 @@ def _probe_vulkan() -> bool:
         return True
     except Exception:
         return False
-
-
-def has_vaapi() -> bool:
-    global _vaapi_cached
-    if _vaapi_cached is None:
-        _vaapi_cached = _probe_vaapi()
-        log.info("VAAPI hardware encode available: %s (device=%s)", _vaapi_cached, VAAPI_DEVICE)
-    return _vaapi_cached
-
-
-def _probe_vaapi() -> bool:
-    if HWENC == "off" or not os.path.exists(VAAPI_DEVICE):
-        return False
-    try:
-        out = subprocess.run(
-            ["vainfo", "--display", "drm", "--device", VAAPI_DEVICE],
-            capture_output=True, text=True, timeout=30,
-        )
-        # Need an actual H.264 *encode* entrypoint, not just decode.
-        return out.returncode == 0 and "VAEntrypointEncSlice" in out.stdout
-    except Exception:
-        return False
-
-
-def _video_encode(scale_filter: str | None, quality: dict) -> tuple[list, str, list]:
-    """Encoder command fragments for the CPU (``cas``) backend.
-
-    Returns ``(pre_input_args, video_filter, codec_args)``. ``scale_filter`` is the
-    caller's scaling stage (or None) that the hwupload tail is appended to.
-    VAAPI when available (H.264 encode on the iGPU), else CPU libx264. ``quality``
-    supplies the compression level (`qp` for VAAPI, `crf` for libx264).
-    """
-    parts = [p for p in (scale_filter,) if p]
-    if has_vaapi():
-        parts.append("format=nv12,hwupload")
-        return (["-vaapi_device", VAAPI_DEVICE],
-                ",".join(parts),
-                ["-c:v", "h264_vaapi", "-qp", quality["qp"]])
-    return ([], ",".join(parts), _cpu_codec(quality["crf"]))
 
 
 def _ffprobe_value(src: str, *args: str) -> float:
@@ -361,23 +297,16 @@ def run(job: dict, progress_cb):
     ow, oh = dims
 
     quality = _quality(job.get("compression"))
-    log.info("target=%s dims=%sx%s compression=%s (crf=%s qp=%s)", target, ow, oh,
-             job.get("compression") or DEFAULT_COMPRESSION, quality["crf"], quality["qp"])
-    if upscaler == "cas":
-        # denoise/deblock -> upscale -> contrast-adaptive sharpen. The denoise
-        # stage is optional (CAS_DENOISE empty) and, when VAAPI encodes, precedes
-        # the hwupload tail _video_encode appends.
-        stages = [s for s in (
-            CAS_DENOISE,
-            f"scale={ow}:{oh}:flags={CAS_SCALE_FLAGS}",
-            f"cas=strength={CAS_STRENGTH}",
-        ) if s]
-        pre_input, vfilter, codec = _video_encode(",".join(stages), quality)
-        _run_single(src, pre_input, vfilter, codec, progress_cb)
-    elif upscaler == "anime4k":
+    log.info("target=%s dims=%sx%s compression=%s (crf=%s) upscaler=%s", target, ow, oh,
+             job.get("compression") or DEFAULT_COMPRESSION, quality["crf"], upscaler)
+    if upscaler == "anime4k":
         if not has_vulkan():
             raise UpscaleError("no Vulkan GPU (/dev/dri) — the AI upscaler is unavailable")
-        _run_anime4k(src, ow, oh, quality, progress_cb)
+        _run_libplacebo(src, ow, oh, quality, progress_cb, shader=ANIME4K_SHADER)
+    elif upscaler == "fsr":
+        if not has_vulkan():
+            raise UpscaleError("no Vulkan GPU (/dev/dri) — the GPU upscaler is unavailable")
+        _run_libplacebo(src, ow, oh, quality, progress_cb, shader=None)
     else:
         raise UpscaleError(f"unknown upscaler: {upscaler}")
 
@@ -451,23 +380,29 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
             _cleanup(tmp_out)
 
 
-def _run_anime4k(src: str, ow: str, oh: str, quality: dict, progress_cb):
-    """Upscale with the Anime4K neural shaders as a single libplacebo (Vulkan) pass,
-    then bring the frames back to system memory (``hwdownload``) and H.264-encode on
-    the CPU. The libplacebo shader work is the expensive part and runs on the GPU;
-    the Vulkan→VAAPI encode handoff (two hw devices in one graph) is left as a
-    future optimisation, so encode stays on libx264 here regardless of VAAPI.
+def _run_libplacebo(src: str, ow: str, oh: str, quality: dict, progress_cb, shader: str | None):
+    """GPU upscale as a single libplacebo (Vulkan) pass, then bring the frames back
+    to system memory (``hwdownload``) and H.264-encode on the CPU. The libplacebo
+    work is the expensive part and runs on the GPU; the Vulkan→VAAPI encode handoff
+    (two hw devices in one graph) is left as a future optimisation, so encode stays
+    on libx264 here.
+
+    Two modes share this path:
+      * ``shader`` set  — the Anime4K neural GLSL shaders (``custom_shader_path``).
+        Best for anime line art; wrong for live-action (over-sharpens grain).
+      * ``shader`` None — libplacebo's high-quality anti-ring polar scaler
+        (``ewa_lanczossharp``), an FSR-class clean upscale suited to films/series.
 
     ``format=nv12,hwupload`` is explicit (not relying on libplacebo's auto-upload):
-    it normalises 10-bit anime sources to an 8-bit format Vulkan accepts and puts
-    the frames on the GPU before the shader — the implicit path throws EINVAL.
+    it normalises 10-bit sources to an 8-bit format Vulkan accepts and puts the
+    frames on the GPU before the filter — the implicit path throws EINVAL.
     ``hwdownload`` can only emit the Vulkan frame's own sw_format (nv12, what we
     uploaded), so we download as nv12 and let the encoder's ``-pix_fmt yuv420p``
     convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid, so
     the yuv420p normalisation is a separate filter link after the download."""
+    scaler = f"custom_shader_path={shader}" if shader else "upscaler=ewa_lanczossharp"
     vfilter = (f"format=nv12,hwupload,"
-               f"libplacebo=w={ow}:h={oh}:"
-               f"custom_shader_path={ANIME4K_SHADER},"
+               f"libplacebo=w={ow}:h={oh}:{scaler},"
                f"hwdownload,format=nv12,format=yuv420p")
     codec = _cpu_codec(quality["crf"]) + _source_color_args(src) + ["-profile:v", "high"]
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
