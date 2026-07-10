@@ -12,6 +12,7 @@ import asyncio
 import os
 import re
 import shutil
+import threading
 import time
 
 from aiohttp import web
@@ -761,6 +762,23 @@ async def torrent_backup_restore(request):
     return web.json_response({"restored": True})
 
 
+def _rm_in_background(path: str):
+    """Make a (possibly multi-GB) tree vanish immediately, then reap the bytes off
+    the request path. Renaming to a sibling is atomic and instant, so the caller
+    can return before the slow rmtree runs — otherwise a large backup delete blows
+    past the Cloudflare tunnel timeout (524)."""
+    if not os.path.exists(path):
+        return
+    trash = f"{path}.trash-{os.getpid()}-{time.time_ns()}"
+    try:
+        os.rename(path, trash)
+    except OSError:
+        trash = path  # different fs / rename failed: fall back to deleting in place
+    threading.Thread(
+        target=lambda: shutil.rmtree(trash, ignore_errors=True), daemon=True
+    ).start()
+
+
 @routes.post("/api/torrents/backup/delete")
 async def torrent_backup_delete(request):
     body = await _json(request)
@@ -768,7 +786,7 @@ async def torrent_backup_delete(request):
     dst = _backup_path(disk_id)
     if not dst:
         return _err("invalid disk_id")
-    await _thread(lambda: shutil.rmtree(dst, ignore_errors=True))
+    _rm_in_background(dst)
     return web.json_response({"deleted": True})
 
 
