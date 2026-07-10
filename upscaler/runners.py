@@ -184,6 +184,34 @@ def _has_video(src: str) -> bool:
         return False
 
 
+def _validate_output(tmp_out: str, src_duration: float):
+    """Sanity-check the freshly encoded file *before* it overwrites the original.
+
+    The swap is destructive (``os.replace``), so a broken-but-exit-0 encode would
+    otherwise lose the source for good. Confirm a decodable video stream with sane
+    dimensions and a duration close to the source. Raises ``UpscaleError`` (with
+    the ffprobe output) on any failure so the job is marked errored and the
+    original is left untouched."""
+    try:
+        out = subprocess.run(
+            [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height",
+             "-of", "default=noprint_wrappers=1:nokey=1", tmp_out],
+            capture_output=True, text=True, timeout=60,
+        )
+    except Exception as e:
+        raise UpscaleError(f"output validation failed to run ffprobe: {e}")
+    dims = [v for v in out.stdout.strip().splitlines() if v.strip()]
+    if out.returncode != 0 or len(dims) < 2 or not all(d.isdigit() and int(d) > 0 for d in dims[:2]):
+        raise UpscaleError(
+            f"upscaled output has no valid video stream (ffprobe: {out.stderr.strip() or out.stdout.strip()})")
+    out_duration = _probe_duration(tmp_out)
+    # Allow a small tolerance; a wildly-off duration means a truncated/corrupt file.
+    if src_duration > 0 and out_duration > 0 and abs(out_duration - src_duration) > max(2.0, src_duration * 0.02):
+        raise UpscaleError(
+            f"upscaled output duration {out_duration:.1f}s differs from source {src_duration:.1f}s")
+
+
 def run(job: dict, progress_cb):
     upscaler = job["upscaler"]
     src = job["src_path"]
@@ -223,14 +251,19 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     os.close(fd)
     cmd = [
         FFMPEG_BIN, "-y", *pre_input, "-i", src,
-        # Keep every stream — the result replaces the original in place, so a
-        # dropped track is lost for good. Only the video stream is filtered.
-        "-map", "0",
+        # Map only the primary video stream plus all audio/subs/attachments —
+        # NOT `-map 0`. A blanket map pulls in embedded cover-art/ad images that
+        # are stored as extra "video" streams; `-c:v` then re-encodes them into
+        # bogus h264 tracks (pix_fmt unknown, level -99, 30000 fps) that make
+        # Jellyfin refuse to play the file. The `?` makes each optional so a file
+        # with e.g. no subtitles doesn't error out. Only the video is filtered.
+        "-map", "0:v:0", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?",
         "-vf", vfilter,
         *codec,
         "-c:a", "copy", "-c:s", "copy", "-c:t", "copy",
         "-progress", "pipe:1", "-nostats", tmp_out,
     ]
+    log.info("ffmpeg cmd: %s", " ".join(cmd))
     # Progress is read live off stdout; stderr goes to a temp file so a failing
     # ffmpeg's actual error (filtergraph/option, e.g. a bad libplacebo config) is
     # surfaced instead of a bare exit code. Reading it from a file avoids the
@@ -252,6 +285,9 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
             errf.seek(0)
             tail = errf.read().decode("utf-8", "replace").strip()[-1500:]
             raise UpscaleError(f"ffmpeg exited {code}: {tail}")
+        # Validate before the destructive swap — never overwrite a good source
+        # with a broken encode.
+        _validate_output(tmp_out, duration)
         _replace(src, tmp_out)
         success = True
     finally:
@@ -274,13 +310,20 @@ def _run_anime4k(src: str, scale: int, progress_cb):
     the frames on the GPU before the shader — the implicit path throws EINVAL.
     ``hwdownload`` can only emit the Vulkan frame's own sw_format (nv12, what we
     uploaded), so we download as nv12 and let the encoder's ``-pix_fmt yuv420p``
-    convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid."""
+    convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid, so
+    the yuv420p normalisation is a separate filter link after the download."""
     vfilter = (f"format=nv12,hwupload,"
                f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
                f"custom_shader_path={ANIME4K_SHADER},"
-               f"hwdownload,format=nv12")
+               f"hwdownload,format=nv12,format=yuv420p")
+    # Tag the output BT.709 explicitly — the libplacebo/hwdownload path drops the
+    # source colour metadata, leaving it "unknown" and some clients guessing.
+    codec = CPU_CODEC + [
+        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+        "-profile:v", "high",
+    ]
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
-                vfilter, CPU_CODEC, progress_cb)
+                vfilter, codec, progress_cb)
 
 
 def _cleanup(path: str):
