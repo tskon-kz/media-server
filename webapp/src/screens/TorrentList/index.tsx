@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
-import {Box, Button, Divider, Drawer, Loader, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
-import {Clapperboard, Folder, FolderInput, HardDrive, MoreHorizontal, RefreshCw, Save, Trash2, Wand2} from "lucide-react"
+import {Box, Button, Divider, Drawer, Loader, NumberInput, Progress, SegmentedControl, Stack, Title} from "@mantine/core"
+import {Clapperboard, Folder, FolderInput, HardDrive, MoreHorizontal, Pause, Play, RefreshCw, Save, Trash2, Wand2, XCircle} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
@@ -9,7 +9,7 @@ import {toast} from "@/components/Toast"
 import {CategoryPicker} from "@/components/CategoryPicker"
 import {TorrentIcon} from "@/icons"
 import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
-import type {Category, CompressionLevel, Torrent, Upscaler} from "@/types"
+import type {Category, CompressionLevel, Torrent, Upscaler, UpscaleInfo} from "@/types"
 import s from "./TorrentList.module.scss"
 
 export function TorrentList() {
@@ -22,6 +22,11 @@ export function TorrentList() {
   const [upscalers, setUpscalers] = useState<Upscaler[]>([])
   const [compressionLevels, setCompressionLevels] = useState<CompressionLevel[]>([])
   const [compression, setCompression] = useState("balanced")
+  const [upscaleTarget, setUpscaleTarget] = useState("2x")
+  const [paused, setPaused] = useState(false)
+  const [upInfo, setUpInfo] = useState<UpscaleInfo | null>(null)
+  const [upFrom, setUpFrom] = useState(1)
+  const [upTo, setUpTo] = useState(1)
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [confirmDelLinks, setConfirmDelLinks] = useState<Torrent | null>(null)
   const [confirmDelBackup, setConfirmDelBackup] = useState<Torrent | null>(null)
@@ -43,6 +48,8 @@ export function TorrentList() {
     api.config().then((c) => {
       setUpscalers(c.upscalers ?? [])
       setCompressionLevels(c.compression_levels ?? [])
+      setUpscaleTarget(c.upscale_target ?? "2x")
+      setPaused(!!c.upscale_paused)
     }).catch(() => {})
   }, [])
 
@@ -120,12 +127,53 @@ export function TorrentList() {
     }
   }
 
+  const openUpscale = async (tor: Torrent) => {
+    setUpscaleFor(tor)
+    setMenuFor(null)
+    setUpInfo(null)
+    try {
+      const info = await api.upscaleInfo(tor.disk_id)
+      setUpInfo(info)
+      // Default the range to the first not-yet-upscaled file .. the end.
+      const firstUndone = info.files.findIndex((f) => !f.upscaled)
+      setUpFrom(firstUndone >= 0 ? firstUndone + 1 : 1)
+      setUpTo(info.total || 1)
+    } catch (e) {
+      setUpscaleFor(null)
+      toast((e as Error).message, "err")
+    }
+  }
+
   const doUpscale = async (tor: Torrent, upscalerId: string) => {
     setUpscaleFor(null)
     setMenuFor(null)
     try {
-      const r = await api.upscale(tor.disk_id, upscalerId, compression)
+      const r = await api.upscale(tor.disk_id, upscalerId, compression, upscaleTarget, upFrom, upTo)
       toast(t("torrents.upscaleQueued", {n: r.queued}))
+      load()
+    } catch (e) {
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doTogglePause = async () => {
+    const next = !paused
+    setPaused(next)
+    setMenuFor(null)
+    try {
+      await api.setUpscalePaused(next)
+      toast(next ? t("torrents.upscalePaused") : t("torrents.upscaleResumed"))
+    } catch (e) {
+      setPaused(!next)
+      toast((e as Error).message, "err")
+    }
+  }
+
+  const doCancelQueue = async (tor: Torrent) => {
+    setMenuFor(null)
+    try {
+      await api.cancelUpscale(tor.disk_id)
+      toast(t("torrents.upscaleCancelled"))
       load()
     } catch (e) {
       toast((e as Error).message, "err")
@@ -214,7 +262,7 @@ export function TorrentList() {
                     </button>
                   </div>
                 }
-                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {pct: pct(tor.upscale_progress)}) : ""}`}
+                subtitle={`${tor.progress < 1 ? pct(tor.progress) + " · " : ""}${tor.size != null ? bytes(tor.size) : t("torrents.sizeUnknown")}${tor.dlspeed > 0 ? " · ↓ " + speed(tor.dlspeed) : ""}${tor.upscaling ? " · ✨ " + t("torrents.upscaling", {done: tor.upscale_done, total: tor.upscale_total, pct: pct(tor.upscale_progress)}) : ""}`}
                 description={
                   tor.progress < 1
                     ? <Progress value={tor.progress * 100} size="xs" mt={6}/>
@@ -328,9 +376,22 @@ export function TorrentList() {
               <Divider my={4}/>
               <Button fullWidth variant="default" leftSection={<Wand2 size={18}/>}
                       disabled={upscalers.length === 0 || !!menuFor?.upscaling}
-                      onClick={() => { setUpscaleFor(menuFor); setMenuFor(null) }}>
+                      onClick={() => menuFor && openUpscale(menuFor)}>
                 {t("torrents.upscale")}
               </Button>
+              {menuFor?.upscaling && (
+                <>
+                  <Button fullWidth variant="default"
+                          leftSection={paused ? <Play size={18}/> : <Pause size={18}/>}
+                          onClick={doTogglePause}>
+                    {paused ? t("torrents.upscaleResume") : t("torrents.upscalePause")}
+                  </Button>
+                  <Button fullWidth variant="outline" color="red" leftSection={<XCircle size={18}/>}
+                          onClick={() => menuFor && doCancelQueue(menuFor)}>
+                    {t("torrents.upscaleRemoveQueue")}
+                  </Button>
+                </>
+              )}
             </>
           )}
           {menuFor?.has_backup ? (
@@ -413,7 +474,29 @@ export function TorrentList() {
         overlayProps={{blur: 2}}
         styles={{title: {width: "100%", textAlign: "center"}}}
       >
+        {!upInfo ? (
+          <Box style={{textAlign: "center", padding: "24px 0"}}>
+            <Loader size="sm"/>
+          </Box>
+        ) : (
         <Stack gap={8} pb={16} px={4}>
+          <>
+            <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
+              {t("torrents.upscaleRange")}
+              {upInfo.files.some((f) => f.upscaled)
+                ? " · " + t("torrents.upscaleAlreadyDone", {n: upInfo.files.filter((f) => f.upscaled).length})
+                : ""}
+            </Box>
+            <Box style={{display: "flex", gap: 8}}>
+              <NumberInput style={{flex: 1}} label={t("torrents.upscaleFrom")} min={1}
+                           max={upInfo.total} value={upFrom}
+                           onChange={(v) => setUpFrom(Number(v) || 1)}/>
+              <NumberInput style={{flex: 1}} label={t("torrents.upscaleTo")} min={1}
+                           max={upInfo.total} value={upTo}
+                           onChange={(v) => setUpTo(Number(v) || 1)}/>
+            </Box>
+            <Divider my={4}/>
+          </>
           {compressionLevels.length > 0 && (
             <>
               <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 13}}>
@@ -438,6 +521,7 @@ export function TorrentList() {
             </Button>
           ))}
         </Stack>
+        )}
       </Drawer>
     </Box>
   )

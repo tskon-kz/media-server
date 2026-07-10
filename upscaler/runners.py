@@ -43,6 +43,10 @@ FFPROBE_BIN       = os.environ.get("FFPROBE_BIN", "ffprobe")
 # image; passed to the libplacebo filter's custom_shader_path.
 ANIME4K_SHADER    = os.environ.get("ANIME4K_SHADER", "/opt/anime4k/anime4k.glsl")
 
+# Prefix for the in-place-encode temp file (written next to the source). Shared so
+# startup recovery can find and delete temps left by an interrupted encode.
+TEMP_PREFIX = ".upscale_"
+
 # Compression presets — the `id` is the contract with the bot's config.py /
 # COMPRESSION_LEVELS. `crf` drives the CPU libx264 paths (anime4k + cas-on-CPU);
 # `qp` drives the VAAPI encode (cas on an iGPU). Higher = smaller file. On a 2x
@@ -183,6 +187,45 @@ def _probe_total_frames(src: str) -> int:
     return int(n) if n > 0 else 0
 
 
+_TARGET_HEIGHTS = {"1080": 1080, "2k": 1440, "4k": 2160}
+
+
+def _probe_dims(src: str) -> tuple[int, int]:
+    """Source (width, height) in pixels, or (0, 0) if unknown."""
+    try:
+        out = subprocess.run(
+            [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height",
+             "-of", "default=noprint_wrappers=1:nokey=1", src],
+            capture_output=True, text=True, timeout=60,
+        ).stdout.split()
+        if len(out) >= 2 and out[0].isdigit() and out[1].isdigit():
+            return int(out[0]), int(out[1])
+    except Exception:
+        pass
+    return 0, 0
+
+
+def _scale_dims(src: str, target: str) -> tuple[str, str] | None:
+    """Output (width, height) as ffmpeg scale expressions for the chosen target.
+
+    - ``2x`` (or an unknown target / unreadable source): double each dimension.
+    - a resolution target (1080/2K/4K): scale to that height keeping aspect,
+      rounded to an even width. Returns ``None`` when the source already meets or
+      exceeds the target height — nothing to upscale, so the file is skipped."""
+    th = _TARGET_HEIGHTS.get(target or "")
+    if not th:
+        return "iw*2", "ih*2"
+    w, h = _probe_dims(src)
+    if h <= 0 or w <= 0:
+        return "iw*2", "ih*2"
+    if h >= th:
+        return None
+    ow = round(w * th / h)
+    ow -= ow % 2  # H.264 needs even dimensions
+    return str(ow), str(th)
+
+
 # ffmpeg's stderr status line: `frame=  123 fps=.. q=.. size=.. time=00:00:04.56 ..`.
 # We read progress from stderr (not `-progress pipe:1`): stderr is unbuffered and
 # flushed on every `\r` update, whereas pipe:1's 32KB AVIO buffer leaves the bar
@@ -280,7 +323,7 @@ def _validate_output(tmp_out: str, src_duration: float):
 def run(job: dict, progress_cb):
     upscaler = job["upscaler"]
     src = job["src_path"]
-    scale = int(job["scale"] or 2)
+    target = job.get("target") or "2x"
     if not os.path.isfile(src):
         raise UpscaleError(f"source missing: {src}")
     if os.path.splitext(src)[1].lower() not in VIDEO_EXTENSIONS:
@@ -291,17 +334,26 @@ def run(job: dict, progress_cb):
     if not _has_video(src):
         raise UpscaleError(f"no decodable video stream in {os.path.basename(src)}")
 
+    dims = _scale_dims(src, target)
+    if dims is None:
+        # Source already at/above the target resolution — nothing to do. Report a
+        # full bar so the batch counter advances and the file is marked upscaled.
+        log.info("skipping %s: already >= target %s", os.path.basename(src), target)
+        progress_cb(1.0)
+        return
+    ow, oh = dims
+
     quality = _quality(job.get("compression"))
-    log.info("compression=%s (crf=%s qp=%s)", job.get("compression") or DEFAULT_COMPRESSION,
-             quality["crf"], quality["qp"])
+    log.info("target=%s dims=%sx%s compression=%s (crf=%s qp=%s)", target, ow, oh,
+             job.get("compression") or DEFAULT_COMPRESSION, quality["crf"], quality["qp"])
     if upscaler == "cas":
         pre_input, vfilter, codec = _video_encode(
-            f"scale=iw*{scale}:ih*{scale}:flags=lanczos,cas=strength=0.4", quality)
+            f"scale={ow}:{oh}:flags=lanczos,cas=strength=0.4", quality)
         _run_single(src, pre_input, vfilter, codec, progress_cb)
     elif upscaler == "anime4k":
         if not has_vulkan():
             raise UpscaleError("no Vulkan GPU (/dev/dri) — the AI upscaler is unavailable")
-        _run_anime4k(src, scale, quality, progress_cb)
+        _run_anime4k(src, ow, oh, quality, progress_cb)
     else:
         raise UpscaleError(f"unknown upscaler: {upscaler}")
 
@@ -320,7 +372,7 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
     total_frames = _probe_total_frames(src)
     log.info("progress denominator: duration=%.1fs total_frames=%d", duration, total_frames)
     ext = os.path.splitext(src)[1] or ".mkv"
-    fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=".upscale_", dir=os.path.dirname(src))
+    fd, tmp_out = tempfile.mkstemp(suffix=ext, prefix=TEMP_PREFIX, dir=os.path.dirname(src))
     os.close(fd)
     cmd = [
         FFMPEG_BIN, "-y", *pre_input, "-i", src,
@@ -375,7 +427,7 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
             _cleanup(tmp_out)
 
 
-def _run_anime4k(src: str, scale: int, quality: dict, progress_cb):
+def _run_anime4k(src: str, ow: str, oh: str, quality: dict, progress_cb):
     """Upscale with the Anime4K neural shaders as a single libplacebo (Vulkan) pass,
     then bring the frames back to system memory (``hwdownload``) and H.264-encode on
     the CPU. The libplacebo shader work is the expensive part and runs on the GPU;
@@ -390,7 +442,7 @@ def _run_anime4k(src: str, scale: int, quality: dict, progress_cb):
     convert on the CPU — ``hwdownload,format=yuv420p`` is rejected as invalid, so
     the yuv420p normalisation is a separate filter link after the download."""
     vfilter = (f"format=nv12,hwupload,"
-               f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
+               f"libplacebo=w={ow}:h={oh}:"
                f"custom_shader_path={ANIME4K_SHADER},"
                f"hwdownload,format=nv12,format=yuv420p")
     codec = _cpu_codec(quality["crf"]) + _source_color_args(src) + ["-profile:v", "high"]
@@ -403,3 +455,19 @@ def _cleanup(path: str):
         os.remove(path)
     except OSError:
         pass
+
+
+def cleanup_temp_files(directories):
+    """Remove leftover ``.upscale_*`` temp files from interrupted encodes.
+
+    An encode killed mid-write (container stopped) leaves its temp output next to
+    the source; the swap never happened so the original is intact, but the temp
+    is dead weight. Called at startup for the dirs of jobs being re-queued."""
+    for directory in {d for d in directories if d}:
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            continue
+        for name in names:
+            if name.startswith(TEMP_PREFIX):
+                _cleanup(os.path.join(directory, name))

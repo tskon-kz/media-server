@@ -38,13 +38,23 @@ export default {
     delLinksTitle: "Delete hardlinks?",
     delLinksBody: "Library links will be removed. Files on disk are not affected.",
     // Upscale + backup
-    upscale: "Upscale (2x)",
+    upscale: "Upscale",
     upscalePick: "Choose an upscaler",
     compression: "Compression",
     compression_balanced: "Balanced",
     compression_aggressive: "Smaller file",
+    upscaleRange: "Episodes",
+    upscaleFrom: "From",
+    upscaleTo: "To",
+    upscaleAlreadyDone: "{{n}} already upscaled",
     upscaleQueued: "Queued: {{n}} file(s). This can take a while.",
-    upscaling: "upscaling {{pct}}",
+    upscaling: "{{done}}/{{total}} · {{pct}}",
+    upscalePause: "Pause upscaling",
+    upscaleResume: "Resume upscaling",
+    upscalePaused: "Upscaling paused",
+    upscaleResumed: "Upscaling resumed",
+    upscaleRemoveQueue: "Remove from queue",
+    upscaleCancelled: "Removed from queue",
     backup: "Save backup",
     restoreBackup: "Restore from backup",
     delBackup: "Delete backup",
@@ -114,6 +124,7 @@ export default {
 
     // Auto-structure toggle
     autoStructure: "Torrents auto-structure",
+    upscaleTarget: "Upscale target",
     smartSub: "Smart (parse filenames)",
     originalSub: "Original structure",
 

@@ -19,14 +19,15 @@ from aiohttp import web
 from config import (
     ICONS, INCOMING_DIR, BACKUP_DIR, APP_VERSION, current_channel,
     QB_PORT, JF_PORT, JACKETT_PORT, UPSCALERS, UPSCALER_IDS,
-    COMPRESSION_LEVELS, COMPRESSION_IDS,
+    COMPRESSION_LEVELS, COMPRESSION_IDS, UPSCALE_TARGETS, UPSCALE_TARGET_IDS,
 )
 import store
 from store import (
     t, load_cats, save_cats, set_lang, set_config, get_config,
     get_creds, get_qb_status, set_qb_status,
     load_disk_entries, upsert_disk_entry, upsert_disk_entries_batch, delete_disk_entry,
-    add_upscale_job, get_active_upscale_disk_ids, delete_upscale_jobs_by_disk_id,
+    add_upscale_job, get_active_upscale_status, delete_upscale_jobs_by_disk_id,
+    cancel_queued_upscale, get_upscaled_files, clear_upscaled_files,
 )
 from api import (
     jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
@@ -296,6 +297,9 @@ async def config(request):
         "has_categories": bool(load_cats()),
         "upscalers": UPSCALERS,
         "compression_levels": COMPRESSION_LEVELS,
+        "upscale_targets": UPSCALE_TARGETS,
+        "upscale_target": get_config("upscale_target", "2x"),
+        "upscale_paused": get_config("upscale_paused", "0") == "1",
     })
 
 
@@ -354,11 +358,13 @@ async def torrents_list(request):
             d["disk_id"] = f"qb:{tor.hash}"
             result.append(d)
 
-    active_upscales = get_active_upscale_disk_ids()
+    active_upscales = get_active_upscale_status()
     for item in result:
-        progress = active_upscales.get(item["disk_id"])
-        item["upscaling"] = progress is not None
-        item["upscale_progress"] = progress if progress is not None else 0
+        st = active_upscales.get(item["disk_id"])
+        item["upscaling"] = st is not None
+        item["upscale_progress"] = st["cur"] if st else 0
+        item["upscale_done"] = st["done"] if st else 0
+        item["upscale_total"] = st["total"] if st else 0
         item["has_backup"] = _has_backup(item["disk_id"])
 
     return web.json_response({
@@ -569,16 +575,29 @@ def _cat_id_for(tor, cats: list) -> int | None:
     return cat["id"] if cat else None
 
 
-def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
-                  compression: str = "balanced") -> tuple[int, str]:
-    """Snap the torrent out of qB (keeping files), then queue one upscale job per
-    video file. Returns (queued_count, disk_id the jobs are keyed on)."""
-    # get_video_files also returns sidecars (subs/audio) for the linker; only real
-    # video files can be upscaled, so filter them out before queueing jobs.
+def _upscale_files(tor) -> list[str]:
+    """Sorted list of real video files of a torrent (sidecars excluded). The order
+    is the index space the range picker (from/to) and the info endpoint share."""
     files = [f for f in get_video_files(tor.content_path)
              if os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS]
+    return sorted(files)
+
+
+def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
+                  compression: str = "balanced", target: str = "2x",
+                  start: int | None = None, end: int | None = None) -> tuple[int, str]:
+    """Snap the torrent out of qB (keeping files), then queue one upscale job per
+    video file in the chosen 1-based range, skipping files already upscaled.
+    Returns (queued_count, disk_id the jobs are keyed on)."""
+    files = _upscale_files(tor)
+    if start is not None or end is not None:
+        lo = max(1, start or 1) - 1
+        hi = end if end is not None else len(files)
+        files = files[lo:hi]
     disk_id = _qb_disk_id(tor)
     delete_upscale_jobs_by_disk_id(disk_id)  # clear any stale error jobs from previous attempts
+    already = get_upscaled_files(disk_id)
+    files = [f for f in files if f not in already]
     if getattr(tor, "hash", ""):
         # Remove from the client but keep the files: the upscaler rewrites them in
         # place, and a live torrent would recheck/error on the changed data.
@@ -588,8 +607,38 @@ def queue_upscale(tor, cats: list, upscaler: str, user_id: int | None,
             upsert_disk_entry(disk_id, os.path.basename(tor.content_path.rstrip("/")),
                               cat_id, _compute_disk_size(tor.content_path))
     for src in files:
-        add_upscale_job(disk_id, src, upscaler, user_id, compression=compression)
+        add_upscale_job(disk_id, src, upscaler, user_id,
+                        compression=compression, target=target)
     return len(files), disk_id
+
+
+@routes.get("/api/torrents/upscale/info")
+async def torrent_upscale_info(request):
+    disk_id = (request.query.get("disk_id") or "").strip()
+    tor = await _resolve_torrent(disk_id)
+    if not tor:
+        return _err("torrent not found", status=404)
+    files = await _thread(_upscale_files, tor)
+    already = get_upscaled_files(_qb_disk_id(tor) if getattr(tor, "hash", "") else disk_id)
+    items = [{"name": os.path.basename(f), "upscaled": f in already} for f in files]
+    return web.json_response({"total": len(items), "files": items})
+
+
+@routes.post("/api/torrents/upscale/cancel")
+async def torrent_upscale_cancel(request):
+    body = await _json(request)
+    disk_id = (body.get("disk_id") or "").strip()
+    tor = await _resolve_torrent(disk_id)
+    key = _qb_disk_id(tor) if tor and getattr(tor, "hash", "") else disk_id
+    cancel_queued_upscale(key)
+    return web.json_response({"cancelled": True})
+
+
+@routes.post("/api/upscale/pause")
+async def upscale_pause(request):
+    body = await _json(request)
+    set_config("upscale_paused", "1" if body.get("paused") else "0")
+    return web.json_response({"paused": bool(body.get("paused"))})
 
 
 @routes.post("/api/torrents/upscale")
@@ -602,16 +651,22 @@ async def torrent_upscale(request):
     compression = body.get("compression") or "balanced"
     if compression not in COMPRESSION_IDS:
         return _err("unknown compression level")
+    target = body.get("target") or get_config("upscale_target", "2x")
+    if target not in UPSCALE_TARGET_IDS:
+        return _err("unknown upscale target")
+    start = body.get("start")
+    end = body.get("end")
     cats = load_cats()
     tor = await _resolve_torrent(disk_id)
     if not tor:
         return _err("torrent not found", status=404)
     # Refuse a second run while one is in flight: re-queueing would upscale the
     # already-upscaled files again (2x → 4x) since the originals are gone.
-    if _qb_disk_id(tor) in get_active_upscale_disk_ids():
+    if _qb_disk_id(tor) in get_active_upscale_status():
         return _err(t("upscale_in_progress"))
     user_id = request.get("user_id")
-    queued, new_disk_id = await _thread(queue_upscale, tor, cats, upscaler, user_id, compression)
+    queued, new_disk_id = await _thread(
+        queue_upscale, tor, cats, upscaler, user_id, compression, target, start, end)
     if not queued:
         return _err("no video files to upscale")
     return web.json_response({"queued": queued, "disk_id": new_disk_id})
@@ -673,6 +728,10 @@ async def torrent_backup_restore(request):
         elif os.path.lexists(dst):
             os.remove(dst)
         os.rename(tmp, dst)
+        # The restored source is pristine again: drop the "already upscaled" record
+        # and any stale jobs so a fresh full range can be queued.
+        clear_upscaled_files(disk_id)
+        delete_upscale_jobs_by_disk_id(disk_id)
         store.update_disk_entry_size(disk_id, _compute_disk_size(dst))
         delete_torrent_links(tor, cats)
         if get_config("rename_mode", "flat") == "pretty":
@@ -920,6 +979,7 @@ async def settings_get(request):
     user, _pass = get_creds()
     return web.json_response({
         "rename_mode": get_config("rename_mode", "flat"),
+        "upscale_target": get_config("upscale_target", "2x"),
         "lang": get_config("lang", "ru"),
         "qbittorrent": {
             "user": user,
@@ -944,6 +1004,16 @@ async def settings_rename_mode(request):
         return _err("mode must be flat|pretty")
     set_config("rename_mode", mode)
     return web.json_response({"rename_mode": mode})
+
+
+@routes.post("/api/settings/upscale_target")
+async def settings_upscale_target(request):
+    body = await _json(request)
+    target = body.get("target")
+    if target not in UPSCALE_TARGET_IDS:
+        return _err("unknown upscale target")
+    set_config("upscale_target", target)
+    return web.json_response({"upscale_target": target})
 
 
 @routes.post("/api/settings/language")

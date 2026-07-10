@@ -177,6 +177,22 @@ export function Settings() {
             />
           </Section>
 
+          {cfg.upscale_targets?.length > 0 && (
+            <Section title={t("settings.upscaleTarget")} className="mb-16">
+              <SegmentedControl
+                fullWidth
+                classNames={segmentedClassNames}
+                value={settingsData.upscale_target}
+                onChange={(v) => guard(async () => {
+                  await api.setUpscaleTarget(v)
+                  toast(t("common.done"))
+                  reload()
+                })}
+                data={cfg.upscale_targets.map((tgt) => ({value: tgt.id, label: tgt.label}))}
+              />
+            </Section>
+          )}
+
           <Section className="mb-16" title={t("settings.language")}>
             <SegmentedControl
               fullWidth

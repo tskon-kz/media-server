@@ -15,6 +15,8 @@ export interface Torrent {
   renameable: boolean;
   upscaling: boolean;
   upscale_progress: number;
+  upscale_done: number;
+  upscale_total: number;
   has_backup: boolean;
 }
 
@@ -27,6 +29,17 @@ export interface Upscaler {
 export interface CompressionLevel {
   id: string;
   label: string;
+}
+
+export interface UpscaleTarget {
+  id: string;
+  label: string;
+  height: number;
+}
+
+export interface UpscaleInfo {
+  total: number;
+  files: { name: string; upscaled: boolean }[];
 }
 
 export interface Category {
@@ -62,10 +75,14 @@ export interface AppConfig {
   has_categories: boolean;
   upscalers: Upscaler[];
   compression_levels: CompressionLevel[];
+  upscale_targets: UpscaleTarget[];
+  upscale_target: string;
+  upscale_paused: boolean;
 }
 
 export interface Settings {
   rename_mode: "flat" | "pretty";
+  upscale_target: string;
   lang: string;
   qbittorrent: { user: string; is_perm: boolean; status: string };
   jackett: { has_key: boolean; has_password: boolean };

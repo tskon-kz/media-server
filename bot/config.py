@@ -74,6 +74,18 @@ COMPRESSION_LEVELS = [
 ]
 COMPRESSION_IDS = frozenset(c["id"] for c in COMPRESSION_LEVELS)
 
+# Upscale strength. `2x` doubles each dimension (original behaviour); the rest are
+# target-resolution caps — the worker computes a per-file scale from the source
+# resolution (and skips files already at/above the target). `id` is the contract
+# with upscaler/runners.py; `height` is the target vertical resolution in pixels.
+UPSCALE_TARGETS = [
+    {"id": "2x",   "label": "2x",    "height": 0},
+    {"id": "1080", "label": "1080p", "height": 1080},
+    {"id": "2k",   "label": "2K",    "height": 1440},
+    {"id": "4k",   "label": "4K",    "height": 2160},
+]
+UPSCALE_TARGET_IDS = frozenset(u["id"] for u in UPSCALE_TARGETS)
+
 DEFAULT_CATS = [
     {"name": "Movies", "path": "/media/movies", "jf_type": "movies"},
     {"name": "Series", "path": "/media/series", "jf_type": "tvshows"},

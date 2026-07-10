@@ -1,6 +1,7 @@
 import { initData } from "./telegram";
 import type {
   AppConfig, Category, JellyfinUser, SearchResult, Settings, Torrent, UpdateInfo,
+  UpscaleInfo,
 } from "./types";
 
 // All requests carry the Telegram initData in the Authorization header
@@ -57,10 +58,18 @@ export const api = {
     req<{ mode: string; linked?: number; pending?: number; xdev?: boolean }>(
       "POST", "/api/torrents/structure", { disk_id: diskId, mode },
     ),
-  upscale: (diskId: string, upscaler: string, compression: string) =>
+  upscale: (diskId: string, upscaler: string, compression: string, target: string,
+            start?: number, end?: number) =>
     req<{ queued: number; disk_id: string }>(
-      "POST", "/api/torrents/upscale", { disk_id: diskId, upscaler, compression },
+      "POST", "/api/torrents/upscale",
+      { disk_id: diskId, upscaler, compression, target, start, end },
     ),
+  upscaleInfo: (diskId: string) =>
+    req<UpscaleInfo>("GET", `/api/torrents/upscale/info?disk_id=${encodeURIComponent(diskId)}`),
+  cancelUpscale: (diskId: string) =>
+    req<{ cancelled: boolean }>("POST", "/api/torrents/upscale/cancel", { disk_id: diskId }),
+  setUpscalePaused: (paused: boolean) =>
+    req<{ paused: boolean }>("POST", "/api/upscale/pause", { paused }),
   backup: (diskId: string) =>
     req<{ backed_up: boolean }>("POST", "/api/torrents/backup", { disk_id: diskId }),
   restoreBackup: (diskId: string) =>
@@ -107,6 +116,8 @@ export const api = {
   settings: () => req<Settings>("GET", "/api/settings"),
   setRenameMode: (mode: "flat" | "pretty") =>
     req<{ rename_mode: string }>("POST", "/api/settings/rename_mode", { mode }),
+  setUpscaleTarget: (target: string) =>
+    req<{ upscale_target: string }>("POST", "/api/settings/upscale_target", { target }),
   setLanguage: (lang: string) =>
     req<{ lang: string }>("POST", "/api/settings/language", { lang }),
   setQbPassword: (password: string) =>

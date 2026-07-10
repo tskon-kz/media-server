@@ -57,7 +57,13 @@ def _create_tables():
             error    TEXT,
             user_id  INTEGER,
             notified INTEGER NOT NULL DEFAULT 0,
-            compression TEXT NOT NULL DEFAULT 'balanced'
+            compression TEXT NOT NULL DEFAULT 'balanced',
+            target   TEXT NOT NULL DEFAULT '2x'
+        );
+        CREATE TABLE IF NOT EXISTS upscaled_files (
+            disk_id  TEXT NOT NULL,
+            src_path TEXT NOT NULL,
+            PRIMARY KEY (disk_id, src_path)
         );
         CREATE TABLE IF NOT EXISTS done_notified (
             hash TEXT PRIMARY KEY
@@ -88,6 +94,7 @@ def _migrate():
     # setting is one more idempotent ADD COLUMN here — CREATE TABLE only helps
     # fresh installs.
     _ensure_column("upscale_jobs", "compression", "TEXT NOT NULL DEFAULT 'balanced'")
+    _ensure_column("upscale_jobs", "target", "TEXT NOT NULL DEFAULT '2x'")
 
 
 def _ensure_column(table: str, col: str, decl: str):
@@ -383,6 +390,9 @@ def upsert_disk_entries_batch(rows: list[tuple[str, str, int, int]]):
 def delete_disk_entry(disk_id: str):
     _conn.execute("DELETE FROM disk_entries WHERE disk_id=?", (disk_id,))
     _conn.commit()
+    # Physically removing the content invalidates the "already upscaled" record —
+    # re-downloaded files are pristine again and should be upscalable.
+    clear_upscaled_files(disk_id)
 
 
 def update_disk_entry_size(disk_id: str, size: int):
@@ -406,19 +416,21 @@ def _row_to_upscale_job(row) -> dict:
         "id": row[0], "disk_id": row[1], "src_path": row[2], "upscaler": row[3],
         "scale": row[4], "status": row[5], "progress": row[6], "error": row[7],
         "user_id": row[8], "notified": row[9], "compression": row[10],
+        "target": row[11],
     }
 
 
 _UPSCALE_COLS = ("id, disk_id, src_path, upscaler, scale, status, progress, "
-                 "error, user_id, notified, compression")
+                 "error, user_id, notified, compression, target")
 
 
 def add_upscale_job(disk_id: str, src_path: str, upscaler: str, user_id: int | None,
-                    scale: int = 2, compression: str = "balanced") -> int:
+                    scale: int = 2, compression: str = "balanced",
+                    target: str = "2x") -> int:
     cur = _conn.execute(
-        "INSERT INTO upscale_jobs (disk_id, src_path, upscaler, scale, user_id, compression) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (disk_id, src_path, upscaler, scale, user_id, compression),
+        "INSERT INTO upscale_jobs (disk_id, src_path, upscaler, scale, user_id, "
+        "compression, target) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (disk_id, src_path, upscaler, scale, user_id, compression, target),
     )
     _conn.commit()
     return cur.lastrowid
@@ -431,18 +443,52 @@ def get_upscale_jobs_by_disk_id(disk_id: str) -> list[dict]:
     return [_row_to_upscale_job(r) for r in rows]
 
 
-def get_active_upscale_disk_ids() -> dict[str, float]:
-    """Map disk_id -> mean progress for torrents with queued/running jobs (for the UI).
+def get_active_upscale_status() -> dict[str, dict]:
+    """Map disk_id -> {cur, done, total} for torrents with queued/running jobs.
 
-    Averages over *all* jobs of the batch (finished ones count as progress=1.0), so
-    the bar climbs toward 100% as files complete. Averaging only queued/running jobs
-    dropped finished ones from the mean, pinning multi-file batches near zero."""
+    ``cur`` is the currently-running file's progress (0..1), ``done`` how many files
+    of the batch have finished, ``total`` the batch size — so the UI can show both a
+    per-episode bar and a ``13/220`` counter."""
     rows = _conn.execute(
-        "SELECT disk_id, AVG(progress) FROM upscale_jobs "
+        "SELECT disk_id, "
+        "MAX(CASE WHEN status='running' THEN progress ELSE 0 END), "
+        "SUM(status='done'), COUNT(*) "
+        "FROM upscale_jobs "
         "WHERE disk_id IN (SELECT disk_id FROM upscale_jobs "
         "WHERE status IN ('queued', 'running')) GROUP BY disk_id"
     ).fetchall()
-    return {r[0]: r[1] for r in rows}
+    return {r[0]: {"cur": r[1] or 0.0, "done": r[2] or 0, "total": r[3] or 0}
+            for r in rows}
+
+
+def cancel_queued_upscale(disk_id: str):
+    """Drop still-queued jobs for a disk, leaving any running file to finish."""
+    _conn.execute(
+        "DELETE FROM upscale_jobs WHERE disk_id=? AND status='queued'", (disk_id,)
+    )
+    _conn.commit()
+
+
+# ---- already-upscaled record (persists across job deletion) ----
+
+def mark_file_upscaled(disk_id: str, src_path: str):
+    _conn.execute(
+        "INSERT OR IGNORE INTO upscaled_files (disk_id, src_path) VALUES (?, ?)",
+        (disk_id, src_path),
+    )
+    _conn.commit()
+
+
+def get_upscaled_files(disk_id: str) -> set[str]:
+    rows = _conn.execute(
+        "SELECT src_path FROM upscaled_files WHERE disk_id=?", (disk_id,)
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def clear_upscaled_files(disk_id: str):
+    _conn.execute("DELETE FROM upscaled_files WHERE disk_id=?", (disk_id,))
+    _conn.commit()
 
 
 def get_finished_upscale_disk_ids() -> list[str]:

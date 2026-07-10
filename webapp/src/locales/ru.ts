@@ -38,13 +38,23 @@ export default {
     delLinksTitle: "Удалить хардлинки?",
     delLinksBody: "Ссылки в медиатеке будут удалены. Файлы на диске не затронуты.",
     // Апскейл + бэкап
-    upscale: "Апскейл (2x)",
+    upscale: "Апскейл",
     upscalePick: "Выберите апскейлер",
     compression: "Сжатие",
     compression_balanced: "Баланс",
     compression_aggressive: "Меньше размер",
+    upscaleRange: "Эпизоды",
+    upscaleFrom: "С",
+    upscaleTo: "По",
+    upscaleAlreadyDone: "{{n}} уже готово",
     upscaleQueued: "В очереди: {{n}} файл(ов). Это займёт время.",
-    upscaling: "upscaling {{pct}}",
+    upscaling: "{{done}}/{{total}} · {{pct}}",
+    upscalePause: "Пауза апскейла",
+    upscaleResume: "Продолжить апскейл",
+    upscalePaused: "Апскейл на паузе",
+    upscaleResumed: "Апскейл продолжен",
+    upscaleRemoveQueue: "Убрать из очереди",
+    upscaleCancelled: "Убрано из очереди",
     backup: "Сохранить в бэкап",
     restoreBackup: "Восстановить из бэкапа",
     delBackup: "Удалить бэкап",
@@ -114,6 +124,7 @@ export default {
 
     // Auto-structure toggle
     autoStructure: "Авто-структура закачек",
+    upscaleTarget: "Степень апскейла",
     smartSub: "Умный парсинг",
     originalSub: "Ориг. структура",
 
