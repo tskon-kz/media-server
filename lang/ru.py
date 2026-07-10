@@ -102,6 +102,8 @@ M = {
     "upscale_done": "✨ {name} — апскейл завершён",
     "upscale_error": "❌ {name} — ошибка апскейла: {e}",
     "upscale_in_progress": "Апскейл для этого элемента уже запущен",
+    "backup_done": "💾 {name} — бэкап сохранён",
+    "backup_error": "❌ {name} — ошибка бэкапа: {e}",
     "settings_media_mgmt": "Медиатека",
     "media_mgmt_title": "📚 *Управление медиатекой*",
     "structure_menu_title": "🗂 *Управление структурой*",

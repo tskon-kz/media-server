@@ -360,6 +360,7 @@ async def torrents_list(request):
             result.append(d)
 
     active_upscales = get_active_upscale_status()
+    active_backups = store.get_active_backup_disk_ids()
     for item in result:
         st = active_upscales.get(item["disk_id"])
         item["upscaling"] = st is not None
@@ -367,7 +368,7 @@ async def torrents_list(request):
         item["upscale_done"] = st["done"] if st else 0
         item["upscale_total"] = st["total"] if st else 0
         item["has_backup"] = _has_backup(item["disk_id"])
-        item["backing_up"] = item["disk_id"] in _backups_in_progress
+        item["backing_up"] = item["disk_id"] in active_backups
 
     return web.json_response({
         "torrents": result,
@@ -691,17 +692,13 @@ async def torrent_upscale(request):
     return web.json_response({"queued": queued, "disk_id": new_disk_id})
 
 
-# Canonical disk_ids whose backup copy is currently being written. Exposed to the
-# torrent list as `backing_up` so the UI can show progress and disable the button.
-_backups_in_progress: set[str] = set()
-_backups_lock = threading.Lock()
-
-
 def _run_backup(src: str, dst: str, key: str):
     """Copy into a `.partial` sibling, then atomically rename into place, so a
     half-finished copy is never seen as a valid backup (`_has_backup` checks dst).
     Runs in a daemon thread: a 157 GB copytree can't finish inside the tunnel
-    timeout, so the request returns immediately and this reaps in the background."""
+    timeout, so the request returns immediately and this reaps in the background.
+    The result (done/error) is recorded in `backup_jobs`; `job_check_backup` turns
+    it into a persistent Telegram notification."""
     partial = f"{dst}.partial"
     try:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -716,11 +713,10 @@ def _run_backup(src: str, dst: str, key: str):
         if os.path.lexists(dst):
             _rm_in_background(dst)
         os.replace(partial, dst)
-    except Exception:
+        store.finish_backup_job(key)
+    except Exception as e:
         shutil.rmtree(partial, ignore_errors=True)
-    finally:
-        with _backups_lock:
-            _backups_in_progress.discard(key)
+        store.finish_backup_job(key, error=str(e)[:500])
 
 
 @routes.post("/api/torrents/backup")
@@ -735,10 +731,9 @@ async def torrent_backup(request):
     dst = _backup_path(key)
     if not dst:
         return _err("invalid disk_id")
-    with _backups_lock:
-        if key in _backups_in_progress:
-            return web.json_response({"backing_up": True})
-        _backups_in_progress.add(key)
+    if key in store.get_active_backup_disk_ids():
+        return web.json_response({"backing_up": True})
+    store.start_backup_job(key, kb.short_name(tor.name), request.get("user_id"))
     threading.Thread(target=_run_backup, args=(tor.content_path, dst, key),
                      daemon=True).start()
     return web.json_response({"backing_up": True})

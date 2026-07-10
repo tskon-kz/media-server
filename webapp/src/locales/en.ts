@@ -66,6 +66,7 @@ export default {
     backupStarted: "Backup started — this can take a while for large content",
     backingUp: "backing up…",
     backupSaved: "Backup saved",
+    backupFailed: "Backup failed",
     backupRestored: "Restored from backup",
     backupDeleted: "Backup deleted",
     gpuHint: "needs GPU",

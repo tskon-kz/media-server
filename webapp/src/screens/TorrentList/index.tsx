@@ -46,7 +46,8 @@ export function TorrentList() {
         if (tor.backing_up) backingUp.current.add(tor.disk_id)
         else if (backingUp.current.has(tor.disk_id)) {
           backingUp.current.delete(tor.disk_id)
-          if (tor.has_backup) toast(t("torrents.backupSaved"))
+          toast(tor.has_backup ? t("torrents.backupSaved") : t("torrents.backupFailed"),
+                tor.has_backup ? "ok" : "err")
         }
       }
       setTorrents(tr.torrents)

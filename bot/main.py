@@ -85,6 +85,7 @@ def main():
     app.job_queue.run_repeating(h.job_check_update, interval=6*3600, first=6*3600)
     app.job_queue.run_repeating(h.job_check_webapp_url, interval=60, first=5)
     app.job_queue.run_repeating(h.job_check_upscale, interval=60, first=20)
+    app.job_queue.run_repeating(h.job_check_backup, interval=30, first=15)
 
     print(f"Bot started (v{APP_VERSION})")
     app.run_polling()

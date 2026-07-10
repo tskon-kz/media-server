@@ -102,6 +102,8 @@ M = {
     "upscale_done": "✨ {name} — upscale complete",
     "upscale_error": "❌ {name} — upscale failed: {e}",
     "upscale_in_progress": "Upscale already running for this item",
+    "backup_done": "💾 {name} — backup saved",
+    "backup_error": "❌ {name} — backup failed: {e}",
     "settings_media_mgmt": "Media Library",
     "media_mgmt_title": "📚 *Media Library Management*",
     "structure_menu_title": "🗂 *Manage Structure*",

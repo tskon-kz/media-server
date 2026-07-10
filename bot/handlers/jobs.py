@@ -9,6 +9,7 @@ from store import (
     has_notified_update, mark_update_notified,
     upsert_disk_entry, load_disk_entries,
     get_finished_upscale_disk_ids, get_upscale_jobs_by_disk_id, mark_upscale_disk_notified,
+    get_unnotified_backup_jobs, mark_backup_notified,
     has_done_notified, mark_done_notified, clear_done_notified,
 )
 from api import jf, qb, invalidate_qb, gh_latest_release_tag, get_cloudflared_url
@@ -140,6 +141,23 @@ async def job_check_upscale(ctx):
             except Exception:
                 pass
         mark_upscale_disk_notified(disk_id)
+
+
+async def job_check_backup(ctx):
+    """Turn finished background backup copies into a persistent Telegram
+    notification (success or the error message), then mark them delivered."""
+    for job in get_unnotified_backup_jobs():
+        name = kb.short_name(job["name"] or job["disk_id"].split("/", 1)[-1])
+        for uid in ALLOWED:
+            try:
+                if job["status"] == "error":
+                    await ctx.bot.send_message(
+                        uid, t("backup_error", name=name, e=job["error"] or "?"))
+                else:
+                    await ctx.bot.send_message(uid, t("backup_done", name=name))
+            except Exception:
+                pass
+        mark_backup_notified(job["disk_id"])
 
 
 async def job_check_webapp_url(ctx):
