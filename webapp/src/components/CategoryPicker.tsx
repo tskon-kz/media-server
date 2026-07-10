@@ -1,6 +1,5 @@
-import { Drawer } from "@mantine/core";
-import { ListItem, ListSection } from "./ui";
-import type { Category } from "../types";
+import {Button, Drawer, Stack} from "@mantine/core"
+import type {Category} from "../types"
 
 export function CategoryPicker({
   categories, title, open, onPick, onClose,
@@ -18,15 +17,16 @@ export function CategoryPicker({
       title={title ?? "Category"}
       position="bottom"
       radius="lg"
-      overlayProps={{ blur: 2 }}
+      overlayProps={{blur: 2}}
+      styles={{title: {width: "100%", textAlign: "center"}}}
     >
-      <ListSection style={{ marginBottom: 16 }}>
+      <Stack gap={8} pb={16} px={4}>
         {categories.map((c) => (
-          <ListItem key={c.id} onClick={() => onPick(c)}>
+          <Button key={c.id} fullWidth variant="light" onClick={() => onPick(c)}>
             {c.name}
-          </ListItem>
+          </Button>
         ))}
-      </ListSection>
+      </Stack>
     </Drawer>
-  );
+  )
 }

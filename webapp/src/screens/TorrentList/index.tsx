@@ -239,12 +239,12 @@ export function TorrentList() {
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
             {t("torrents.deleteBody", {name: confirmDel?.name})}
           </Box>
-          <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
+          <Button fullWidth variant="light" color="red" leftSection={<Trash2 size={18}/>}
                   onClick={() => confirmDel && doDelete(confirmDel)}>
             {confirmDel?.in_qbittorrent ? t("common.delete") : t("torrents.deleteFromDisk")}
           </Button>
           {confirmDel?.in_qbittorrent && (
-            <Button fullWidth variant="filled" color="orange" leftSection={<HardDrive size={18}/>}
+            <Button fullWidth variant="light" leftSection={<HardDrive size={18}/>}
                     onClick={() => {
                       const tor = confirmDel
                       setConfirmDel(null)
@@ -272,7 +272,7 @@ export function TorrentList() {
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
             {t("torrents.removeFromClientBody")}
           </Box>
-          <Button fullWidth variant="filled" color="orange" leftSection={<HardDrive size={18}/>}
+          <Button fullWidth variant="light" leftSection={<HardDrive size={18}/>}
                   onClick={() => confirmRemove && doRemoveFromClient(confirmRemove)}>
             {t("torrents.removeFromClient")}
           </Button>
@@ -366,7 +366,7 @@ export function TorrentList() {
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
             {t("torrents.delLinksBody")}
           </Box>
-          <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
+          <Button fullWidth variant="light" color="red" leftSection={<Trash2 size={18}/>}
                   onClick={() => confirmDelLinks && doStructure(confirmDelLinks, "delete")}>
             {t("torrents.delLinks")}
           </Button>
@@ -389,7 +389,7 @@ export function TorrentList() {
           <Box style={{color: "var(--tg-theme-hint-color)", fontSize: 14, marginBottom: 4}}>
             {t("torrents.delBackupBody")}
           </Box>
-          <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
+          <Button fullWidth variant="light" color="red" leftSection={<Trash2 size={18}/>}
                   onClick={() => confirmDelBackup && doDeleteBackup(confirmDelBackup)}>
             {t("torrents.delBackup")}
           </Button>
@@ -410,7 +410,7 @@ export function TorrentList() {
       >
         <Stack gap={8} pb={16} px={4}>
           {upscalers.map((u) => (
-            <Button key={u.id} fullWidth variant="dark" leftSection={<Wand2 size={18}/>}
+            <Button key={u.id} fullWidth variant="light" leftSection={<Wand2 size={18}/>}
                     onClick={() => upscaleFor && doUpscale(upscaleFor, u.id)}>
               {u.label}{u.needs_gpu ? ` · ${t("torrents.gpuHint")}` : ""}
             </Button>
