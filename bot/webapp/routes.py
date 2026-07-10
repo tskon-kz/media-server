@@ -17,12 +17,25 @@ import time
 
 from aiohttp import web
 
+import keyboards as kb
+import store
+from api import (
+    jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
+    qb_temp_password, qb_restart, qb_set_password,
+    jackett_get_api_key, jackett_has_password, jackett_set_password,
+    jackett_search, jackett_download_torrent,
+    gh_latest_release_tag, self_update,
+)
 from config import (
     ICONS, INCOMING_DIR, BACKUP_DIR, APP_VERSION, current_channel,
     QB_PORT, JF_PORT, JACKETT_PORT, UPSCALERS, UPSCALER_IDS,
     COMPRESSION_LEVELS, COMPRESSION_IDS, UPSCALE_TARGETS, UPSCALE_TARGET_IDS,
 )
-import store
+from parser import (
+    process_torrent_rename, create_flat_hardlinks,
+    delete_torrent_links, get_video_files,
+    VIDEO_EXTENSIONS,
+)
 from store import (
     t, load_cats, save_cats, set_lang, set_config, get_config,
     get_creds, get_qb_status, set_qb_status,
@@ -31,19 +44,6 @@ from store import (
     cancel_queued_upscale, get_done_upscale_src_paths, clear_incomplete_upscale_jobs,
     get_done_upscale_jobs, get_upscaled_disk_ids,
 )
-from api import (
-    jf, jf_add_library, jf_remove_library, qb, invalidate_qb,
-    qb_temp_password, qb_restart, qb_set_password,
-    jackett_get_api_key, jackett_has_password, jackett_set_password,
-    jackett_search, jackett_download_torrent,
-    gh_latest_release_tag, self_update,
-)
-from parser import (
-    process_torrent_rename, create_flat_hardlinks,
-    delete_torrent_links, get_video_files,
-    VIDEO_EXTENSIONS,
-)
-import keyboards as kb
 
 routes = web.RouteTableDef()
 
@@ -136,6 +136,13 @@ async def _resolve_torrent(disk_id: str):
     return _disk_stub(disk_id)
 
 
+_TEMP_SUFFIXES = (".restore-tmp", ".partial")
+
+
+def _is_temp_name(name: str) -> bool:
+    return name.endswith(_TEMP_SUFFIXES) or ".trash-" in name
+
+
 def _scan_incoming(cats: list) -> list[dict]:
     """Fast: one os.listdir per category download dir, no size I/O."""
     entries = []
@@ -149,7 +156,7 @@ def _scan_incoming(cats: list) -> list[dict]:
         except OSError:
             continue
         for name in names:
-            if name.startswith("."):
+            if name.startswith(".") or _is_temp_name(name):
                 continue
             entries.append({
                 "name": name,
@@ -233,12 +240,10 @@ def _torrent_dict_merged(disk_entry: dict, size: int, qb_tor=None, cats: list | 
     }
 
 
-
-
-
 async def _qb_info(hashes=None):
     def _f():
         return qb().torrents_info(torrent_hashes=hashes) if hashes else qb().torrents_info()
+
     return await _thread(_f)
 
 
@@ -268,6 +273,7 @@ async def _add_to_qb(*, magnet=None, torrent_bytes=None, save_path):
             qb().torrents_add(urls=magnet, save_path=save_path)
         else:
             qb().torrents_add(torrent_files=torrent_bytes, save_path=save_path)
+
     await _thread(_f)
 
 
@@ -287,8 +293,8 @@ async def config(request):
     if server_ip:
         links = {
             "qbittorrent": f"http://{server_ip}:{QB_PORT}",
-            "jellyfin":    f"http://{server_ip}:{JF_PORT}",
-            "jackett":     f"http://{server_ip}:{JACKETT_PORT}",
+            "jellyfin": f"http://{server_ip}:{JF_PORT}",
+            "jackett": f"http://{server_ip}:{JACKETT_PORT}",
         }
     return web.json_response({
         "version": APP_VERSION,
@@ -492,6 +498,7 @@ async def torrent_move(request):
         else:
             create_flat_hardlinks(tor, cats, target_cat=new_cat)
         jf("POST", "/Library/Refresh")
+
     await _thread(_relink)
 
     if getattr(tor, "hash", ""):
@@ -548,6 +555,7 @@ async def torrent_structure(request):
             linked, pending_ids, errors = process_torrent_rename(tor, cats)
             jf("POST", "/Library/Refresh")
             return linked, pending_ids, errors
+
         linked, pending_ids, errors = await _thread(_f)
         return web.json_response({
             "mode": "pretty",
@@ -561,13 +569,16 @@ async def torrent_structure(request):
             errors = create_flat_hardlinks(tor, cats)
             jf("POST", "/Library/Refresh")
             return errors
+
         errors = await _thread(_f)
         xdev = bool(errors) and "cross-device" in errors[0].lower()
         return web.json_response({"mode": "flat", "xdev": xdev})
+
     # delete
     def _f():
         delete_torrent_links(tor, cats)
         jf("POST", "/Library/Refresh")
+
     await _thread(_f)
     return web.json_response({"mode": "delete", "deleted": True})
 
@@ -843,6 +854,7 @@ def _rm_in_background(path: str):
                 os.remove(trash)
             except OSError:
                 pass
+
     threading.Thread(target=_reap, daemon=True).start()
 
 
@@ -940,6 +952,7 @@ async def scan(request):
 
 
 _SEARCH_CACHE_TTL = 300  # seconds
+
 
 # ---- search ----
 
@@ -1043,6 +1056,7 @@ async def category_create(request):
         cats.append({"name": name, "path": path, "jf_type": jf_type})
         save_cats(cats)
         jf_add_library(name, path, jf_type)
+
     await _thread(_f)
     return web.json_response({"categories": load_cats()})
 
@@ -1197,6 +1211,7 @@ async def jellyfin_user_create(request):
             jf("POST", f"/Users/{user['Id']}/Password", {"NewPw": password})
             return user
         return None
+
     user = await _thread(_f)
     if not user:
         return _err(t("jf_user_error"), status=502)
@@ -1247,5 +1262,6 @@ async def update_post(request):
         # bot's _post_init clears the flag and notifies. On failure we clear it.
         await _thread(self_update, tag)
         set_config("update_pending", "")
+
     asyncio.create_task(_run())
     return web.json_response({"started": True, "tag": tag})
