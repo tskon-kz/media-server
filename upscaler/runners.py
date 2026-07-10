@@ -130,6 +130,18 @@ def _probe_duration(src: str) -> float:
         return 0.0
 
 
+def _parse_out_time(val: str) -> float | None:
+    """Seconds from ffmpeg's `-progress` ``out_time`` value (``HH:MM:SS.ffffff``).
+    Returns None for the ``N/A`` ffmpeg emits before the first frame."""
+    if not val or val.startswith("N/A"):
+        return None
+    try:
+        h, m, s = val.split(":")
+        return int(h) * 3600 + int(m) * 60 + float(s)
+    except (ValueError, AttributeError):
+        return None
+
+
 def _replace(src: str, tmp_out: str):
     """Swap the upscaled file in for the original, preserving the extension so the
     bot's linker still recognises the file. ``tmp_out`` is written next to ``src``
@@ -199,22 +211,31 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
         "-c:a", "copy", "-c:s", "copy", "-c:t", "copy",
         "-progress", "pipe:1", "-nostats", tmp_out,
     ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    # Progress is read live off stdout; stderr goes to a temp file so a failing
+    # ffmpeg's actual error (filtergraph/option, e.g. a bad libplacebo config) is
+    # surfaced instead of a bare exit code. Reading it from a file avoids the
+    # two-pipe deadlock a second PIPE would risk.
+    errf = tempfile.TemporaryFile()
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=errf, text=True)
     success = False
     try:
         for line in proc.stdout:
-            if duration and line.startswith("out_time_ms="):
-                try:
-                    ms = int(line.split("=", 1)[1])
-                    progress_cb(ms / 1e6 / duration)
-                except ValueError:
-                    pass
+            # Parse the unambiguous `out_time=HH:MM:SS.ffffff` field. (`out_time_ms`
+            # is milliseconds in some builds and microseconds in others — jellyfin-
+            # ffmpeg's ms reading left the bar stuck near zero.)
+            if duration and line.startswith("out_time="):
+                secs = _parse_out_time(line.split("=", 1)[1].strip())
+                if secs is not None:
+                    progress_cb(min(1.0, secs / duration))
         code = proc.wait()
         if code != 0:
-            raise UpscaleError(f"ffmpeg exited {code}")
+            errf.seek(0)
+            tail = errf.read().decode("utf-8", "replace").strip()[-600:]
+            raise UpscaleError(f"ffmpeg exited {code}: {tail}")
         _replace(src, tmp_out)
         success = True
     finally:
+        errf.close()
         if proc.poll() is None:
             proc.kill()
         if not success:
@@ -226,9 +247,15 @@ def _run_anime4k(src: str, scale: int, progress_cb):
     then bring the frames back to system memory (``hwdownload``) and H.264-encode on
     the CPU. The libplacebo shader work is the expensive part and runs on the GPU;
     the Vulkan→VAAPI encode handoff (two hw devices in one graph) is left as a
-    future optimisation, so encode stays on libx264 here regardless of VAAPI."""
-    vfilter = (f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
-               f"custom_shader_path={ANIME4K_SHADER},hwdownload,format=yuv420p")
+    future optimisation, so encode stays on libx264 here regardless of VAAPI.
+
+    ``format=nv12,hwupload`` is explicit (not relying on libplacebo's auto-upload):
+    it normalises 10-bit anime sources to an 8-bit format Vulkan accepts and puts
+    the frames on the GPU before the shader — the implicit path throws EINVAL."""
+    vfilter = (f"format=nv12,hwupload,"
+               f"libplacebo=w=iw*{scale}:h=ih*{scale}:"
+               f"custom_shader_path={ANIME4K_SHADER},"
+               f"hwdownload,format=yuv420p")
     _run_single(src, ["-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk"],
                 vfilter, CPU_CODEC, progress_cb)
 
