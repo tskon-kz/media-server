@@ -206,8 +206,12 @@ export function TorrentList() {
             {allOn ? t("torrents.deselectAll") : t("torrents.selectAll")}
           </Button>
         </Box>
-        <Box style={{maxHeight: "40vh", overflowY: "auto"}}>
-          <Stack gap={6} py={4}>
+        <Box style={{
+          maxHeight: 260, overflowY: "auto",
+          background: "rgba(128, 128, 128, 0.08)",
+          borderRadius: 10, padding: "8px 10px",
+        }}>
+          <Stack gap={6}>
             {files.map((f) => (
               <Checkbox
                 key={f.name}
@@ -568,6 +572,7 @@ export function TorrentList() {
         title={t("torrents.upscalePick")}
         position="bottom"
         radius="lg"
+        size="85%"
         overlayProps={{blur: 2}}
         styles={{title: {width: "100%", textAlign: "center"}}}
       >

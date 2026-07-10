@@ -25,7 +25,10 @@
 .headerPlain {
   text-transform: none;
   font-weight: 500;
-  color: var(--tg-theme-link-color);
+  color: var(--tg-theme-text-color, #fff);
+  background: rgba(128, 128, 128, 0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
 }
 
 .headerOpen {
