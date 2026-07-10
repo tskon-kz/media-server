@@ -230,7 +230,7 @@ def _run_single(src: str, pre_input: list[str], vfilter: str, codec: list[str], 
         code = proc.wait()
         if code != 0:
             errf.seek(0)
-            tail = errf.read().decode("utf-8", "replace").strip()[-600:]
+            tail = errf.read().decode("utf-8", "replace").strip()[-1500:]
             raise UpscaleError(f"ffmpeg exited {code}: {tail}")
         _replace(src, tmp_out)
         success = True
