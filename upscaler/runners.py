@@ -52,9 +52,13 @@ TEMP_PREFIX = ".upscale_"
 # `qp` drives the VAAPI encode (cas on an iGPU). Higher = smaller file. On a 2x
 # upscale the added detail is synthetic, so it compresses well with little visible
 # loss — hence `aggressive` leans notably harder. More levels/knobs land here.
+# Both presets are kept in a visually-transparent CRF/QP range so the
+# "compression level" choice only trades file size, never picture quality — on a
+# 2x upscale the added detail is synthetic and compresses well, so even the
+# smaller-file preset stays clean. Lower = higher quality / bigger file.
 COMPRESSION = {
-    "balanced":   {"crf": "20", "qp": "22"},
-    "aggressive": {"crf": "23", "qp": "25"},
+    "balanced":   {"crf": "18", "qp": "20"},
+    "aggressive": {"crf": "20", "qp": "22"},
 }
 DEFAULT_COMPRESSION = "balanced"
 
@@ -72,6 +76,19 @@ def _cpu_codec(crf: str) -> list[str]:
 # mounted for the AI backend.
 VAAPI_DEVICE      = os.environ.get("VAAPI_DEVICE", "/dev/dri/renderD128")
 HWENC             = os.environ.get("UPSCALE_HWENC", "auto").lower()
+
+# `cas` (Sharpen, CPU) filter chain, tuned for soft DVD-anime sources:
+#   hqdn3d — a light denoise/deblock run *before* the upscale so the sharpen
+#     enhances real detail, not DVD blocking/mosquito noise. Values are low
+#     enough not to smear line art.
+#   scale — accurate_rnd + full_chroma_int give cleaner chroma/gradient handling
+#     than bare lanczos, which matters on anime's flat colour fields.
+#   cas — AMD FidelityFX Contrast Adaptive Sharpening. Contrast-adaptive, so it
+#     sharpens line art without the halos a plain unsharp mask leaves. 0.4 was
+#     barely visible on a DVD source; 0.8 is clearly visible without ringing.
+CAS_DENOISE       = "hqdn3d=1.5:1.5:6:6"
+CAS_SCALE_FLAGS   = "lanczos+accurate_rnd+full_chroma_int"
+CAS_STRENGTH      = "0.8"
 
 
 class UpscaleError(Exception):
@@ -347,8 +364,15 @@ def run(job: dict, progress_cb):
     log.info("target=%s dims=%sx%s compression=%s (crf=%s qp=%s)", target, ow, oh,
              job.get("compression") or DEFAULT_COMPRESSION, quality["crf"], quality["qp"])
     if upscaler == "cas":
-        pre_input, vfilter, codec = _video_encode(
-            f"scale={ow}:{oh}:flags=lanczos,cas=strength=0.4", quality)
+        # denoise/deblock -> upscale -> contrast-adaptive sharpen. The denoise
+        # stage is optional (CAS_DENOISE empty) and, when VAAPI encodes, precedes
+        # the hwupload tail _video_encode appends.
+        stages = [s for s in (
+            CAS_DENOISE,
+            f"scale={ow}:{oh}:flags={CAS_SCALE_FLAGS}",
+            f"cas=strength={CAS_STRENGTH}",
+        ) if s]
+        pre_input, vfilter, codec = _video_encode(",".join(stages), quality)
         _run_single(src, pre_input, vfilter, codec, progress_cb)
     elif upscaler == "anime4k":
         if not has_vulkan():
