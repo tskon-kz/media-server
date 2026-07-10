@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 import {Box, Button, Divider, Drawer, Loader, Progress, Stack, Title} from "@mantine/core"
-import {Clapperboard, Folder, FolderInput, HardDrive, Layers, RefreshCw, Save, Trash2, Wand2} from "lucide-react"
+import {Clapperboard, Folder, FolderInput, HardDrive, MoreHorizontal, RefreshCw, Save, Trash2, Wand2} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import {api} from "@/api"
 import {bytes, pct, speed} from "@/format"
@@ -17,7 +17,7 @@ export function TorrentList() {
   const [torrents, setTorrents] = useState<Torrent[] | null>(null)
   const [cats, setCats] = useState<Category[]>([])
   const [moving, setMoving] = useState<Torrent | null>(null)
-  const [structFor, setStructFor] = useState<Torrent | null>(null)
+  const [menuFor, setMenuFor] = useState<Torrent | null>(null)
   const [upscaleFor, setUpscaleFor] = useState<Torrent | null>(null)
   const [upscalers, setUpscalers] = useState<Upscaler[]>([])
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
@@ -101,7 +101,7 @@ export function TorrentList() {
   }
 
   const doStructure = async (tor: Torrent, mode: "pretty" | "flat" | "delete") => {
-    setStructFor(null)
+    setMenuFor(null)
     try {
       const r = await api.structure(tor.disk_id, mode)
       if (r.xdev) toast(t("torrents.xdev"), "err")
@@ -115,7 +115,7 @@ export function TorrentList() {
 
   const doUpscale = async (tor: Torrent, upscalerId: string) => {
     setUpscaleFor(null)
-    setStructFor(null)
+    setMenuFor(null)
     try {
       const r = await api.upscale(tor.disk_id, upscalerId)
       toast(t("torrents.upscaleQueued", {n: r.queued}))
@@ -126,7 +126,7 @@ export function TorrentList() {
   }
 
   const doBackup = async (tor: Torrent) => {
-    setStructFor(null)
+    setMenuFor(null)
     try {
       await api.backup(tor.disk_id)
       toast(t("torrents.backupSaved"))
@@ -137,7 +137,7 @@ export function TorrentList() {
   }
 
   const doRestoreBackup = async (tor: Torrent) => {
-    setStructFor(null)
+    setMenuFor(null)
     try {
       await api.restoreBackup(tor.disk_id)
       toast(t("torrents.backupRestored"))
@@ -148,7 +148,7 @@ export function TorrentList() {
   }
 
   const doDeleteBackup = async (tor: Torrent) => {
-    setStructFor(null)
+    setMenuFor(null)
     try {
       await api.deleteBackup(tor.disk_id)
       toast(t("torrents.backupDeleted"))
@@ -195,39 +195,15 @@ export function TorrentList() {
                 before={tor.in_qbittorrent ? <TorrentIcon state={tor.state}/> : <HardDrive size={20} style={{color: "var(--tg-theme-hint-color)"}}/>}
                 after={
                   <div className={s.iconActions}>
-                    {cats.length > 0 && (
-                      <button
-                        className={s.iconBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMoving(tor)
-                        }}
-                        title={t("torrents.move")}
-                      >
-                        <FolderInput size={18}/>
-                      </button>
-                    )}
-                    {tor.renameable && (
-                      <button
-                        className={s.iconBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setStructFor(tor)
-                        }}
-                        title={t("torrents.structure")}
-                      >
-                        <Layers size={18}/>
-                      </button>
-                    )}
                     <button
-                      className={`${s.iconBtn} ${s.danger}`}
+                      className={s.iconBtn}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setConfirmDel(tor)
+                        setMenuFor(tor)
                       }}
-                      title={t("common.delete")}
+                      title={t("torrents.actions")}
                     >
-                      <Trash2 size={18}/>
+                      <MoreHorizontal size={18}/>
                     </button>
                   </div>
                 }
@@ -311,49 +287,64 @@ export function TorrentList() {
       />
 
       <Drawer
-        opened={!!structFor}
-        onClose={() => setStructFor(null)}
-        title={t("torrents.structure")}
+        opened={!!menuFor}
+        onClose={() => setMenuFor(null)}
+        title={menuFor?.name ?? t("torrents.actions")}
         position="bottom"
         radius="lg"
         overlayProps={{blur: 2}}
       >
         <Stack gap={8} pb={16} px={4}>
-          <Button fullWidth variant="dark" leftSection={<Clapperboard size={18}/>}
-                  onClick={() => structFor && doStructure(structFor, "pretty")}>
-            {t("torrents.pretty")}
-          </Button>
-          <Button fullWidth variant="dark" leftSection={<Folder size={18}/>}
-                  onClick={() => structFor && doStructure(structFor, "flat")}>
-            {t("torrents.original")}
-          </Button>
-          <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
-                  onClick={() => structFor && doStructure(structFor, "delete")}>
-            {t("torrents.delLinks")}
-          </Button>
-          <Divider my={4}/>
-          <Button fullWidth variant="light" leftSection={<Wand2 size={18}/>}
-                  disabled={upscalers.length === 0 || !!structFor?.upscaling}
-                  onClick={() => setUpscaleFor(structFor)}>
-            {t("torrents.upscale")}
-          </Button>
-          {structFor?.has_backup ? (
+          {cats.length > 0 && (
+            <Button fullWidth variant="default" leftSection={<FolderInput size={18}/>}
+                    onClick={() => { setMoving(menuFor); setMenuFor(null) }}>
+              {t("torrents.move")}
+            </Button>
+          )}
+          {menuFor?.renameable && (
+            <>
+              <Button fullWidth variant="dark" leftSection={<Clapperboard size={18}/>}
+                      onClick={() => menuFor && doStructure(menuFor, "pretty")}>
+                {t("torrents.pretty")}
+              </Button>
+              <Button fullWidth variant="dark" leftSection={<Folder size={18}/>}
+                      onClick={() => menuFor && doStructure(menuFor, "flat")}>
+                {t("torrents.original")}
+              </Button>
+              <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
+                      onClick={() => menuFor && doStructure(menuFor, "delete")}>
+                {t("torrents.delLinks")}
+              </Button>
+              <Divider my={4}/>
+              <Button fullWidth variant="light" leftSection={<Wand2 size={18}/>}
+                      disabled={upscalers.length === 0 || !!menuFor?.upscaling}
+                      onClick={() => { setUpscaleFor(menuFor); setMenuFor(null) }}>
+                {t("torrents.upscale")}
+              </Button>
+            </>
+          )}
+          {menuFor?.has_backup ? (
             <Button fullWidth variant="light" color="teal" leftSection={<Save size={18}/>}
-                    onClick={() => structFor && doRestoreBackup(structFor)}>
+                    onClick={() => menuFor && doRestoreBackup(menuFor)}>
               {t("torrents.restoreBackup")}
             </Button>
           ) : (
             <Button fullWidth variant="default" leftSection={<Save size={18}/>}
-                    onClick={() => structFor && doBackup(structFor)}>
+                    onClick={() => menuFor && doBackup(menuFor)}>
               {t("torrents.backup")}
             </Button>
           )}
-          {structFor?.has_backup && (
+          {menuFor?.has_backup && (
             <Button fullWidth variant="subtle" color="red" leftSection={<Trash2 size={18}/>}
-                    onClick={() => structFor && doDeleteBackup(structFor)}>
+                    onClick={() => menuFor && doDeleteBackup(menuFor)}>
               {t("torrents.delBackup")}
             </Button>
           )}
+          <Divider my={4}/>
+          <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
+                  onClick={() => { setConfirmDel(menuFor); setMenuFor(null) }}>
+            {t("common.delete")}
+          </Button>
         </Stack>
       </Drawer>
 

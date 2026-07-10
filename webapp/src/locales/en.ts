@@ -29,6 +29,7 @@ export default {
     xdev: "Hardlink error: different partitions",
     linked: "Linked {{n}}, {{pending}} need input",
     // Action buttons
+    actions: "Actions",
     move: "Move to category",
     structure: "Structure",
     pretty: "Pretty names",

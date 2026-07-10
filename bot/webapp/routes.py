@@ -667,6 +667,7 @@ async def torrent_backup_restore(request):
         elif os.path.lexists(dst):
             os.remove(dst)
         os.rename(tmp, dst)
+        store.update_disk_entry_size(disk_id, _compute_disk_size(dst))
         delete_torrent_links(tor, cats)
         if get_config("rename_mode", "flat") == "pretty":
             process_torrent_rename(tor, cats)

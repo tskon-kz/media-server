@@ -29,6 +29,7 @@ export default {
     xdev: "Ошибка хардлинка: разные разделы",
     linked: "Связано {{n}}, {{pending}} требуют ввода",
     // Action buttons
+    actions: "Действия",
     move: "Переместить в категорию",
     structure: "Структура",
     pretty: "Красивые имена",
