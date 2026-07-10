@@ -303,20 +303,20 @@ export function TorrentList() {
           )}
           {menuFor?.renameable && (
             <>
-              <Button fullWidth variant="dark" leftSection={<Clapperboard size={18}/>}
+              <Button fullWidth variant="default" leftSection={<Clapperboard size={18}/>}
                       onClick={() => menuFor && doStructure(menuFor, "pretty")}>
                 {t("torrents.pretty")}
               </Button>
-              <Button fullWidth variant="dark" leftSection={<Folder size={18}/>}
+              <Button fullWidth variant="default" leftSection={<Folder size={18}/>}
                       onClick={() => menuFor && doStructure(menuFor, "flat")}>
                 {t("torrents.original")}
               </Button>
-              <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
+              <Button fullWidth variant="subtle" color="red" leftSection={<Trash2 size={18}/>}
                       onClick={() => menuFor && doStructure(menuFor, "delete")}>
                 {t("torrents.delLinks")}
               </Button>
               <Divider my={4}/>
-              <Button fullWidth variant="light" leftSection={<Wand2 size={18}/>}
+              <Button fullWidth variant="default" leftSection={<Wand2 size={18}/>}
                       disabled={upscalers.length === 0 || !!menuFor?.upscaling}
                       onClick={() => { setUpscaleFor(menuFor); setMenuFor(null) }}>
                 {t("torrents.upscale")}
@@ -324,7 +324,7 @@ export function TorrentList() {
             </>
           )}
           {menuFor?.has_backup ? (
-            <Button fullWidth variant="light" color="teal" leftSection={<Save size={18}/>}
+            <Button fullWidth variant="default" leftSection={<Save size={18}/>}
                     onClick={() => menuFor && doRestoreBackup(menuFor)}>
               {t("torrents.restoreBackup")}
             </Button>
@@ -341,7 +341,7 @@ export function TorrentList() {
             </Button>
           )}
           <Divider my={4}/>
-          <Button fullWidth variant="filled" color="red" leftSection={<Trash2 size={18}/>}
+          <Button fullWidth variant="light" color="red" leftSection={<Trash2 size={18}/>}
                   onClick={() => { setConfirmDel(menuFor); setMenuFor(null) }}>
             {t("common.delete")}
           </Button>
