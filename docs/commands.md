@@ -34,9 +34,11 @@ Shows all torrents with status icons:
 | Icon | Meaning |
 |------|---------|
 | ⬇️ | Downloading |
+| 🔄 | Stalled download |
 | ✅ | Done |
 | ⏸ | Paused |
 | 🌱 | Seeding |
+| 📦 | Moving |
 | ❌ | Error |
 
 Per-torrent actions:
@@ -45,7 +47,26 @@ Per-torrent actions:
 |--------|--------|
 | 🗑 | Delete torrent with files |
 | 📁 | Move to a different category |
-| 🗂 | Manage file structure (pretty names / original / delete hardlinks) |
+| 🗂 | Manage file structure (pretty names / original / delete hardlinks), **upscale**, and backups |
+
+The 🗂 structure drawer also groups the **media management** actions: **Upscale**, **Save backup**, **Restore from backup**, and **Delete backup** — see [Video upscaling](#video-upscaling) below.
+
+---
+
+## Video upscaling
+
+From the 🗂 structure drawer of any completed torrent you can upscale its video files in place on the GPU:
+
+1. Tap **Upscale**, pick the files (or all), then choose:
+   - **Upscaler** — `Anime4K` (neural shaders, best for anime line art) or `FSR` (high-quality anti-ring scaler, best for films/live-action).
+   - **Target** — `2x`, `1080p`, `2K`, or `4K`. Files already at/above the target are skipped.
+   - **Compression** — `Balanced` or `Smaller file`.
+2. The worker rewrites each file with a single GPU-accelerated ffmpeg pass. Progress is shown as `Upscaling done/total`; you can **pause/resume** or **remove from queue**.
+3. When the batch finishes, the bot notifies you, rebuilds the library hardlinks, and refreshes Jellyfin.
+
+**Backups** are real copies (not hardlinks) kept under `/media/.backups/`, so they survive the in-place upscale. Use **Save backup** before upscaling if you want to compare upscalers against the original, then **Restore from backup** or **Delete backup** as needed.
+
+> **Requires** a GPU exposed to the `upscaler` container via `/dev/dri` (AMD/Intel iGPUs work out of the box; NVIDIA needs a runtime override in `docker-compose.override.yml`). Without a GPU device the job fails with a clear error.
 
 ---
 

@@ -155,8 +155,8 @@ The `VERSION` build arg sets the `APP_VERSION` env var inside the container. Bot
 ├── bot/
 │   ├── main.py         # PTB ApplicationBuilder setup, job scheduling
 │   ├── handlers/       # Command/message/callback handlers + background jobs
-│   │   ├── commands.py # /start /list /status /scan /settings
-│   │   ├── messages.py # Magnet link and .torrent file handlers
+│   │   ├── commands.py # /start /update
+│   │   ├── messages.py # Text handler (manual-rename state)
 │   │   ├── callbacks.py# Inline keyboard callback dispatcher
 │   │   ├── jobs.py     # Background jobs (done-check, update-check, qb-restart-check, webapp-url-check — polls cloudflared logs for trycloudflare.com URL)
 │   │   └── _utils.py   # guard decorator, shared helpers
@@ -179,6 +179,11 @@ The `VERSION` build arg sets the `APP_VERSION` env var inside the container. Bot
 │   │   ├── icons.tsx           # Lucide icon re-exports
 │   │   └── styles/globals.scss # Telegram-native CSS variables (--tg-theme-*)
 │   └── .env.example    # Copy to .env and set VITE_DEV_API_BASE
+├── upscaler/           # GPU video-upscale worker (polls the shared upscale_jobs queue)
+│   ├── main.py         # Queue poller loop
+│   ├── runners.py      # ffmpeg/libplacebo backends (anime4k, fsr)
+│   ├── db.py           # Shared SQLite access
+│   └── Dockerfile      # jellyfin-ffmpeg + Anime4K shaders + Vulkan drivers
 ├── lang/
 │   ├── ru.py / en.py   # Bot message strings
 │   └── ru.sh / en.sh   # Shell message strings (for install.sh)
@@ -222,4 +227,4 @@ Workflows can also be triggered manually via Actions → Run workflow.
 
 ## Releasing a new version
 
-The git tag on a GitHub Release **is** the version (`pyproject.toml` version is frozen at `0.0.0` and never bumped). To cut a release: merge `dev → main` (builds `:edge`), then GitHub → Releases → create a new release with tag `vX.Y.Z` targeting `main` (builds `:stable`/`:vX.Y.Z`). Prod bots pick it up via `/settings` → Update. See `docs/releases.md`.
+The git tag on a GitHub Release **is** the version (`pyproject.toml` version is frozen at `0.0.0` and never bumped). To cut a release: merge `dev → main` (builds `:edge`), then GitHub → Releases → create a new release with tag `vX.Y.Z` targeting `main` (builds `:stable`/`:vX.Y.Z`). Prod bots pick it up via Mini App → Settings → Update (or `/update`). See `docs/releases.md`.

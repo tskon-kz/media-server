@@ -1,6 +1,6 @@
 # In-bot updates (bot-only blue/green swap)
 
-How the `/settings → Update` channel switcher (Stable / Edge) and the Mini App
+How the Mini App → Settings → Update channel switcher (Stable / Edge) and the `/update`
 update action bring an install to a new bot version — **without touching any other
 service**. Infrastructure/topology changes (compose file, new sidecars, bumping
 Jellyfin/qBittorrent versions) are deliberately **not** done in-bot; they go
@@ -12,7 +12,7 @@ A routine update only needs a newer bot image. Recreating the whole compose stac
 on every update is what made earlier versions unstable:
 
 - `docker compose up -d` recreating **qBittorrent** churns its session temp
-  password → the bot's stored credentials stop matching → empty `/list`.
+  password → the bot's stored credentials stop matching → empty torrent list.
 - Recreating **cloudflared** (quick-tunnel) assigns a new `trycloudflare.com`
   URL → a 502 window until the bot re-scrapes it.
 

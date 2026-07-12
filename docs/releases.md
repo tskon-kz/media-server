@@ -22,12 +22,12 @@ frozen at `0.0.0` and never bumped.
    new tag `vX.Y.Z`, target `main`, publish. `build-release.yml` builds
    `:vX.Y.Z`, moves `:stable` to that digest, and refreshes `:latest`. This is
    the only thing the prod bots' passive update-check notifies about.
-4. **Deploy to prod:** in Telegram, `/settings → Update` → **Update to `vX.Y.Z`**.
+4. **Deploy to prod:** in Telegram, Mini App → Settings → Update (or `/update`) → **Update to `vX.Y.Z`**.
    The bot pulls `:stable` and blue/green-replaces its own container.
 
 ## Update actions in the bot
 
-`/settings → Update` shows different controls depending on the active channel:
+Mini App → Settings → Update (and the `/update` command) shows different controls depending on the active channel:
 
 **On `:stable` (default):**
 - **⬆️ Update to `vX.Y.Z`** — shown only when a newer published release exists.

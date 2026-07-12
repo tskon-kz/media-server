@@ -23,7 +23,7 @@ Generate `WATCHTOWER_TOKEN`: `openssl rand -hex 16`
 **`BOT_IMAGE_TAG`** selects which bot image `docker compose` pulls at container
 creation: `stable` (latest release, the default), `edge` (unreleased `main`), or
 a pinned `vX.Y.Z`. It's only read on cold starts; runtime switches happen via the
-bot's `/settings` → Update, which writes the tag to the DB (`bot_image_tag`).
+Mini App → Settings → Update (or `/update`), which writes the tag to the DB (`bot_image_tag`).
 `install.sh`/`update.sh` resolve the DB value into this variable so the two never
 drift. See `docs/releases.md`.
 
@@ -31,7 +31,7 @@ drift. See `docs/releases.md`.
 
 ## Runtime config (SQLite)
 
-Stored in `/app/data/media_server.db` (host bind-mount: `./bot-data/media_server.db`). Managed by the bot via `/settings` and written by `install.sh`.
+Stored in `/app/data/media_server.db` (host bind-mount: `./bot-data/media_server.db`). Managed via the Mini App → Settings and written by `install.sh`.
 
 | Key | Description |
 |-----|-------------|
@@ -72,13 +72,13 @@ Files download to `/media/.downloads/<slug>`, then hardlinks are created in `/me
 | Music | Music |
 | Mixed | Mixed Movies and Shows |
 
-Creating a category via `/settings` → Categories creates the Jellyfin library automatically. Deleting it removes the library.
+Creating a category via Mini App → Settings → Categories creates the Jellyfin library automatically. Deleting it removes the library.
 
 ---
 
 ## Language
 
-Switch via `/settings` → Language. Affects all bot messages. Supported: Russian, English. Default: Russian.
+Switch via Mini App → Settings → Language. Affects all bot messages. Supported: Russian, English. Default: English (the installer sets the language you pick at install time).
 
 Also affects `install.sh`, `teardown.sh`, and `migrate-media.sh` (shell-level localization).
 
@@ -86,7 +86,7 @@ Also affects `install.sh`, `teardown.sh`, and `migrate-media.sh` (shell-level lo
 
 ## Telegram proxy
 
-If your server doesn't have direct access to Telegram, set a SOCKS5 proxy in `/settings` → (not directly exposed — set during install or via database):
+If your server doesn't have direct access to Telegram, set a SOCKS5 proxy (not exposed in the Mini App — set during install or directly in the database):
 
 ```bash
 python3 -c "

@@ -5,7 +5,7 @@ from config import DATA_DIR, DEFAULT_CATS
 from lang import ru, en
 
 _LANGS = {"ru": ru.M, "en": en.M}
-_lang = "ru"
+_lang = "en"
 
 DB_PATH = f"{DATA_DIR}/media_server.db"
 _conn: sqlite3.Connection | None = None
@@ -158,7 +158,7 @@ def init():
         "WHERE status='running'"
     )
 
-    _conn.execute("INSERT OR IGNORE INTO config VALUES ('lang', 'ru')")
+    _conn.execute("INSERT OR IGNORE INTO config VALUES ('lang', 'en')")
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('qb_user', 'admin')")
     _conn.execute("INSERT OR IGNORE INTO config VALUES ('qb_pass', 'adminadmin')")
     _conn.commit()
@@ -174,7 +174,7 @@ def init():
         _conn.commit()
 
     row = _conn.execute("SELECT value FROM config WHERE key='lang'").fetchone()
-    _lang = row[0] if row else "ru"
+    _lang = row[0] if row else "en"
 
 
 # ---- generic config ----

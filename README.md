@@ -12,6 +12,7 @@ Self-hosted media streaming stack: Jellyfin + qBittorrent, fully managed via a T
 - Jackett admin password management from the bot (change, remove)
 - Download notifications with automatic Jellyfin library scan
 - **Two hardlink modes**: original file structure (default) or automatic Jellyfin-standard renaming — switchable per-torrent or globally
+- **GPU video upscaling** — upscale a torrent's videos in place (Anime4K for anime, FSR for movies) with target resolution (2x/1080p/2K/4K), plus one-tap backups to compare results
 - Category-based library management (Movies, Series + custom)
 - Built-in update system via the bot
 

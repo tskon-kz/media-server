@@ -31,8 +31,8 @@ The script syncs files with **git**, not per-file `curl` downloads. It uses
 
 > **Note:** This updates the infrastructure (compose file, images) and syncs
 > `BOT_IMAGE_TAG` in `.env` with the tag the bot last self-updated to (stored in
-> the DB, default `stable`). The bot itself normally updates via `/settings` →
-> Update (see below); Watchtower remains only as a weekly safety net.
+> the DB, default `stable`). The bot itself normally updates via Mini App →
+> Settings → Update (see below); Watchtower remains only as a weekly safety net.
 
 ### First update after switching to the git-based script
 
@@ -60,11 +60,11 @@ curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/dev/update-de
 
 ---
 
-## Updating the bot — `/settings` → Update
+## Updating the bot — Mini App → Settings → Update
 
 The bot updates **itself**, locally, through the Docker socket it mounts — no
-GitHub secrets, no per-install configuration. `/settings` → Update offers a
-**channel switcher** (Stable / Edge):
+GitHub secrets, no per-install configuration. Mini App → Settings → Update (or
+the `/update` command) offers a **channel switcher** (Stable / Edge):
 
 - **⬆️ Update to `vX.Y.Z`** — shown when a newer published release exists.
   Pulls the `:stable` image and replaces the bot container.
@@ -78,7 +78,7 @@ pull leaves the running bot untouched and reports the failure. On success it
 messages "Bot restarted and running …" once the new container boots.
 
 Only the **bot** container is swapped — qBittorrent/Jellyfin/cloudflared are never
-touched, so an update can't break `/list` or the tunnel. Infrastructure changes
+touched, so an update can't break the torrent list or the tunnel. Infrastructure changes
 (compose file, new sidecars, service version bumps) are applied on the host with
 `update.sh` (above), not from the bot.
 
@@ -105,7 +105,7 @@ docker compose pull telegram-bot
 docker compose up -d telegram-bot
 ```
 
-Once a fixed release is out, update normally via `/settings` → Update (or set the
+Once a fixed release is out, update normally via Mini App → Settings → Update (or set the
 tag back to `stable` and repeat the steps above).
 
 ---
@@ -170,12 +170,12 @@ bash migrate-media.sh
 - If you use a Telegram proxy, verify it's reachable
 
 ### qBittorrent auth error
-The bot shows a connection error in `/list` or `/status`. This happens when the stored password doesn't match.
+The Mini App shows a connection error in the Torrents or Status tab. This happens when the stored password doesn't match.
 
-To recover: `/settings` → qBittorrent → Fetch temp password (reads the auto-generated password from container logs), then set a permanent password.
+To recover: Mini App → Settings → qBittorrent → Fetch temp password (reads the auto-generated password from container logs), then set a permanent password.
 
 ### Jellyfin library not updating
-- Use `/scan` in the bot to trigger a manual scan
+- A library scan runs automatically when a download completes; you can also trigger one from the Jellyfin dashboard
 - Check that the category path exists: `/media/<slug>/`
 - Verify the Jellyfin API key is still valid: Dashboard → API Keys
 

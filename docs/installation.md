@@ -177,8 +177,20 @@ Normal usage goes entirely through the Telegram bot — web UIs are only needed 
 Jackett starts automatically with the stack. After installation:
 
 1. Open `http://SERVER_IP:9117` and add your indexers (trackers) via the Jackett web UI.
-2. Use `/search <query>` in the bot to search all configured indexers.
+2. Use the Mini App → **Search** tab to search all configured indexers.
 
 The Jackett API key is read automatically from the mounted config file — no manual copy/paste needed.
 
-> **Security:** The Jackett web UI is publicly accessible on the configured port. The installer prompts you to set an admin password during setup. You can also change or remove it later via `/settings` → Jackett → 🔒 Change admin password.
+> **Security:** The Jackett web UI is publicly accessible on the configured port. The installer prompts you to set an admin password during setup. You can also change or remove it later via Mini App → Settings → Jackett → 🔒 Change admin password.
+
+---
+
+## Video upscaling (GPU)
+
+The stack includes an `upscaler` worker container that upscales a torrent's video files in place (Mini App → Torrents → 🗂 → **Upscale**). It runs on the GPU via ffmpeg's libplacebo (Vulkan) and needs a render device:
+
+- **AMD / Intel iGPU** — works out of the box; `docker-compose.yml` maps `/dev/dri` into the container.
+- **No GPU** — leave the stack as-is; every other feature works, but upscale jobs fail with a clear "no GPU device" error. Comment out the `devices:` line for the `upscaler` service if the missing `/dev/dri` prevents the container from starting.
+- **NVIDIA** — add a runtime override in `docker-compose.override.yml` exposing the NVIDIA runtime/devices to the `upscaler` service.
+
+No installer prompt is involved — the container is created by `docker compose up -d` like the rest.
