@@ -1,6 +1,6 @@
 import re
 from functools import lru_cache
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from guessit import guessit
 import store
 from store import t
@@ -106,6 +106,7 @@ def start_kb() -> InlineKeyboardMarkup:
     url = store.get_config("webapp_url")
     if url:
         buttons.append([InlineKeyboardButton(t("webapp_open_button"), web_app=WebAppInfo(url=url))])
+        buttons.append([InlineKeyboardButton("MiniApp Link", copy_text=CopyTextButton(text=url))])
     buttons.append([
         InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
         InlineKeyboardButton("🇬🇧 English",  callback_data="lang:en"),
