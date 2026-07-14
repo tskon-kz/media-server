@@ -1,6 +1,6 @@
 import os
 import qbittorrentapi
-from telegram import MenuButtonWebApp, WebAppInfo
+from telegram import WebAppInfo
 
 from config import ALLOWED, DONE_STATES, APP_VERSION, WEBAPP_URL, INCOMING_DIR
 from store import (
@@ -189,12 +189,6 @@ async def job_check_webapp_url(ctx):
     if not url or url == get_config("webapp_url"):
         return
     set_config("webapp_url", url)
-    button = MenuButtonWebApp(text=t("webapp_menu_button"), web_app=WebAppInfo(url=url))
-    for uid in ALLOWED:
-        try:
-            await ctx.bot.set_chat_menu_button(chat_id=uid, menu_button=button)
-        except Exception:
-            pass
     log.info("Web App URL updated: %s", url)
 
 

@@ -5,6 +5,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
+from telegram import BotCommand, MenuButtonCommands
 from telegram.ext import (
     ApplicationBuilder, CallbackQueryHandler,
     CommandHandler, MessageHandler, filters,
@@ -18,7 +19,15 @@ log = logging.getLogger(__name__)
 
 
 async def _post_init(app):
-    await app.bot.set_my_commands([])
+    await app.bot.set_my_commands([
+        BotCommand("start",  "Open media server"),
+        BotCommand("update", "Updates & channel switching"),
+    ])
+    for uid in ALLOWED:
+        try:
+            await app.bot.set_chat_menu_button(chat_id=uid, menu_button=MenuButtonCommands())
+        except Exception:
+            pass
 
     # Report a completed update FIRST — before anything that could fail — so a
     # Mini App startup hiccup can never swallow the success notification. The flag
