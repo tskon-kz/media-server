@@ -228,6 +228,8 @@ printf "%s" "$MSG_ASK_PROXY";        read -r PROXY_URL
 WEBAPP_DOMAIN=""       # "" = quick tunnel; set = own-domain (caddy)
 WEBAPP_STATIC_URL=""
 PROXY_SERVICE="cloudflared"
+CADDY_HTTP_PORT=80
+CADDY_HTTPS_PORT=443
 echo "$MSG_ASK_EXPOSE"
 printf "%s" "$MSG_ASK_EXPOSE_CHOICE"; read -r _EXPOSE_MODE
 case "$_EXPOSE_MODE" in
@@ -240,6 +242,10 @@ case "$_EXPOSE_MODE" in
         WEBAPP_STATIC_URL="https://$WEBAPP_DOMAIN"
         PROXY_SERVICE="caddy"
         echo "$MSG_DOMAIN_DNS_NOTE"
+        printf "%s" "$MSG_ASK_CADDY_HTTP_PORT";  read -r _CADDY_HTTP_PORT
+        printf "%s" "$MSG_ASK_CADDY_HTTPS_PORT"; read -r _CADDY_HTTPS_PORT
+        [ -n "$_CADDY_HTTP_PORT"  ] && CADDY_HTTP_PORT="$_CADDY_HTTP_PORT"
+        [ -n "$_CADDY_HTTPS_PORT" ] && CADDY_HTTPS_PORT="$_CADDY_HTTPS_PORT"
         ;;
 esac
 # Activate caddy's profile so the `up` calls below include it.
@@ -281,6 +287,8 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     # WEBAPP_DOMAIN alone drives the proxy choice and the bot's WEBAPP_URL (compose
     # derives https://<domain>).
     [ -n "$WEBAPP_DOMAIN" ] && echo "WEBAPP_DOMAIN=$WEBAPP_DOMAIN"
+    [ -n "$WEBAPP_DOMAIN" ] && [ "$CADDY_HTTP_PORT"  != "80"  ] && echo "CADDY_HTTP_PORT=$CADDY_HTTP_PORT"
+    [ -n "$WEBAPP_DOMAIN" ] && [ "$CADDY_HTTPS_PORT" != "443" ] && echo "CADDY_HTTPS_PORT=$CADDY_HTTPS_PORT"
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.

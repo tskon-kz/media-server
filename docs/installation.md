@@ -53,6 +53,8 @@ Serve the Mini App from your own domain (e.g. `https://media.yourdomain.com`). A
 **Requirements:** a DNS **A record** for the domain pointing at this server.
 
 > **Firewall / inbound ports:** Caddy needs **TCP 80** and **TCP 443** reachable from the internet — port 80 for the Let's Encrypt ACME HTTP challenge (certificate issuance/renewal), port 443 for the Mini App over HTTPS. Open both inbound on the server's firewall and forward them if the server is behind NAT. (Unlike the quick tunnel, which is outbound-only, own-domain mode terminates TLS locally and must accept inbound connections.)
+>
+> **Host port 80/443 already in use?** Set `CADDY_HTTP_PORT` / `CADDY_HTTPS_PORT` in `.env` to free host ports and forward external 80/443 to them at the router/firewall. Caddy's cert issuance still requires the standard external 80/443 to reach it, so this only helps when the host itself can't own those ports but a NAT/router can forward them. The Mini App URL stays a clean `https://<domain>` — only the host-side bind moves.
 
 #### During the installer
 
