@@ -15,8 +15,7 @@
 | `JACKETT_PORT` | No | `9117` | Jackett web UI port |
 | `BOT_IMAGE_TAG` | No | `stable` | Bot image tag used at cold start (`docker compose up -d`) |
 | `WATCHTOWER_PORT` | No | `9080` | Watchtower HTTP API port (bound to `127.0.0.1` only) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | No | — | Named Cloudflare tunnel token (leave empty for ephemeral quick-tunnel) |
-| `WEBAPP_URL` | No | — | Static Mini App URL for named tunnel (leave empty when using quick-tunnel) |
+| `WEBAPP_DOMAIN` | No | — | Own domain for the Mini App (e.g. `media.example.com`). Set → Caddy serves it with auto-HTTPS (needs inbound **TCP 80 + 443** open and a DNS A record) and the Cloudflare quick tunnel is switched off; the bot's `WEBAPP_URL` is derived as `https://<domain>`. Leave empty to use the quick tunnel. |
 
 Generate `WATCHTOWER_TOKEN`: `openssl rand -hex 16`
 

@@ -27,61 +27,52 @@ The script:
 | Jellyfin server name | Optional, defaults to `Media Server` |
 | Jackett admin password | Optional — protects the Jackett web UI; leave empty for no password |
 | Telegram proxy | Optional, e.g. `socks5://user:pass@host:port` |
-| Named Cloudflare tunnel | Optional — see [Mini App URL](#mini-app-url--cloudflare-tunnel) below |
+| Mini App exposure | Quick Cloudflare tunnel (default) or your own domain — see [Mini App URL](#mini-app-url--exposure) below |
 | Custom ports | Optional — press `n` to use defaults (Jellyfin: 8096, qBittorrent: 8080, Jackett: 9117) |
 
 After the installer completes, the bot is live in your Telegram chat.
 
 ---
 
-## Mini App URL — Cloudflare Tunnel
+## Mini App URL — exposure
 
-The Mini App (web UI in Telegram) is served over HTTPS via a Cloudflare Tunnel. Two modes are supported:
-
-> **Firewall / outbound ports:** `cloudflared` connects outbound — no inbound ports need to be opened. It uses **UDP 7844** (QUIC/HTTP3) for best performance and falls back to **TCP 443** if UDP is blocked. Allow outbound UDP 7844 on your server's firewall for the tunnel to use QUIC; TCP 443 alone is sufficient if QUIC is unavailable.
+The Mini App (web UI in Telegram) is served over HTTPS. Two modes are supported.
 
 ### Quick tunnel (default, no account required)
 
-The installer starts a `cloudflared` container that opens an ephemeral `*.trycloudflare.com` HTTPS URL. The bot detects it automatically and sets the Menu Button in Telegram. No configuration needed — just press `n` at the named tunnel prompt.
+The installer starts a `cloudflared` container that opens an ephemeral `*.trycloudflare.com` HTTPS URL. The bot detects it automatically and sets the Menu Button in Telegram. No configuration needed — just pick option `1` at the exposure prompt.
 
-**Limitation:** the URL changes every time the `cloudflared` container restarts. The bot updates the Menu Button automatically within ~60 s, so there is no manual action required — but the URL is not static, so the bot cannot be registered in BotFather with a fixed Mini App URL (no OPEN button in the Telegram chat list).
+> **Firewall / outbound ports:** `cloudflared` connects outbound — no inbound ports need to be opened. It uses **UDP 7844** (QUIC/HTTP3) for best performance and falls back to **TCP 443** if UDP is blocked. Allow outbound UDP 7844 for QUIC; TCP 443 alone is sufficient if QUIC is unavailable.
 
-### Named tunnel (static URL, requires Cloudflare account)
+**Limitation:** the URL changes every time the `cloudflared` container restarts. The bot updates the Menu Button automatically within ~60 s, so no manual action is required — but the URL is not static, so the bot cannot be registered in BotFather with a fixed Mini App URL (no OPEN button in the Telegram chat list).
 
-A named tunnel gives the Mini App a permanent `https://app.yourdomain.com` address. This enables the **OPEN** button in the Telegram chat list and allows registering the bot in BotFather with a fixed URL.
+### Own domain, no Cloudflare (static URL)
 
-#### Before running the installer
+Serve the Mini App from your own domain (e.g. `https://media.yourdomain.com`). A bundled **Caddy** container terminates TLS with an auto-issued Let's Encrypt certificate and proxies to the bot — no Cloudflare account. This gives a permanent URL (enables the **OPEN** button in the chat list and a fixed BotFather URL).
 
-1. Log in to [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → **Networks → Tunnels → Create a tunnel**
-2. Name the tunnel (e.g. `media-server`) → copy the **tunnel token**
-3. Under **Public Hostnames**, add:
-   - **Subdomain / Domain:** `app.yourdomain.com` (any subdomain on your CF-managed domain)
-   - **Service:** `http://telegram-bot:8081`
+**Requirements:** a DNS **A record** for the domain pointing at this server.
+
+> **Firewall / inbound ports:** Caddy needs **TCP 80** and **TCP 443** reachable from the internet — port 80 for the Let's Encrypt ACME HTTP challenge (certificate issuance/renewal), port 443 for the Mini App over HTTPS. Open both inbound on the server's firewall and forward them if the server is behind NAT. (Unlike the quick tunnel, which is outbound-only, own-domain mode terminates TLS locally and must accept inbound connections.)
 
 #### During the installer
 
-When asked `Named Cloudflare tunnel? [y/n]` — press `y`, then enter:
-- The tunnel token
-- Your static URL (e.g. `https://app.yourdomain.com`)
+At the exposure prompt pick option `2` and enter your domain (e.g. `media.yourdomain.com`). The installer writes `WEBAPP_DOMAIN` to `.env`; Caddy issues the certificate on first start.
 
-The installer writes both to `.env` and the bot uses the static URL from the first start.
+#### Switching from quick tunnel to own domain after install
 
-#### Switching from quick tunnel to named tunnel after install
-
-Edit `.env` on the server and add:
+Point the domain's DNS A record at the server, then edit `.env` and add:
 
 ```dotenv
-CLOUDFLARE_TUNNEL_TOKEN=eyJ...your-token...
-WEBAPP_URL=https://app.yourdomain.com
+WEBAPP_DOMAIN=media.yourdomain.com
 ```
 
-Then restart:
+Then re-run the updater (brings the stack down and back up with Caddy instead of the tunnel):
 
 ```bash
-docker compose up -d cloudflared telegram-bot
+bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.sh)
 ```
 
-The bot picks up `WEBAPP_URL` on next start and updates the Menu Button immediately.
+`WEBAPP_DOMAIN` alone switches the Cloudflare tunnel off and sets the bot's Mini App URL (`https://<domain>`); the Menu Button updates immediately.
 
 ---
 

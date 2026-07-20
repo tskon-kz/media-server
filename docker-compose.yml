@@ -58,7 +58,7 @@ services:
       - JACKETT_URL=${JACKETT_URL:-http://jackett:9117}
       - JACKETT_PORT=${JACKETT_PORT:-9117}
       - WATCHTOWER_TOKEN=${WATCHTOWER_TOKEN}
-      - WEBAPP_URL=${WEBAPP_URL:-}
+      - WEBAPP_URL=${WEBAPP_DOMAIN:+https://}${WEBAPP_DOMAIN}
       - PYTHONUNBUFFERED=1
     volumes:
       - ./bot-data:/app/data
@@ -98,15 +98,27 @@ services:
     image: cloudflare/cloudflared@sha256:6d91c121b803126f7a5344005d17a9324788fc09d305b6e2560ec6040a7ae283
     container_name: media-server-cloudflared
     restart: unless-stopped
-    # Quick tunnel (default, no Cloudflare account needed) — assigns a random
-    # trycloudflare.com URL scraped automatically by the bot.
-    #
-    # Named tunnel (static URL): set WEBAPP_URL to your static domain in .env,
-    # then override the command in docker-compose.override.yml:
-    #   services:
-    #     cloudflared:
-    #       command: tunnel --no-autoupdate run --token YOUR_TOKEN
+    # Default quick tunnel. Profile derives from WEBAPP_DOMAIN: unset -> "" (on),
+    # set -> "disabled" (off) — so a domain in .env alone switches this off.
+    profiles: [ "${WEBAPP_DOMAIN:+disabled}" ]
     command: tunnel --no-autoupdate --protocol http2 --url http://telegram-bot:8081
+    depends_on:
+      - telegram-bot
+
+  caddy:
+    # Own-domain mode (no Cloudflare): auto-HTTPS reverse proxy to the bot. Runs
+    # only when the `own-domain` profile is active (WEBAPP_DOMAIN set). Needs DNS
+    # for WEBAPP_DOMAIN on this host and ports 80/443 open. Pinned by digest.
+    image: caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    container_name: media-server-caddy
+    restart: unless-stopped
+    profiles: [ "own-domain" ]
+    ports:
+      - "80:80"
+      - "443:443"
+    command: caddy reverse-proxy --from ${WEBAPP_DOMAIN:-} --to telegram-bot:8081
+    volumes:
+      - ./data/caddy:/data
     depends_on:
       - telegram-bot
 

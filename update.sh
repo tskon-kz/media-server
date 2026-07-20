@@ -6,6 +6,19 @@ REPO="tskon-kz/media-server"
 RAW="https://raw.githubusercontent.com/$REPO/main"
 INSTALL_DIR="$HOME/media-server"
 
+# Run the latest update.sh even when this on-disk copy is stale: download it and
+# re-exec once (guarded against a loop). Falls back to the local copy if offline.
+if [ -z "${UPDATE_SH_REEXEC:-}" ]; then
+    _self="$(mktemp)"
+    if curl -fsSL "$RAW/update.sh" -o "$_self" && [ -s "$_self" ]; then
+        export UPDATE_SH_REEXEC="$_self"
+        exec bash "$_self" "$@"
+    fi
+    rm -f "$_self"
+    echo "  ⚠ couldn't fetch latest update.sh; running local copy" >&2
+fi
+[ -n "${UPDATE_SH_REEXEC:-}" ] && trap 'rm -f "$UPDATE_SH_REEXEC"' EXIT
+
 if [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
     echo "Error: $INSTALL_DIR not found. Run install.sh first."
     exit 1
@@ -38,6 +51,14 @@ else
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG" >> .env
 fi
 
+# WEBAPP_DOMAIN in .env drives the proxy: set -> caddy (own-domain profile),
+# unset -> default quick tunnel. Exported for this run only, not persisted.
+if grep -q "^WEBAPP_DOMAIN=." .env 2>/dev/null; then
+    export COMPOSE_PROFILES="own-domain"
+else
+    unset COMPOSE_PROFILES
+fi
+
 echo "⬇  Fetching latest files from GitHub..."
 if [ ! -d .git ]; then
     git init -q
@@ -50,7 +71,8 @@ git checkout --force FETCH_HEAD -- .
 chmod +x update.sh teardown.sh migrate-media.sh
 
 echo "⏹  Stopping containers..."
-docker compose down
+# --remove-orphans clears the proxy being switched off (it's out of profile scope).
+COMPOSE_PROFILES=own-domain docker compose down --remove-orphans
 
 echo "📦  Pulling latest bot image..."
 # Only the bot image — the other services are pinned to :latest and must not be

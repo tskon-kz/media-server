@@ -44,7 +44,8 @@ _spin() {  # _spin "label" cmd [args...]
 }
 
 _pull_progress() {  # pulls images one by one, shows [████░░░] n/total
-    local -a svcs=(jellyfin qbittorrent jackett telegram-bot cloudflared watchtower)
+    local proxy="cloudflared"; [ "$COMPOSE_PROFILES" = "own-domain" ] && proxy="caddy"
+    local -a svcs=(jellyfin qbittorrent jackett telegram-bot "$proxy" watchtower)
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
@@ -92,6 +93,13 @@ if val:
     db.execute("INSERT OR REPLACE INTO config VALUES (?, ?)", (key, val))
 db.commit()
 PYEOF
+}
+
+# Activate the own-domain (caddy) profile for this run when WEBAPP_DOMAIN is set.
+# Not persisted — WEBAPP_DOMAIN alone drives the choice.
+_reconcile_profiles() {
+    grep -q '^WEBAPP_DOMAIN=.' "$INSTALL_DIR/.env" 2>/dev/null \
+        && export COMPOSE_PROFILES="own-domain" || unset COMPOSE_PROFILES
 }
 
 # Exit 0 if key exists in DB with a non-empty value, exit 1 otherwise.
@@ -188,6 +196,7 @@ if [ -f "$INSTALL_DIR/.env" ]; then
     read -r OVERWRITE
     if [[ ! "$OVERWRITE" =~ ^[Yy]$ ]]; then
         echo "$MSG_SKIP_ENV"
+        _reconcile_profiles
         _pull_progress
         _spin "$MSG_STARTING" docker compose up -d
         exit 0
@@ -216,13 +225,25 @@ printf "%s" "$MSG_ASK_JF_NAME";      read -r JF_NAME
 printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
 printf "%s" "$MSG_ASK_PROXY";        read -r PROXY_URL
 
-CF_TUNNEL_TOKEN=""
-CF_WEBAPP_URL=""
-printf "%s" "$MSG_ASK_CF_TUNNEL"; read -r _CF_ANSWER
-if [[ "$_CF_ANSWER" =~ ^[Yy]$ ]]; then
-    printf "%s" "$MSG_ASK_CF_TOKEN"; read -r CF_TUNNEL_TOKEN
-    printf "%s" "$MSG_ASK_CF_URL";   read -r CF_WEBAPP_URL
-fi
+WEBAPP_DOMAIN=""       # "" = quick tunnel; set = own-domain (caddy)
+WEBAPP_STATIC_URL=""
+PROXY_SERVICE="cloudflared"
+echo "$MSG_ASK_EXPOSE"
+printf "%s" "$MSG_ASK_EXPOSE_CHOICE"; read -r _EXPOSE_MODE
+case "$_EXPOSE_MODE" in
+    2)  # Own domain, no Cloudflare.
+        while true; do
+            printf "%s" "$MSG_ASK_DOMAIN"; read -r WEBAPP_DOMAIN
+            [ -n "$WEBAPP_DOMAIN" ] && break
+            echo "$MSG_DOMAIN_EMPTY"
+        done
+        WEBAPP_STATIC_URL="https://$WEBAPP_DOMAIN"
+        PROXY_SERVICE="caddy"
+        echo "$MSG_DOMAIN_DNS_NOTE"
+        ;;
+esac
+# Activate caddy's profile so the `up` calls below include it.
+[ -n "$WEBAPP_DOMAIN" ] && export COMPOSE_PROFILES="own-domain"
 
 JF_PORT=8096
 QB_PORT=8080
@@ -257,8 +278,9 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     [ "$JACKETT_PORT"    != "9117" ] && echo "JACKETT_PORT=$JACKETT_PORT"
     [ "$WATCHTOWER_PORT" != "9080" ] && echo "WATCHTOWER_PORT=$WATCHTOWER_PORT"
     [ "$MEDIA_PATH"   != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
-    [ -n "$CF_TUNNEL_TOKEN" ] && echo "CLOUDFLARE_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN"
-    [ -n "$CF_WEBAPP_URL"   ] && echo "WEBAPP_URL=$CF_WEBAPP_URL"
+    # WEBAPP_DOMAIN alone drives the proxy choice and the bot's WEBAPP_URL (compose
+    # derives https://<domain>).
+    [ -n "$WEBAPP_DOMAIN" ] && echo "WEBAPP_DOMAIN=$WEBAPP_DOMAIN"
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.
@@ -279,6 +301,7 @@ mkdir -p "$_media_abs/movies" "$_media_abs/series" \
     "$INSTALL_DIR/data/jellyfin/config" "$INSTALL_DIR/data/jellyfin/cache" \
     "$INSTALL_DIR/data/qbittorrent/config" \
     "$INSTALL_DIR/data/jackett/config" \
+    "$INSTALL_DIR/data/caddy" \
     "$INSTALL_DIR/bot-data"
 sudo chown -R "$USER:$USER" "$INSTALL_DIR" 2>/dev/null || true
 
@@ -450,13 +473,13 @@ PYEOF
     fi
 fi
 
-_spin "$MSG_STARTING" docker compose up -d telegram-bot cloudflared
+_spin "$MSG_STARTING" docker compose up -d telegram-bot "$PROXY_SERVICE"
 
 # ---- Mini App URL ----
 WEBAPP_URL=""
-if [ -n "$CF_WEBAPP_URL" ]; then
-    # Static named tunnel URL — available immediately, no need to poll.
-    WEBAPP_URL="$CF_WEBAPP_URL"
+if [ -n "$WEBAPP_STATIC_URL" ]; then
+    # Own-domain URL — known immediately, no need to poll.
+    WEBAPP_URL="$WEBAPP_STATIC_URL"
 else
     # Ephemeral quick tunnel: bot scrapes trycloudflare.com URL from cloudflared
     # logs and writes it to the DB within one polling cycle (~60 s).
@@ -475,7 +498,7 @@ echo "$MSG_DONE"
 echo "Jellyfin:    http://$SERVER_IP:$JF_PORT"
 echo "qBittorrent: http://$SERVER_IP:$QB_PORT"
 echo "Jackett:     http://$SERVER_IP:$JACKETT_PORT"
-if [ -n "$CF_WEBAPP_URL" ]; then
+if [ -n "$WEBAPP_STATIC_URL" ]; then
     echo "Mini App:    $WEBAPP_URL"
     echo "$MSG_WEBAPP_HINT_STATIC"
 elif [ -n "$WEBAPP_URL" ]; then
