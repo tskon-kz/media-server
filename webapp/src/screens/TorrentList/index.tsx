@@ -13,6 +13,7 @@ import {TorrentItem} from "./components/TorrentItem"
 import {ConfirmDrawers} from "./components/ConfirmDrawers"
 import {UpscaleDrawer} from "./components/UpscaleDrawer"
 import {UpscaleResultsDrawer} from "./components/UpscaleResultsDrawer"
+import {RenameJobsDrawer} from "./components/RenameJobsDrawer"
 import s from "./TorrentList.module.scss"
 
 const PAGE_SIZE = 10
@@ -33,6 +34,7 @@ export function TorrentList() {
   const [menuFor, setMenuFor] = useState<Torrent | null>(null)
   const [upscaleFor, setUpscaleFor] = useState<Torrent | null>(null)
   const [resultsFor, setResultsFor] = useState<Torrent | null>(null)
+  const [renameFor, setRenameFor] = useState<Torrent | null>(null)
   const [moving, setMoving] = useState<Torrent | null>(null)
   const [confirmDel, setConfirmDel] = useState<Torrent | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<Torrent | null>(null)
@@ -133,8 +135,12 @@ export function TorrentList() {
     try {
       const r = await api.structure(tor.disk_id, mode)
       if (r.xdev) toast(t("torrents.xdev"), "err")
-      else if (mode === "pretty") toast(t("torrents.linked", {n: r.linked, pending: r.pending}))
-      else toast(t("common.done"))
+      else if (mode === "pretty") {
+        if (r.pending && r.pending > 0) {
+          toast(t("torrents.linked", {n: r.linked, pending: r.pending}))
+          setRenameFor(tor)
+        } else toast(t("common.done"))
+      } else toast(t("common.done"))
       load()
     } catch (e) { toast((e as Error).message, "err") }
   }
@@ -312,6 +318,7 @@ export function TorrentList() {
         onClose={() => setMenuFor(null)}
         onMove={() => { setMoving(menuFor); setMenuFor(null) }}
         onStructure={doStructure}
+        onResolveNames={() => { setRenameFor(menuFor); setMenuFor(null) }}
         onUpscale={() => { setUpscaleFor(menuFor); setMenuFor(null) }}
         onResults={() => { setResultsFor(menuFor); setMenuFor(null) }}
         onDelLinks={() => { setConfirmDelLinks(menuFor); setMenuFor(null) }}
@@ -334,6 +341,12 @@ export function TorrentList() {
       <UpscaleResultsDrawer
         tor={resultsFor}
         onClose={() => setResultsFor(null)}
+      />
+
+      <RenameJobsDrawer
+        tor={renameFor}
+        onClose={() => setRenameFor(null)}
+        onResolved={load}
       />
 
       <CategoryPicker

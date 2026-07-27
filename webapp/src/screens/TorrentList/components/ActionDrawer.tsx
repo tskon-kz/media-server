@@ -1,5 +1,5 @@
 import {Button, Divider, Drawer, Loader} from "@mantine/core"
-import {Clapperboard, Folder, FolderInput, ListChecks, Save, Trash2, Wand2} from "lucide-react"
+import {Clapperboard, Folder, FolderInput, ListChecks, PencilLine, Save, Trash2, Wand2} from "lucide-react"
 import {useTranslation} from "react-i18next"
 import type {Category, Torrent, Upscaler} from "@/types"
 import s from "./ActionDrawer.module.scss"
@@ -11,6 +11,7 @@ interface Props {
   onClose: () => void
   onMove: () => void
   onStructure: (mode: "pretty" | "flat" | "delete") => void
+  onResolveNames: () => void
   onUpscale: () => void
   onResults: () => void
   onDelLinks: () => void
@@ -22,7 +23,7 @@ interface Props {
 
 export function ActionDrawer({
   tor, cats, upscalers,
-  onClose, onMove, onStructure, onUpscale, onResults,
+  onClose, onMove, onStructure, onResolveNames, onUpscale, onResults,
   onDelLinks, onDelBackup, onDelete, onBackup, onRestoreBackup,
 }: Props) {
   const {t} = useTranslation()
@@ -53,6 +54,12 @@ export function ActionDrawer({
                     onClick={() => onStructure("flat")}>
               {t("torrents.original")}
             </Button>
+            {(tor?.pending_rename ?? 0) > 0 && (
+              <Button fullWidth variant="light" color="orange" leftSection={<PencilLine size={18}/>}
+                      onClick={onResolveNames}>
+                {t("torrents.resolveNames")} ({tor?.pending_rename})
+              </Button>
+            )}
             <Button fullWidth variant="outline" color="red" leftSection={<Trash2 size={18}/>}
                     onClick={onDelLinks}>
               {t("torrents.delLinks")}

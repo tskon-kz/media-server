@@ -9,6 +9,7 @@ Blocking I/O (qBittorrent, Jellyfin, Jackett, hardlinking) is pushed to a thread
 so it never stalls the shared PTB/aiohttp event loop.
 """
 import asyncio
+import errno
 import os
 import re
 import shutil
@@ -32,9 +33,9 @@ from config import (
     COMPRESSION_LEVELS, COMPRESSION_IDS, UPSCALE_TARGETS, UPSCALE_TARGET_IDS,
 )
 from parser import (
-    process_torrent_rename, create_flat_hardlinks,
-    delete_torrent_links, get_video_files, parse_filename, is_extra,
-    tor_fallback_title, VIDEO_EXTENSIONS,
+    process_torrent_rename, create_flat_hardlinks, create_flat_hardlink_for_job,
+    delete_torrent_links, get_video_files, parse_filename, parse_manual_input, is_extra,
+    tor_fallback_title, build_target_path, create_hardlink, VIDEO_EXTENSIONS,
 )
 from parser.naming import season_episode_widths
 from store import (
@@ -44,6 +45,7 @@ from store import (
     add_upscale_job, get_active_upscale_status, delete_upscale_jobs_by_disk_id,
     cancel_queued_upscale, get_done_upscale_src_paths, clear_incomplete_upscale_jobs,
     get_done_upscale_jobs, get_upscaled_disk_ids,
+    get_rename_jobs_by_hash, get_rename_job, delete_rename_job, get_pending_rename_jobs,
 )
 
 routes = web.RouteTableDef()
@@ -120,6 +122,34 @@ def _backup_path(disk_id: str) -> str | None:
 def _has_backup(disk_id: str) -> bool:
     p = _backup_path(disk_id)
     return bool(p) and os.path.exists(p)
+
+
+def _job_public(job: dict) -> dict:
+    return {"id": job["id"], "filename": os.path.basename(job["src_path"]),
+            "jf_type": job["jf_type"]}
+
+
+def _rename_jobs_for(tor) -> list[dict]:
+    """Pending manual-rename jobs belonging to this torrent. Jobs are keyed on
+    ``torrent_hash`` (empty for disk stubs), so also filter by content path to
+    disambiguate disk-only entries that all share the empty hash."""
+    jobs = get_rename_jobs_by_hash(getattr(tor, "hash", "") or "")
+    root = (getattr(tor, "content_path", "") or "").rstrip("/")
+    if root:
+        jobs = [j for j in jobs
+                if j["src_path"] == root or j["src_path"].startswith(root + os.sep)]
+    return jobs
+
+
+def _count_pending_rename(item: dict, pending_by_hash: dict[str, list]) -> int:
+    if item["hash"]:
+        return len(pending_by_hash.get(item["hash"], []))
+    empty = pending_by_hash.get("", [])
+    if not empty or "/" not in item["disk_id"]:
+        return 0
+    root = os.path.join(INCOMING_DIR, *item["disk_id"].split("/", 1)).rstrip("/")
+    return sum(1 for j in empty
+               if j["src_path"] == root or j["src_path"].startswith(root + os.sep))
 
 
 async def _resolve_torrent(disk_id: str):
@@ -375,6 +405,9 @@ async def torrents_list(request):
     active_backups = store.get_active_backup_disk_ids()
     active_restores = store.get_active_restore_disk_ids()
     upscaled_disk_ids = get_upscaled_disk_ids()
+    pending_by_hash: dict[str, list] = {}
+    for job in get_pending_rename_jobs():
+        pending_by_hash.setdefault(job["torrent_hash"], []).append(job)
     for item in result:
         st = active_upscales.get(item["disk_id"])
         item["upscaling"] = st is not None
@@ -385,6 +418,7 @@ async def torrents_list(request):
         item["has_backup"] = _has_backup(item["disk_id"])
         item["backing_up"] = item["disk_id"] in active_backups
         item["restoring"] = item["disk_id"] in active_restores
+        item["pending_rename"] = _count_pending_rename(item, pending_by_hash)
 
     return web.json_response({
         "torrents": result,
@@ -586,6 +620,78 @@ async def torrent_structure(request):
 
     await _thread(_f)
     return web.json_response({"mode": "delete", "deleted": True})
+
+
+# ---- manual rename (unparseable files from pretty mode) ----
+#
+# Files pretty mode can't parse are queued as rename_jobs; each is resolved by
+# manual naming, a flat hardlink, or skipping — the same options the bot offers.
+# Actions key on the job id, so they behave identically for live torrents and
+# disk-only entries.
+
+@routes.get("/api/torrents/rename-jobs")
+async def rename_jobs_list(request):
+    disk_id = (request.query.get("disk_id") or "").strip()
+    tor = await _resolve_torrent(disk_id)
+    if not tor:
+        return web.json_response({"jobs": []})
+    return web.json_response({"jobs": [_job_public(j) for j in _rename_jobs_for(tor)]})
+
+
+@routes.post("/api/rename-jobs/{id}/manual")
+async def rename_job_manual(request):
+    job_id = int(request.match_info["id"])
+    body = await _json(request)
+    text = (body.get("text") or "").strip()
+    job = get_rename_job(job_id)
+    if not job:
+        return _err("job not found", status=404)
+    cat = next((c for c in load_cats() if c["path"] == job["cat_path"]), None)
+    jf_type = cat["jf_type"] if cat else job["jf_type"]
+    filename = os.path.basename(job["src_path"])
+    parsed = parse_manual_input(jf_type, text, filename)
+    if parsed is None:
+        return _err(t("rename_invalid_input"), status=422)
+
+    def _f():
+        dst = build_target_path({"path": job["cat_path"], "jf_type": jf_type}, parsed, filename)
+        create_hardlink(job["src_path"], dst)
+        delete_rename_job(job["id"])
+        jf("POST", "/Library/Refresh")
+        return dst
+
+    try:
+        dst = await _thread(_f)
+    except OSError as e:
+        if e.errno == errno.EXDEV:
+            return _err(t("rename_xdev"), status=502)
+        return _err(t("rename_error", e=e), status=502)
+    return web.json_response({"ok": True, "dst": dst})
+
+
+@routes.post("/api/rename-jobs/{id}/flat")
+async def rename_job_flat(request):
+    job = get_rename_job(int(request.match_info["id"]))
+    if not job:
+        return _err("job not found", status=404)
+
+    def _f():
+        dst = create_flat_hardlink_for_job(job)
+        delete_rename_job(job["id"])
+        if dst:
+            jf("POST", "/Library/Refresh")
+        return dst
+
+    dst = await _thread(_f)
+    if dst is None:
+        return _err(t("rename_xdev"), status=502)
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/rename-jobs/{id}/skip")
+async def rename_job_skip(request):
+    delete_rename_job(int(request.match_info["id"]))
+    return web.json_response({"ok": True})
 
 
 # ---- upscale / backup ----

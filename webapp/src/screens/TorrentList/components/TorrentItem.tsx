@@ -42,6 +42,7 @@ export function TorrentItem({tor, onMenu}: Props) {
           )}
           {tor.backing_up ? " · 💾 " + t("torrents.backingUp") : ""}
           {tor.restoring ? " · ♻️ " + t("torrents.restoring") : ""}
+          {tor.pending_rename > 0 ? " · ✏️ " + t("torrents.pendingRename", {n: tor.pending_rename}) : ""}
         </>
       }
       description={

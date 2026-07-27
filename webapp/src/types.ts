@@ -22,6 +22,13 @@ export interface Torrent {
   has_backup: boolean;
   backing_up: boolean;
   restoring: boolean;
+  pending_rename: number;
+}
+
+export interface RenameJob {
+  id: number;
+  filename: string;
+  jf_type: string;
 }
 
 export interface Upscaler {

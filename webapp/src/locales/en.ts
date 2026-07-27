@@ -38,6 +38,18 @@ export default {
     delLinks: "Delete hardlinks",
     delLinksTitle: "Delete hardlinks?",
     delLinksBody: "Library links will be removed. Files on disk are not affected.",
+    // Manual naming of unparseable files (pretty mode)
+    resolveNames: "Name files",
+    pendingRename: "{{n}} need naming",
+    renameEmpty: "Nothing to name",
+    renameAllDone: "All files handled",
+    renameManual: "Name",
+    renameFlat: "Keep original",
+    renameSkip: "Skip",
+    renameFlatAll: "Keep all original",
+    renameSkipAll: "Skip all",
+    renameHintTv: "Format: S01E04 or Title S01E04",
+    renameHintMovie: "Format: Title (2024) or just Title",
     // Upscale + backup
     upscale: "Upscale",
     upscalePick: "Choose an upscaler",

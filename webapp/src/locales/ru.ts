@@ -38,7 +38,19 @@ export default {
     delLinks: "Удалить хардлинки",
     delLinksTitle: "Удалить хардлинки?",
     delLinksBody: "Ссылки в медиатеке будут удалены. Файлы на диске не затронуты.",
-    // Апскейл + бэкап
+    // Manual naming of unparseable files (pretty mode)
+    resolveNames: "Задать имена",
+    pendingRename: "{{n}} требуют имени",
+    renameEmpty: "Нечего именовать",
+    renameAllDone: "Все файлы обработаны",
+    renameManual: "Задать",
+    renameFlat: "Оставить как есть",
+    renameSkip: "Пропустить",
+    renameFlatAll: "Все как есть",
+    renameSkipAll: "Пропустить все",
+    renameHintTv: "Формат: S01E04 или Название S01E04",
+    renameHintMovie: "Формат: Название (2024) или просто Название",
+    // Upscale + backup
     upscale: "Апскейл",
     upscalePick: "Выберите апскейлер",
     compression: "Сжатие",

@@ -1,6 +1,6 @@
 import { initData } from "./telegram";
 import type {
-  AppConfig, Category, JellyfinUser, SearchResult, Settings, Torrent, UpdateInfo,
+  AppConfig, Category, JellyfinUser, RenameJob, SearchResult, Settings, Torrent, UpdateInfo,
   UpscaleInfo,
   UpscaleResult,
 } from "./types";
@@ -59,6 +59,14 @@ export const api = {
     req<{ mode: string; linked?: number; pending?: number; xdev?: boolean }>(
       "POST", "/api/torrents/structure", { disk_id: diskId, mode },
     ),
+  renameJobs: (diskId: string) =>
+    req<{ jobs: RenameJob[] }>("GET", `/api/torrents/rename-jobs?disk_id=${encodeURIComponent(diskId)}`),
+  renameJobManual: (id: number, text: string) =>
+    req<{ ok: boolean; dst: string }>("POST", `/api/rename-jobs/${id}/manual`, { text }),
+  renameJobFlat: (id: number) =>
+    req<{ ok: boolean }>("POST", `/api/rename-jobs/${id}/flat`),
+  renameJobSkip: (id: number) =>
+    req<{ ok: boolean }>("POST", `/api/rename-jobs/${id}/skip`),
   upscale: (diskId: string, upscaler: string, compression: string, target: string,
             sel: { start?: number; end?: number; names?: string[] }) =>
     req<{ queued: number; disk_id: string }>(
