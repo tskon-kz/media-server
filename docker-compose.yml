@@ -109,16 +109,22 @@ services:
     # Own-domain mode (no Cloudflare): auto-HTTPS reverse proxy to the bot. Runs
     # only when the `own-domain` profile is active (WEBAPP_DOMAIN set). Needs DNS
     # for WEBAPP_DOMAIN on this host and ports 80/443 open. Pinned by digest.
+    # Uses a Caddyfile (not the reverse-proxy one-liner) so the upstream is a
+    # `dynamic a` source that re-resolves telegram-bot's IP — otherwise Caddy
+    # stays pinned to the pre-update container and 502s after a bot self-update.
     image: caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: media-server-caddy
     restart: unless-stopped
     profiles: [ "own-domain" ]
+    environment:
+      - WEBAPP_DOMAIN=${WEBAPP_DOMAIN}
     ports:
       - "${CADDY_HTTP_PORT:-80}:80"
       - "${CADDY_HTTPS_PORT:-443}:443"
-    command: caddy reverse-proxy --from ${WEBAPP_DOMAIN:-} --to telegram-bot:8081
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     volumes:
       - ./data/caddy:/data
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - telegram-bot
 

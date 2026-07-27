@@ -1,0 +1,17 @@
+# Own-domain reverse proxy for the Telegram Mini App.
+#
+# `dynamic a` re-resolves telegram-bot via Docker's embedded DNS (127.0.0.11) on
+# a short interval, so Caddy follows the bot to its new IP after a blue/green
+# self-update instead of stranding on the old address (the 502). The retry
+# window + passive fail marking hand a request over to the new upstream during
+# the brief swap window when both old and new containers answer the alias.
+{$WEBAPP_DOMAIN} {
+	reverse_proxy {
+		dynamic a telegram-bot 8081 {
+			refresh 5s
+			resolvers 127.0.0.11
+		}
+		lb_try_duration 5s
+		fail_duration 10s
+	}
+}
