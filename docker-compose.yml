@@ -117,13 +117,36 @@ services:
     restart: unless-stopped
     profiles: [ "own-domain" ]
     environment:
-      - WEBAPP_DOMAIN=${WEBAPP_DOMAIN}
+      - CADDY_SITE=${WEBAPP_DOMAIN}
     ports:
       - "${CADDY_HTTP_PORT:-80}:80"
       - "${CADDY_HTTPS_PORT:-443}:443"
     command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     volumes:
       - ./data/caddy:/data
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - telegram-bot
+
+  caddy-proxy:
+    # Behind-proxy mode: the host already runs its own reverse proxy (nginx, …)
+    # for other sites, so Caddy can't take 80/443. Instead it serves the Mini App
+    # as PLAIN HTTP on a loopback host port (WEBAPP_PROXY_PORT) for that external
+    # proxy to forward to (which terminates TLS). Same dynamic-upstream Caddyfile
+    # as own-domain — only CADDY_SITE differs (`:8081` -> no ACME). As a separate,
+    # never-swapped container it keeps the loopback port stable across the bot's
+    # blue/green self-update, so the bot port itself stays internal. Bound to
+    # 127.0.0.1 so it's reachable only via the host's proxy, never the public NIC.
+    image: caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    container_name: media-server-webapp-proxy
+    restart: unless-stopped
+    profiles: [ "behind-proxy" ]
+    environment:
+      - CADDY_SITE=:8081
+    ports:
+      - "127.0.0.1:${WEBAPP_PROXY_PORT:-18081}:8081"
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - telegram-bot

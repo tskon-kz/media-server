@@ -51,9 +51,13 @@ else
     echo "BOT_IMAGE_TAG=$BOT_IMAGE_TAG" >> .env
 fi
 
-# WEBAPP_DOMAIN in .env drives the proxy: set -> caddy (own-domain profile),
-# unset -> default quick tunnel. Exported for this run only, not persisted.
-if grep -q "^WEBAPP_DOMAIN=." .env 2>/dev/null; then
+# .env drives the proxy, exported for this run only (not persisted):
+#   WEBAPP_PROXY_PORT set -> behind-proxy (Caddy as a loopback HTTP bridge behind
+#     the host's own reverse proxy); WEBAPP_DOMAIN set -> own-domain (Caddy owns
+#     80/443, auto-HTTPS); neither -> default quick Cloudflare tunnel.
+if grep -q "^WEBAPP_PROXY_PORT=." .env 2>/dev/null; then
+    export COMPOSE_PROFILES="behind-proxy"
+elif grep -q "^WEBAPP_DOMAIN=." .env 2>/dev/null; then
     export COMPOSE_PROFILES="own-domain"
 else
     unset COMPOSE_PROFILES
@@ -71,8 +75,10 @@ git checkout --force FETCH_HEAD -- .
 chmod +x update.sh teardown.sh migrate-media.sh
 
 echo "⏹  Stopping containers..."
-# --remove-orphans clears the proxy being switched off (it's out of profile scope).
-COMPOSE_PROFILES=own-domain docker compose down --remove-orphans
+# --remove-orphans clears whichever proxy is being switched off (out of profile
+# scope). Name every proxy profile so compose knows about all of them and can tear
+# down the outgoing one regardless of which mode we're leaving.
+COMPOSE_PROFILES=own-domain,behind-proxy docker compose down --remove-orphans
 
 echo "📦  Pulling latest bot image..."
 # Only the bot image — the other services are pinned to :latest and must not be

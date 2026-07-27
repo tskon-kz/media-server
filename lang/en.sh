@@ -41,13 +41,16 @@ MSG_WEBAPP_HINT_STATIC="↑ Static URL — the bot's Menu Button always points h
 MSG_WEBAPP_PENDING="Mini App:    (tunnel URL not ready yet — the bot's Menu Button will update automatically once cloudflared is up)"
 MSG_ASK_EXPOSE="How should the Mini App be exposed?
  1) Quick Cloudflare tunnel (default, no account needed)
- 2) My own domain, no Cloudflare (needs a domain + DNS A record to this server)"
+ 2) My own domain, no Cloudflare (Caddy issues HTTPS; needs a domain + DNS A record and free 80/443)
+ 3) Behind my own reverse proxy (I already run nginx/etc. for other sites)"
 MSG_ASK_EXPOSE_CHOICE="Choose [1]: "
 MSG_ASK_DOMAIN="Your domain (e.g. media.yourdomain.com): "
 MSG_DOMAIN_EMPTY="Domain can't be empty."
 MSG_DOMAIN_DNS_NOTE="  ↑ Point this domain's DNS A record at this server and keep ports 80/443 open — Caddy will auto-issue an HTTPS certificate on first start."
 MSG_ASK_CADDY_HTTP_PORT="Caddy HTTP host port [80] (blank = 80; external 80 must still reach it): "
 MSG_ASK_CADDY_HTTPS_PORT="Caddy HTTPS host port [443] (blank = 443; external 443 must still reach it): "
+MSG_ASK_PROXY_PORT="Local HTTP port for your reverse proxy to forward to [18081] (bound to 127.0.0.1): "
+MSG_PROXY_NOTE="  ↑ Point your reverse proxy for %s at http://127.0.0.1:%s (it terminates TLS). The bot's Mini App port stays internal, so in-app self-update keeps working."
 MSG_DONE="=== Done! ==="
 MSG_TEARDOWN_CONFIRM="Remove containers, .env and data? [y/n]: "
 MSG_TEARDOWN_IMAGES_CONFIRM="Remove Docker images? (n = keep, next setup will be faster) [y/n]: "

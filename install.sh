@@ -44,7 +44,11 @@ _spin() {  # _spin "label" cmd [args...]
 }
 
 _pull_progress() {  # pulls images one by one, shows [████░░░] n/total
-    local proxy="cloudflared"; [ "$COMPOSE_PROFILES" = "own-domain" ] && proxy="caddy"
+    local proxy="cloudflared"
+    case "$COMPOSE_PROFILES" in
+        own-domain)   proxy="caddy" ;;
+        behind-proxy) proxy="caddy-proxy" ;;
+    esac
     local -a svcs=(jellyfin qbittorrent jackett telegram-bot "$proxy" watchtower)
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
@@ -95,11 +99,17 @@ db.commit()
 PYEOF
 }
 
-# Activate the own-domain (caddy) profile for this run when WEBAPP_DOMAIN is set.
-# Not persisted — WEBAPP_DOMAIN alone drives the choice.
+# Activate the matching proxy profile for this run. Not persisted — the .env
+# fields drive the choice: WEBAPP_PROXY_PORT -> behind-proxy, else WEBAPP_DOMAIN
+# -> own-domain, else the default quick tunnel (no profile).
 _reconcile_profiles() {
-    grep -q '^WEBAPP_DOMAIN=.' "$INSTALL_DIR/.env" 2>/dev/null \
-        && export COMPOSE_PROFILES="own-domain" || unset COMPOSE_PROFILES
+    if grep -q '^WEBAPP_PROXY_PORT=.' "$INSTALL_DIR/.env" 2>/dev/null; then
+        export COMPOSE_PROFILES="behind-proxy"
+    elif grep -q '^WEBAPP_DOMAIN=.' "$INSTALL_DIR/.env" 2>/dev/null; then
+        export COMPOSE_PROFILES="own-domain"
+    else
+        unset COMPOSE_PROFILES
+    fi
 }
 
 # Exit 0 if key exists in DB with a non-empty value, exit 1 otherwise.
@@ -225,7 +235,8 @@ printf "%s" "$MSG_ASK_JF_NAME";      read -r JF_NAME
 printf "%s" "$MSG_ASK_JACKETT_PASS"; read -rs JACKETT_PASS; echo
 printf "%s" "$MSG_ASK_PROXY";        read -r PROXY_URL
 
-WEBAPP_DOMAIN=""       # "" = quick tunnel; set = own-domain (caddy)
+WEBAPP_DOMAIN=""       # "" = quick tunnel; set = own-domain or behind-proxy
+WEBAPP_PROXY_PORT=""   # set = behind-proxy (Caddy as a loopback HTTP bridge)
 WEBAPP_STATIC_URL=""
 PROXY_SERVICE="cloudflared"
 CADDY_HTTP_PORT=80
@@ -233,7 +244,7 @@ CADDY_HTTPS_PORT=443
 echo "$MSG_ASK_EXPOSE"
 printf "%s" "$MSG_ASK_EXPOSE_CHOICE"; read -r _EXPOSE_MODE
 case "$_EXPOSE_MODE" in
-    2)  # Own domain, no Cloudflare.
+    2)  # Own domain, Caddy owns 80/443 + auto-HTTPS.
         while true; do
             printf "%s" "$MSG_ASK_DOMAIN"; read -r WEBAPP_DOMAIN
             [ -n "$WEBAPP_DOMAIN" ] && break
@@ -247,9 +258,26 @@ case "$_EXPOSE_MODE" in
         [ -n "$_CADDY_HTTP_PORT"  ] && CADDY_HTTP_PORT="$_CADDY_HTTP_PORT"
         [ -n "$_CADDY_HTTPS_PORT" ] && CADDY_HTTPS_PORT="$_CADDY_HTTPS_PORT"
         ;;
+    3)  # Behind the host's own reverse proxy (nginx, …) which terminates TLS.
+        while true; do
+            printf "%s" "$MSG_ASK_DOMAIN"; read -r WEBAPP_DOMAIN
+            [ -n "$WEBAPP_DOMAIN" ] && break
+            echo "$MSG_DOMAIN_EMPTY"
+        done
+        WEBAPP_STATIC_URL="https://$WEBAPP_DOMAIN"
+        PROXY_SERVICE="caddy-proxy"
+        WEBAPP_PROXY_PORT=18081
+        printf "%s" "$MSG_ASK_PROXY_PORT"; read -r _WEBAPP_PROXY_PORT
+        [ -n "$_WEBAPP_PROXY_PORT" ] && WEBAPP_PROXY_PORT="$_WEBAPP_PROXY_PORT"
+        printf "$MSG_PROXY_NOTE\n" "$WEBAPP_DOMAIN" "$WEBAPP_PROXY_PORT"
+        ;;
 esac
-# Activate caddy's profile so the `up` calls below include it.
-[ -n "$WEBAPP_DOMAIN" ] && export COMPOSE_PROFILES="own-domain"
+# Activate the matching proxy profile so the `up` calls below include it.
+if [ -n "$WEBAPP_PROXY_PORT" ]; then
+    export COMPOSE_PROFILES="behind-proxy"
+elif [ -n "$WEBAPP_DOMAIN" ]; then
+    export COMPOSE_PROFILES="own-domain"
+fi
 
 JF_PORT=8096
 QB_PORT=8080
@@ -284,11 +312,14 @@ WATCHTOWER_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/
     [ "$JACKETT_PORT"    != "9117" ] && echo "JACKETT_PORT=$JACKETT_PORT"
     [ "$WATCHTOWER_PORT" != "9080" ] && echo "WATCHTOWER_PORT=$WATCHTOWER_PORT"
     [ "$MEDIA_PATH"   != "./media" ] && echo "MEDIA_PATH=$MEDIA_PATH"
-    # WEBAPP_DOMAIN alone drives the proxy choice and the bot's WEBAPP_URL (compose
-    # derives https://<domain>).
+    # WEBAPP_DOMAIN sets the bot's WEBAPP_URL (compose derives https://<domain>) and
+    # switches Cloudflare off. WEBAPP_PROXY_PORT, when present, selects behind-proxy
+    # mode (Caddy as a loopback HTTP bridge) instead of own-domain. CADDY_*_PORT only
+    # apply to own-domain (Caddy on 80/443).
     [ -n "$WEBAPP_DOMAIN" ] && echo "WEBAPP_DOMAIN=$WEBAPP_DOMAIN"
-    [ -n "$WEBAPP_DOMAIN" ] && [ "$CADDY_HTTP_PORT"  != "80"  ] && echo "CADDY_HTTP_PORT=$CADDY_HTTP_PORT"
-    [ -n "$WEBAPP_DOMAIN" ] && [ "$CADDY_HTTPS_PORT" != "443" ] && echo "CADDY_HTTPS_PORT=$CADDY_HTTPS_PORT"
+    [ -n "$WEBAPP_PROXY_PORT" ] && echo "WEBAPP_PROXY_PORT=$WEBAPP_PROXY_PORT"
+    [ -n "$WEBAPP_DOMAIN" ] && [ -z "$WEBAPP_PROXY_PORT" ] && [ "$CADDY_HTTP_PORT"  != "80"  ] && echo "CADDY_HTTP_PORT=$CADDY_HTTP_PORT"
+    [ -n "$WEBAPP_DOMAIN" ] && [ -z "$WEBAPP_PROXY_PORT" ] && [ "$CADDY_HTTPS_PORT" != "443" ] && echo "CADDY_HTTPS_PORT=$CADDY_HTTPS_PORT"
 } > "$INSTALL_DIR/.env"
 
 # Bot config that changes at runtime lives in the DB, not in .env.
