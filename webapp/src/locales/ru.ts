@@ -22,6 +22,7 @@ export default {
   torrents: {
     title: "Торренты",
     pull: "↓ потяните для обновления",
+    active: "Загрузки",
     empty: "Нет торрентов",
     emptyHint: "Добавьте magnet-ссылку или .torrent файл",
     deleted: "Удалено",

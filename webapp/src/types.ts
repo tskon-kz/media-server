@@ -13,6 +13,7 @@ export interface Torrent {
   eta: number;
   save_path: string;
   renameable: boolean;
+  category_id: number | null;
   upscaling: boolean;
   upscale_progress: number;
   upscale_done: number;

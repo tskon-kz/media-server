@@ -1,3 +1,34 @@
+.loaderCenter {
+  text-align: center;
+  padding-top: 60px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 4px;
+  margin-bottom: 16px;
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--tg-theme-text-color);
+}
+
+.pullHint {
+  text-align: center;
+  color: var(--tg-theme-hint-color);
+  font-size: 14px;
+}
+
+.content {
+  padding: 0 16px;
+}
+
+
 .iconBtn {
   display: flex;
   align-items: center;
@@ -15,11 +46,6 @@
   &.danger {
     color: var(--tg-theme-destructive-text-color);
   }
-}
-
-.iconActions {
-  display: flex;
-  align-items: center;
 }
 
 .queueBar {
@@ -54,4 +80,38 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0 12px;
+}
+
+.pageBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--tg-theme-link-color);
+  padding: 0;
+
+  &:disabled {
+    color: var(--tg-theme-hint-color);
+    cursor: default;
+  }
+}
+
+.pageLabel {
+  font-size: 13px;
+  color: var(--tg-theme-hint-color);
+  min-width: 48px;
+  text-align: center;
 }

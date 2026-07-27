@@ -22,6 +22,7 @@ export default {
   torrents: {
     title: "Torrents",
     pull: "↓ pull to refresh",
+    active: "Downloading",
     empty: "No torrents",
     emptyHint: "Add a magnet link or .torrent file",
     deleted: "Deleted",

@@ -199,11 +199,13 @@ def _torrent_dict(tor, cats: list) -> dict:
         "eta": getattr(tor, "eta", 0),
         "save_path": tor.save_path,
         "renameable": _is_renameable(tor, cats),
+        "category_id": _cat_id_for(tor, cats),
     }
 
 
 def _torrent_dict_merged(disk_entry: dict, size: int, qb_tor=None, cats: list | None = None) -> dict:
     disk_id = disk_entry["disk_id"]
+    cat_id = disk_entry["cat"]["id"]
     if qb_tor is not None:
         return {
             "disk_id": disk_id,
@@ -220,6 +222,7 @@ def _torrent_dict_merged(disk_entry: dict, size: int, qb_tor=None, cats: list | 
             "eta": getattr(qb_tor, "eta", 0),
             "save_path": qb_tor.save_path,
             "renameable": _is_renameable(qb_tor, cats or []),
+            "category_id": cat_id,
         }
     cat = disk_entry["cat"]
     name = disk_entry["name"]
@@ -238,6 +241,7 @@ def _torrent_dict_merged(disk_entry: dict, size: int, qb_tor=None, cats: list | 
         "eta": 0,
         "save_path": cat["path"],
         "renameable": cat.get("jf_type") in ("tvshows", "movies"),
+        "category_id": cat_id,
     }
 
 
