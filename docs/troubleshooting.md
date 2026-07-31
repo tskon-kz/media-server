@@ -19,6 +19,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/u
 3. Stops all containers
 4. Pulls the latest bot Docker image
 5. Starts containers again
+6. Wires Jackett to FlareSolverr (`FlareSolverrUrl`) if not already set, so
+   Cloudflare-gated indexers like RuTracker work — idempotent, safe to re-run
 
 The script syncs files with **git**, not per-file `curl` downloads. It uses
 `git checkout --force FETCH_HEAD -- .`, which:
@@ -178,6 +180,25 @@ To recover: Mini App → Settings → qBittorrent → Fetch temp password (reads
 - A library scan runs automatically when a download completes; you can also trigger one from the Jellyfin dashboard
 - Check that the category path exists: `/media/<slug>/`
 - Verify the Jellyfin API key is still valid: Dashboard → API Keys
+
+### Search finds nothing on RuTracker (Cloudflare challenge)
+RuTracker sits behind a Cloudflare challenge that Jackett can't solve on its own.
+In Jackett the indexer **Test** fails with *"Challenge detected but FlareSolverr
+is not configured"*. The stack ships a `flaresolverr` container for exactly this;
+Jackett is pointed at it via `FlareSolverrUrl=http://flaresolverr:8191` in
+`ServerConfig.json`.
+
+- **Fresh installs** get this wired up automatically by `install.sh`.
+- **Existing installs**: run `update.sh` once — it starts `flaresolverr` and
+  writes `FlareSolverrUrl` into Jackett's config idempotently (only if unset),
+  then restarts Jackett.
+- To set it manually: Jackett UI → gear (server settings) → **FlareSolverr API
+  URL** = `http://flaresolverr:8191` → Save.
+
+FlareSolverr solves the *Cloudflare challenge* only. If the server can't reach
+`rutracker.org` at all (ISP/DNS blocking), you still need a VPN or a proxy on the
+host — FlareSolverr won't bypass that. It's also a real headless Chromium, so it's
+memory-hungry on small VPSes.
 
 ### Cross-device hardlink error (EXDEV)
 Appears when qBittorrent download path and the category path are on different filesystems. Solution: ensure `MEDIA_PATH` (and therefore `/media`) is a single filesystem — don't mix local disk and mounted network paths.

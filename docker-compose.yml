@@ -44,6 +44,16 @@ services:
     volumes:
       - ./data/jackett/config:/config
 
+  # Solves Cloudflare challenges for indexers that need them (e.g. RuTracker).
+  # Internal only — Jackett reaches it at http://flaresolverr:8191.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: media-server-flaresolverr
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
+      - LOG_LEVEL=info
+
   telegram-bot:
     image: ghcr.io/tskon-kz/media-server-bot:${BOT_IMAGE_TAG:-stable}
     container_name: media-server-telegram-bot

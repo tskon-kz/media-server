@@ -100,5 +100,26 @@ docker compose build upscaler
 echo "▶  Starting containers..."
 docker compose up -d
 
+# Point Jackett at FlareSolverr (for Cloudflare-gated indexers like RuTracker).
+# Idempotent: only writes + restarts jackett if the value is not already set.
+JACKETT_CFG="$INSTALL_DIR/data/jackett/config/Jackett/ServerConfig.json"
+if [ -f "$JACKETT_CFG" ]; then
+    if python3 - "$JACKETT_CFG" <<'PYEOF'
+import json, sys
+cfg = sys.argv[1]
+with open(cfg) as f:
+    d = json.load(f)
+if d.get('FlareSolverrUrl'):
+    sys.exit(1)
+d['FlareSolverrUrl'] = 'http://flaresolverr:8191'
+with open(cfg, 'w') as f:
+    json.dump(d, f, indent=2)
+PYEOF
+    then
+        echo "🛡  Configured FlareSolverr in Jackett"
+        docker compose restart jackett
+    fi
+fi
+
 echo ""
 echo "✓ Update complete"

@@ -49,7 +49,7 @@ _pull_progress() {  # pulls images one by one, shows [████░░░] n/t
         own-domain)   proxy="caddy" ;;
         behind-proxy) proxy="caddy-proxy" ;;
     esac
-    local -a svcs=(jellyfin qbittorrent jackett telegram-bot "$proxy" watchtower)
+    local -a svcs=(jellyfin qbittorrent jackett flaresolverr telegram-bot "$proxy" watchtower)
     local total=${#svcs[@]}
     for ((i=0; i<total; i++)); do
         local svc="${svcs[i]}"
@@ -346,7 +346,7 @@ sudo chown -R "$USER:$USER" "$INSTALL_DIR" 2>/dev/null || true
 
 echo ""
 _pull_progress
-_spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin jackett watchtower
+_spin "$MSG_STARTING" docker compose up -d qbittorrent jellyfin jackett flaresolverr watchtower
 
 # ---- qBittorrent credentials ----
 
@@ -495,6 +495,19 @@ except Exception:
         echo "$MSG_JACKETT_SETUP_FAIL"
     fi
 
+    # Point Jackett at FlareSolverr so Cloudflare-gated indexers (RuTracker) work.
+    if [ -f "$JACKETT_CFG" ]; then
+        python3 - "$JACKETT_CFG" <<'PYEOF'
+import json, sys
+cfg = sys.argv[1]
+with open(cfg) as f:
+    d = json.load(f)
+d['FlareSolverrUrl'] = 'http://flaresolverr:8191'
+with open(cfg, 'w') as f:
+    json.dump(d, f, indent=2)
+PYEOF
+    fi
+
     if [ -n "$JACKETT_PASS" ]; then
         python3 - "$JACKETT_CFG" "$JACKETT_PASS" <<'PYEOF'
 import json, sys, hashlib
@@ -505,11 +518,12 @@ d['AdminPassword'] = hashlib.sha512((pw + d.get('APIKey', '')).encode('utf-16-le
 with open(cfg, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF
-        docker compose restart jackett >&3 2>&3
         echo "$MSG_JACKETT_PASS_SET"
     else
         echo "$MSG_JACKETT_PASS_SKIP"
     fi
+
+    docker compose restart jackett >&3 2>&3
 fi
 
 _spin "$MSG_STARTING" docker compose up -d telegram-bot "$PROXY_SERVICE"
