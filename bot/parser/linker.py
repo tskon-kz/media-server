@@ -163,6 +163,7 @@ def delete_torrent_links(tor, cats: list[dict]):
     cat = cur_cat
     incoming_cat = os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
     dirs_to_delete: set[str] = set()
+    files_to_delete: set[str] = set()
     first_parsed = None
     has_extra = False
 
@@ -182,6 +183,9 @@ def delete_torrent_links(tor, cats: list[dict]):
         rel_parts = os.path.relpath(src_path, base).split(os.sep)
         if len(rel_parts) > 1:
             dirs_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
+        else:
+            # Flat single-file link sits directly in the category root, not a dir.
+            files_to_delete.add(os.path.join(cat["path"], rel_parts[0]))
 
     if has_extra and cat["jf_type"] in ("tvshows", "movies"):
         pf = [(None, None, first_parsed)] if first_parsed else []
@@ -210,5 +214,13 @@ def delete_torrent_links(tor, cats: list[dict]):
                 log.warning("Could not remove %s: %s", parent, e)
                 break
             parent = os.path.dirname(parent)
+
+    for f in files_to_delete:
+        if os.path.isfile(f):
+            try:
+                os.unlink(f)
+                log.info("Removed: %s", f)
+            except OSError as e:
+                log.warning("Could not remove %s: %s", f, e)
 
     delete_rename_jobs_by_hash(tor.hash)
