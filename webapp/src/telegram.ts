@@ -54,10 +54,10 @@ export function openExternal(url: string) {
   else window.open(url, "_blank", "noopener");
 }
 
-export function haptic(kind: "light" | "medium" | "heavy" | "success" | "error" = "light") {
+export function haptic(kind: "light" | "medium" | "heavy" | "success" | "error" | "warning" = "light") {
   const h = tg?.HapticFeedback;
   if (!h) return;
-  if (kind === "success" || kind === "error") h.notificationOccurred(kind);
+  if (kind === "success" || kind === "error" || kind === "warning") h.notificationOccurred(kind);
   else h.impactOccurred(kind);
 }
 

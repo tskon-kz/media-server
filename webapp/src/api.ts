@@ -108,7 +108,7 @@ export const api = {
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
   search: (q: string, page = 1, pageSize = 5) =>
-    req<{ query: string; results: SearchResult[]; total: number; page: number; page_size: number }>(
+    req<{ query: string; results: SearchResult[]; total: number; page: number; page_size: number; failed: string[] }>(
       "GET", `/api/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}`
     ),
   searchAdd: (result: SearchResult, categoryId?: number) =>

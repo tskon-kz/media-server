@@ -113,6 +113,7 @@ export default {
     empty: "Нет результатов",
     emptyHint: "Попробуйте другой запрос",
     seeders: "{{n}} сидеров",
+    indexersFailed: "Часть индексаторов не ответила: {{names}}",
   },
 
   // Status screen

@@ -247,17 +247,18 @@ def jackett_get_api_key() -> str:
         return ""
 
 
-def jackett_search(query: str, limit: int | None = None) -> list[dict] | None:
+def jackett_search(query: str, limit: int | None = None) -> dict | None:
     """Search via Jackett aggregate endpoint.
 
-    Returns sorted list of dicts or None on connection error.
-    Returns [] if API key not configured or no results found.
-    Each item: title, seeders, size (bytes), tracker, date (ISO publish date),
-    details (source page URL), magnet (str|None), link (str|None).
+    Returns {"results": [...], "failed": [names]} or None on connection error.
+    A failed indexer is a warning, not an error — results from the rest are
+    still returned. Returns {"results": [], "failed": []} if no API key.
+    Each result item: title, seeders, size (bytes), tracker, date (ISO publish
+    date), details (source page URL), magnet (str|None), link (str|None).
     """
     key = jackett_get_api_key()
     if not key:
-        return []
+        return {"results": [], "failed": []}
     params = urllib.parse.urlencode(
         [("apikey", key), ("Query", query)]
         + [("Category[]", c) for c in SEARCH_CATEGORIES]
@@ -269,6 +270,11 @@ def jackett_search(query: str, limit: int | None = None) -> list[dict] | None:
             data = json.loads(r.read())
     except Exception:
         return None
+    failed = [
+        i.get("Name") or i.get("ID") or "?"
+        for i in (data.get("Indexers") or [])
+        if i.get("Error")
+    ]
     results = data.get("Results") or []
     results.sort(key=lambda r: r.get("Seeders") or 0, reverse=True)
     results = results[:limit]
@@ -284,7 +290,7 @@ def jackett_search(query: str, limit: int | None = None) -> list[dict] | None:
             "magnet":  r.get("MagnetUri") or None,
             "link":    r.get("Link") or None,
         })
-    return out
+    return {"results": out, "failed": failed}
 
 
 _JACKETT_CFG = "/jackett-config/Jackett/ServerConfig.json"

@@ -113,6 +113,7 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
     try {
       const r = await api.search(q, page, PAGE_SIZE)
       dispatch(setResults({results: r.results, total: r.total, page}))
+      if (r.failed?.length) toast(t("search.indexersFailed", {names: r.failed.join(", ")}), "warn")
     } catch (e) {
       toast((e as Error).message, "err")
       dispatch(setResults({results: [], total: 0, page}))

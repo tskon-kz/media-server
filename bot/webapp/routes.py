@@ -1139,16 +1139,19 @@ async def search(request):
     cached = cache.get(query)
     if cached and time.monotonic() - cached["ts"] < _SEARCH_CACHE_TTL:
         all_results = cached["results"]
+        failed = cached["failed"]
     else:
-        all_results = await _thread(jackett_search, query)
-        if all_results is None:
+        data = await _thread(jackett_search, query)
+        if data is None:
             return _err(t("jackett_error"), status=502)
-        cache[query] = {"results": all_results, "ts": time.monotonic()}
+        all_results = data["results"]
+        failed = data["failed"]
+        cache[query] = {"results": all_results, "failed": failed, "ts": time.monotonic()}
 
     total = len(all_results)
     offset = (page - 1) * page_size
     results = all_results[offset:offset + page_size]
-    return web.json_response({"query": query, "results": results, "total": total, "page": page, "page_size": page_size})
+    return web.json_response({"query": query, "results": results, "total": total, "page": page, "page_size": page_size, "failed": failed})
 
 
 @routes.post("/api/search/add")
