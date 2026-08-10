@@ -59,6 +59,17 @@ def _dl_path(cat: dict) -> str:
     return os.path.join(INCOMING_DIR, os.path.basename(cat["path"]))
 
 
+def _rmtree_or_file(path: str):
+    # shutil.rmtree fails on a plain file; single-file torrents download bare (no dir).
+    if os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+    elif os.path.exists(path):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 def _is_renameable(tor, cats: list) -> bool:
     targets = set()
     for c in cats:
@@ -511,7 +522,7 @@ async def disk_delete(request):
     if tor is None:
         return _err("invalid disk_id")
     await _thread(delete_torrent_links, tor, cats)
-    await _thread(shutil.rmtree, target, True)
+    await _thread(_rmtree_or_file, target)
     delete_disk_entry(disk_id)
     asyncio.create_task(_thread(jf, "POST", "/Library/Refresh"))
     return web.json_response({"deleted": True})
