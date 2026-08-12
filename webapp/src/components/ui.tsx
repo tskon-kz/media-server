@@ -83,7 +83,7 @@ export function ListItem({
       <Box style={{ flex: 1, minWidth: 0 }}>
         <Text
           size="md"
-          style={{ color: "var(--tg-theme-text-color)", whiteSpace: multiline ? "normal" : "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          style={{ color: "var(--tg-theme-text-color)", whiteSpace: multiline ? "normal" : "nowrap", overflowWrap: multiline ? "anywhere" : undefined, overflow: "hidden", textOverflow: "ellipsis" }}
         >
           {children}
         </Text>
