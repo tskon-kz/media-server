@@ -26,6 +26,15 @@ def parse_filename(filename: str, jf_type: str, fallback_title: str | None = Non
         if re.match(r'^s\d{1,2}e\d{1,3}', stem, re.IGNORECASE):
             title = fallback_title
 
+        # "TV-3"/"TV 3"/"TV3" — anime-style Nth-TV-season marker guessit leaves in
+        # the title. Lift it into season and strip it so the title matches S1/S2.
+        if season is None:
+            tv_m = re.search(r'(?i)\bTV[ ._-]?(\d{1,2})\b', stem)
+            if tv_m:
+                season = int(tv_m.group(1))
+                if title:
+                    title = re.sub(r'(?i)\s*\bTV[ ._-]?\d{1,2}\b\s*$', '', str(title)).strip(' -_')
+
         # No explicit season marker → absolute episode numbering in season 1
         # ("Naruto - 150", "Naruto.E166.hevc", "One Piece - 1000 [1080p]").
         # guessit mis-splits bare numbers ("150"->S1E50, "001"->S0E1) inconsistently
@@ -33,7 +42,7 @@ def parse_filename(filename: str, jf_type: str, fallback_title: str | None = Non
         # falling back to guessit's episode when the number isn't at the end
         # (e.g. "E166" before "hevc"). Either way the season is forced to 1 so every
         # file (video + dub/sub sidecars) maps to the same S01Exxx.
-        has_season_marker = re.search(r'(?i)(?:\bs\d{1,2}(?!\d)|season[ ._]?\d{1,2})', stem)
+        has_season_marker = re.search(r'(?i)(?:\bs\d{1,2}(?!\d)|season[ ._]?\d{1,2}|\btv[ ._-]?\d{1,2}\b)', stem)
         if not has_season_marker:
             clean_stem = re.sub(r'(\s*[\[(][^\]\)]*[\]\)])+$', '', stem).rstrip()
             m = re.search(r'(?:^|[\s_.\-])(\d{1,4})\s*$', clean_stem)
