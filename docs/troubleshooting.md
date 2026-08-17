@@ -50,16 +50,6 @@ curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/update.s
 
 Every subsequent `bash update.sh` works normally.
 
-### Dev servers — `update-dev.sh`
-
-Dev servers track the `dev` branch and the `:dev` image tag. Same git mechanism,
-different branch:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/dev/update-dev.sh \
-  -o ~/media-server/update-dev.sh && bash ~/media-server/update-dev.sh
-```
-
 ---
 
 ## Updating the bot — Mini App → Settings → Update

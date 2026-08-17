@@ -25,7 +25,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/i
 ## Docs
 
 - [Installation (detailed)](docs/installation.md)
-- [Dev Setup](docs/dev-setup.md)
 - [Bot Commands](docs/commands.md)
 - [Configuration](docs/configuration.md)
 - [Troubleshooting & Maintenance](docs/troubleshooting.md)

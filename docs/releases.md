@@ -1,19 +1,17 @@
 # Release & deployment runbook (maintainer)
 
-The bot ships as three independent image tracks on GHCR, each backed by a git ref.
+The bot ships as two independent image tracks on GHCR, each backed by a git ref.
 The **git tag on a GitHub Release is the version** — `pyproject.toml`'s version is
 frozen at `0.0.0` and never bumped.
 
 | Track | Git ref | Image tag | Auto-deploys? |
 |-------|---------|-----------|---------------|
-| Dev | push to `dev` | `:dev` | Yes → maintainer's dev VM (Tailscale + Watchtower) |
 | Edge | push to `main` | `:edge` | No — available on prod as "Force update" |
 | Release | published GitHub Release | `:vX.Y.Z` + `:stable` (+ `:latest`) | No — deployed via Telegram |
 
 ## Normal workflow
 
-1. **Work on `dev`.** Push freely — `build-dev.yml` builds `:dev` and `dev-deploy.yml`
-   auto-deploys it to the dev VM. Nothing else is affected.
+1. **Work on `dev`.** Push freely — nothing is built or deployed from `dev`.
 2. **When a change is ready for prod**, open a PR `dev → main` and merge it
    (`main` takes no direct pushes). Merging alone builds `:edge` — nothing
    auto-deploys, but the code is now installable on prod via "Force update" for

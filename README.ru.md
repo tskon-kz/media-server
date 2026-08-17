@@ -25,7 +25,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tskon-kz/media-server/main/i
 ## Документация
 
 - [Установка (подробно)](docs/installation.md)
-- [Настройка для разработки](docs/dev-setup.md)
 - [Команды бота](docs/commands.md)
 - [Конфигурация](docs/configuration.md)
 - [Решение проблем и обслуживание](docs/troubleshooting.md)
