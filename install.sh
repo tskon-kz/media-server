@@ -397,7 +397,8 @@ if ! _db_has "jellyfin_api_key"; then
     done
     printf "\n"
 
-    JF_AUTH_HEADER='X-Emby-Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
+    # Jellyfin 12 dropped the legacy X-Emby-* headers; Authorization/MediaBrowser works on 10.11 too.
+    JF_AUTH_HEADER='Authorization: MediaBrowser Client="Setup", Device="Setup", DeviceId="setup-001", Version="1.0.0"'
 
     _jf_auth() {
         curl -s -X POST "http://localhost:$JF_PORT/Users/AuthenticateByName" \
@@ -442,10 +443,10 @@ if ! _db_has "jellyfin_api_key"; then
 
     if [ -n "$JF_TOKEN" ]; then
         curl -s -X POST "http://localhost:$JF_PORT/Auth/Keys?app=MediaServer" \
-            -H "X-Emby-Token: $JF_TOKEN" > /dev/null
+            -H "Authorization: MediaBrowser Token=\"$JF_TOKEN\"" > /dev/null
 
         JF_API_KEY=$(curl -s "http://localhost:$JF_PORT/Auth/Keys" \
-            -H "X-Emby-Token: $JF_TOKEN" \
+            -H "Authorization: MediaBrowser Token=\"$JF_TOKEN\"" \
             | tr -d ' \t' | grep -o '"AccessToken":"[^"]*"' | tail -1 | cut -d'"' -f4)
 
         FINAL_KEY="${JF_API_KEY:-$JF_TOKEN}"
@@ -453,12 +454,12 @@ if ! _db_has "jellyfin_api_key"; then
 
         curl -s -X POST \
             "http://localhost:$JF_PORT/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
-            -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
+            -H "Authorization: MediaBrowser Token=\"$FINAL_KEY\"" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/movies"}]}}' > /dev/null
 
         curl -s -X POST \
             "http://localhost:$JF_PORT/Library/VirtualFolders?name=Series&collectionType=tvshows&refreshLibrary=false" \
-            -H "X-Emby-Token: $FINAL_KEY" -H "Content-Type: application/json" \
+            -H "Authorization: MediaBrowser Token=\"$FINAL_KEY\"" -H "Content-Type: application/json" \
             -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media/series"}]}}' > /dev/null
 
         echo "$MSG_JF_SETUP_OK"

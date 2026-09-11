@@ -26,7 +26,8 @@ def jf(method, path, body=None):
     req = urllib.request.Request(
         f"{JF_URL}{path}",
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"X-Emby-Token": key, "Content-Type": "application/json"},
+        # Jellyfin 12 dropped the legacy X-Emby-Token header.
+        headers={"Authorization": f'MediaBrowser Token="{key}"', "Content-Type": "application/json"},
         method=method,
     )
     try:

@@ -70,8 +70,14 @@ if [ ! -d .git ]; then
 elif ! git remote get-url origin &>/dev/null 2>&1; then
     git remote add origin "https://github.com/$REPO.git"
 fi
+OLD_JF_IMAGE="$(grep -m1 'image: jellyfin/jellyfin' docker-compose.yml || true)"
 git fetch --depth=1 -q origin main
 git checkout --force FETCH_HEAD -- .
+NEW_JF_IMAGE="$(grep -m1 'image: jellyfin/jellyfin' docker-compose.yml || true)"
+JF_UPGRADE=""
+if [ "$OLD_JF_IMAGE" != "$NEW_JF_IMAGE" ] && [ -d data/jellyfin/config ]; then
+    JF_UPGRADE=1
+fi
 chmod +x update.sh teardown.sh migrate-media.sh
 
 echo "⏹  Stopping containers..."
@@ -79,6 +85,20 @@ echo "⏹  Stopping containers..."
 # scope). Name every proxy profile so compose knows about all of them and can tear
 # down the outgoing one regardless of which mode we're leaving.
 COMPOSE_PROFILES=own-domain,behind-proxy docker compose down --remove-orphans
+
+# A Jellyfin version bump migrates its DB irreversibly (12.0 can't roll back to
+# 10.11 without a restore), so snapshot the config dir while containers are down.
+# Done via a throwaway container: the files are root-owned inside the volume.
+if [ -n "$JF_UPGRADE" ]; then
+    JF_BACKUP="backups/jellyfin-config-$(date +%Y%m%d-%H%M%S).tar.gz"
+    echo "💾  Backing up Jellyfin config to $JF_BACKUP (version bump detected)..."
+    mkdir -p backups
+    docker run --rm \
+        -v "$INSTALL_DIR/data/jellyfin/config:/src:ro" \
+        -v "$INSTALL_DIR/backups:/dst" \
+        alpine tar czf "/dst/$(basename "$JF_BACKUP")" \
+            --exclude=./log --exclude=./transcodes -C /src .
+fi
 
 echo "📦  Pulling latest bot image..."
 # Only the bot image — the other services are pinned to :latest and must not be
@@ -99,6 +119,39 @@ docker compose build upscaler
 
 echo "▶  Starting containers..."
 docker compose up -d
+
+# After a Jellyfin version bump the release notes require a full library scan
+# (12.0 drops auto-resolved alternative versions until rescanned). Wait for the
+# DB migration to finish (the API is down meanwhile), then kick the scan.
+if [ -n "$JF_UPGRADE" ]; then
+    JF_PORT="$(grep -m1 '^JELLYFIN_PORT=' .env 2>/dev/null | cut -d= -f2)"
+    JF_PORT="${JF_PORT:-8096}"
+    JF_API_KEY="$(python3 - "$DB_FILE" << 'PYEOF'
+import sqlite3, os, sys
+db = sys.argv[1]
+if os.path.exists(db):
+    row = sqlite3.connect(db).execute("SELECT value FROM config WHERE key='jellyfin_api_key'").fetchone()
+    print(row[0] if row and row[0] else "")
+PYEOF
+)"
+    printf "⏳  Waiting for Jellyfin to finish migrating"
+    JF_READY=""
+    for i in $(seq 1 120); do
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$JF_PORT/System/Info/Public" 2>/dev/null || echo "000")
+        if [ "$STATUS" = "200" ]; then JF_READY=1; break; fi
+        printf "."
+        sleep 5
+    done
+    printf "\n"
+    if [ -n "$JF_READY" ] && [ -n "$JF_API_KEY" ]; then
+        curl -s -o /dev/null -X POST "http://localhost:$JF_PORT/Library/Refresh" \
+            -H "Authorization: MediaBrowser Token=\"$JF_API_KEY\"" \
+            && echo "🔍  Full library scan started (first scan after upgrade takes longer)" \
+            || echo "  ⚠ couldn't trigger library scan — run it manually in Jellyfin Dashboard"
+    else
+        echo "  ⚠ Jellyfin not ready or no API key — run a full library scan manually in Jellyfin Dashboard"
+    fi
+fi
 
 # Point Jackett at FlareSolverr (for Cloudflare-gated indexers like RuTracker).
 # Idempotent: only writes + restarts jackett if the value is not already set.

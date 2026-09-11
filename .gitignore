@@ -9,4 +9,4 @@ __pycache__/
 context/
 .claude/
 CLAUDE.md
-.DS_Store/
+.DS_Store/backups/
