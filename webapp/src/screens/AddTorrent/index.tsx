@@ -12,7 +12,7 @@ import {ListItem, ListPlaceholder, ListSection} from "@/components/ui"
 import PageHeader from "@/components/PageHeader"
 import type {Category, SearchResult} from "@/types"
 import {useAppDispatch, useAppSelector} from "@/store"
-import {clearSearch, setLoading, setQuery, setResults} from "@/store/slices/searchSlice"
+import {appendResults, clearSearch, finishSearch, setPage, setPending, setQuery, startSearch} from "@/store/slices/searchSlice"
 import {ManualContent} from "./components/ManualContent"
 import {CategoriesContent} from "./components/CategoriesContent"
 import {AppInput} from "@/components/AppInput.tsx"
@@ -34,9 +34,10 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
   const query = useAppSelector((s) => s.search.query)
   const results = useAppSelector((s) => s.search.results)
   const searching = useAppSelector((s) => s.search.loading)
+  const pending = useAppSelector((s) => s.search.pending)
   const searchPage = useAppSelector((s) => s.search.page)
-  const searchTotal = useAppSelector((s) => s.search.total)
   const PAGE_SIZE = 5
+  const searchAbort = useRef<AbortController | null>(null)
 
   const [searchPick, setSearchPick] = useState<SearchResult | null>(null)
 
@@ -106,19 +107,36 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
 
   // ── search ─────────────────────────────────────────────────────────────────
 
-  const runSearch = async (page = 1) => {
+  const stopSearch = () => {
+    searchAbort.current?.abort()
+    searchAbort.current = null
+  }
+  useEffect(() => stopSearch, [])
+
+  // Results stream in per indexer (SSE); the list is re-sorted on every batch.
+  const runSearch = async () => {
     const q = query.trim()
     if (!q) return
-    dispatch(setLoading(true))
+    stopSearch()
+    const ctrl = new AbortController()
+    searchAbort.current = ctrl
+    dispatch(startSearch())
+    const failed: string[] = []
     try {
-      const r = await api.search(q, page, PAGE_SIZE)
-      dispatch(setResults({results: r.results, total: r.total, page}))
-      if (r.failed?.length) toast(t("search.indexersFailed", {names: r.failed.join(", ")}), "warn")
+      await api.searchStream(q, (ev) => {
+        if (ev.type === "progress") dispatch(setPending(ev.pending))
+        else if (ev.type === "results") {
+          if (ev.results.length) dispatch(appendResults(ev.results))
+          failed.push(...ev.failed)
+        }
+        else if (ev.type === "error") toast(ev.error, "err")
+      }, ctrl.signal)
+      if (failed.length) toast(t("search.indexersFailed", {names: failed.join(", ")}), "warn")
     } catch (e) {
+      if (ctrl.signal.aborted) return
       toast((e as Error).message, "err")
-      dispatch(setResults({results: [], total: 0, page}))
     } finally {
-      dispatch(setLoading(false))
+      if (!ctrl.signal.aborted) dispatch(finishSearch())
     }
   }
 
@@ -190,17 +208,17 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
           placeholder={t("search.placeholder")}
           value={query}
           onChange={(e) => dispatch(setQuery(e.target.value))}
-          onKeyDown={(e) => e.key === "Enter" && runSearch(1)}
+          onKeyDown={(e) => e.key === "Enter" && runSearch()}
           rightSection={
             results !== null ? (
-              <ActionIcon variant="transparent" color="gray" onClick={() => dispatch(clearSearch())}>
+              <ActionIcon variant="transparent" color="gray" onClick={() => { stopSearch(); dispatch(clearSearch()) }}>
                 <X size={18}/>
               </ActionIcon>
             ) : (
               <ActionIcon
                 variant="transparent"
                 color="gray"
-                onClick={() => runSearch(1)}
+                onClick={() => runSearch()}
                 style={{
                   opacity: searching || !query.trim() ? 0.4 : 1,
                   pointerEvents: searching || !query.trim() ? "none" : undefined,
@@ -214,9 +232,10 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
         />
 
         {searching && (
-          <Box style={{textAlign: "center", padding: "24px 0"}}>
-            <Loader size="md"/>
-          </Box>
+          <div className={styles.searchProgress}>
+            <Loader size="sm"/>
+            {pending.length > 0 && <span>{t("search.waiting", {names: pending.join(", ")})}</span>}
+          </div>
         )}
 
         {results !== null && !searching && results.length === 0 && (
@@ -226,9 +245,9 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
         {results && results.length > 0 && (
           <>
             <ListSection style={{borderRadius: 16, overflow: 'hidden'}}>
-              {results.map((r, i) => (
+              {results.slice((searchPage - 1) * PAGE_SIZE, searchPage * PAGE_SIZE).map((r) => (
                 <ListItem
-                  key={i}
+                  key={r.details || r.magnet || r.link || r.title}
                   subtitle={`${t("search.seeders", {n: r.seeders})} · ${bytes(r.size)} · ${r.tracker}${r.date ? " · " + r.date.slice(0, 10) : ""}`}
                   after={
                     <Button variant="subtle" size="compact-sm" px={6} onClick={() => choose(r)}>
@@ -244,13 +263,12 @@ export function AddTorrent({onAdded}: { onAdded: () => void }) {
                 </ListItem>
               ))}
             </ListSection>
-            {searchTotal > PAGE_SIZE && (
+            {results.length > PAGE_SIZE && (
               <div style={{display: "flex", justifyContent: "center", padding: "8px 0"}}>
                 <Pagination
-                  total={Math.ceil(searchTotal / PAGE_SIZE)}
+                  total={Math.ceil(results.length / PAGE_SIZE)}
                   value={searchPage}
-                  onChange={(page) => runSearch(page)}
-                  disabled={searching}
+                  onChange={(page) => dispatch(setPage(page))}
                   size="sm"
                 />
               </div>

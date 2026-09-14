@@ -113,6 +113,7 @@ export default {
     empty: "No results",
     emptyHint: "Try a different query",
     seeders: "{{n}} seeders",
+    waiting: "Waiting for: {{names}}",
     indexersFailed: "Some indexers didn't respond: {{names}}",
   },
 

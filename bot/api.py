@@ -5,6 +5,7 @@ import socket
 import struct
 import urllib.request
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor, wait
 import qbittorrentapi
 from config import (
     JF_URL, QB_HOST,
@@ -248,50 +249,91 @@ def jackett_get_api_key() -> str:
         return ""
 
 
-def jackett_search(query: str, limit: int | None = None) -> dict | None:
-    """Search via Jackett aggregate endpoint.
+JACKETT_INDEXER_TIMEOUT = 60  # seconds; matches FlareSolverr's own 60 s limit — a slow indexer is dropped, not the whole search
 
-    Returns {"results": [...], "failed": [names]} or None on connection error.
-    A failed indexer is a warning, not an error — results from the rest are
-    still returned. Returns {"results": [], "failed": []} if no API key.
+
+def _jackett_get(path: str, params: list, timeout: int):
+    url = f"{JACKETT_URL}/api/v2.0/{path}?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def jackett_list_indexers(key: str) -> list[dict] | None:
+    """Configured indexers as [{id, name}], None if Jackett is unreachable."""
+    try:
+        data = _jackett_get("indexers", [("apikey", key), ("configured", "true")], timeout=10)
+    except Exception:
+        return None
+    return [{"id": i.get("id"), "name": i.get("name") or i.get("id")} for i in data if i.get("id")]
+
+
+def _jackett_normalize(r: dict) -> dict:
+    return {
+        "title":   r.get("Title") or "",
+        "seeders": r.get("Seeders") or 0,
+        "size":    r.get("Size") or 0,
+        "tracker": r.get("Tracker") or "",
+        "date":    r.get("PublishDate") or "",
+        "details": r.get("Details") or r.get("Guid") or "",
+        "magnet":  r.get("MagnetUri") or None,
+        "link":    r.get("Link") or None,
+    }
+
+
+def jackett_sort(results: list[dict]) -> list[dict]:
+    return sorted(results, key=lambda r: r.get("seeders") or 0, reverse=True)
+
+
+def jackett_query_indexer(key: str, indexer: dict, query: str) -> dict:
+    """Search one indexer. Returns {"results": [...], "error": bool}; a
+    timeout or an indexer-side error counts as `error` with partial results."""
+    params = (
+        [("apikey", key), ("Query", query)]
+        + [("Category[]", c) for c in SEARCH_CATEGORIES]
+    )
+    try:
+        data = _jackett_get(f"indexers/{indexer['id']}/results", params, JACKETT_INDEXER_TIMEOUT)
+    except Exception:
+        return {"results": [], "error": True}
+    error = any(i.get("Error") for i in (data.get("Indexers") or []))
+    return {"results": [_jackett_normalize(r) for r in (data.get("Results") or [])], "error": error}
+
+
+def jackett_search(query: str, limit: int | None = None) -> dict | None:
+    """Search every configured indexer in parallel, each with its own timeout.
+
+    The aggregate `indexers/all` endpoint waits for the slowest indexer (a
+    FlareSolverr-gated tracker can take minutes), so each is queried
+    separately and the ones that don't answer in time go to `failed`.
+    Returns {"results": [...], "failed": [names]} or None if Jackett itself
+    is unreachable. Returns {"results": [], "failed": []} if no API key.
     Each result item: title, seeders, size (bytes), tracker, date (ISO publish
     date), details (source page URL), magnet (str|None), link (str|None).
     """
     key = jackett_get_api_key()
     if not key:
         return {"results": [], "failed": []}
-    params = urllib.parse.urlencode(
-        [("apikey", key), ("Query", query)]
-        + [("Category[]", c) for c in SEARCH_CATEGORIES]
-    )
-    url = f"{JACKETT_URL}/api/v2.0/indexers/all/results?{params}"
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=25) as r:
-            data = json.loads(r.read())
-    except Exception:
+    indexers = jackett_list_indexers(key)
+    if indexers is None:
         return None
-    failed = [
-        i.get("Name") or i.get("ID") or "?"
-        for i in (data.get("Indexers") or [])
-        if i.get("Error")
-    ]
-    results = data.get("Results") or []
-    results.sort(key=lambda r: r.get("Seeders") or 0, reverse=True)
-    results = results[:limit]
-    out = []
-    for r in results:
-        out.append({
-            "title":   r.get("Title") or "",
-            "seeders": r.get("Seeders") or 0,
-            "size":    r.get("Size") or 0,
-            "tracker": r.get("Tracker") or "",
-            "date":    r.get("PublishDate") or "",
-            "details": r.get("Details") or r.get("Guid") or "",
-            "magnet":  r.get("MagnetUri") or None,
-            "link":    r.get("Link") or None,
-        })
-    return {"results": out, "failed": failed}
+
+    # shutdown(wait=False): don't block on a hung indexer past the deadline
+    pool = ThreadPoolExecutor(max_workers=max(1, len(indexers)))
+    futures = {pool.submit(jackett_query_indexer, key, idx, query): idx for idx in indexers}
+    done, _ = wait(futures, timeout=JACKETT_INDEXER_TIMEOUT + 2)
+    pool.shutdown(wait=False)
+
+    results, failed = [], []
+    for fut, idx in futures.items():
+        if fut not in done:
+            failed.append(idx["name"])
+            continue
+        data = fut.result()
+        if data["error"]:
+            failed.append(idx["name"])
+        results.extend(data["results"])
+    return {"results": jackett_sort(results)[:limit], "failed": failed}
 
 
 _JACKETT_CFG = "/jackett-config/Jackett/ServerConfig.json"

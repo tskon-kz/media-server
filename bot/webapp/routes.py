@@ -10,6 +10,7 @@ so it never stalls the shared PTB/aiohttp event loop.
 """
 import asyncio
 import errno
+import json
 import os
 import re
 import shutil
@@ -25,6 +26,7 @@ from api import (
     qb_temp_password, qb_restart, qb_set_password,
     jackett_get_api_key, jackett_has_password, jackett_set_password,
     jackett_search, jackett_download_torrent,
+    jackett_list_indexers, jackett_query_indexer, jackett_sort, JACKETT_INDEXER_TIMEOUT,
     gh_latest_release_tag, self_update,
 )
 from config import (
@@ -1152,6 +1154,81 @@ async def search(request):
     offset = (page - 1) * page_size
     results = all_results[offset:offset + page_size]
     return web.json_response({"query": query, "results": results, "total": total, "page": page, "page_size": page_size, "failed": failed})
+
+
+async def _sse(resp: web.StreamResponse, event: str, data: dict):
+    await resp.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
+
+
+@routes.get("/api/search/stream")
+async def search_stream(request):
+    """SSE variant of /api/search: results arrive per indexer as each answers.
+
+    Events: `progress` {pending: [names]} after every change, `results`
+    {results, failed} per finished indexer (client appends + re-sorts),
+    `error` {error}, `done` {}. Fills the same cache as /api/search.
+    """
+    query = (request.query.get("q") or "").strip()
+    if not query:
+        return _err("q required")
+    key = jackett_get_api_key()
+    if not key:
+        return _err(t("jackett_no_key"), status=503)
+
+    resp = web.StreamResponse(headers={
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+    await resp.prepare(request)
+
+    cache = request.app.setdefault("_search_cache", {})
+    cached = cache.get(query)
+    try:
+        if cached and time.monotonic() - cached["ts"] < _SEARCH_CACHE_TTL:
+            await _sse(resp, "results", {"results": cached["results"], "failed": cached["failed"]})
+            await _sse(resp, "done", {})
+            return resp
+
+        indexers = await _thread(jackett_list_indexers, key)
+        if indexers is None:
+            await _sse(resp, "error", {"error": t("jackett_error")})
+            return resp
+
+        loop = asyncio.get_running_loop()
+        pending = {
+            loop.run_in_executor(None, jackett_query_indexer, key, idx, query): idx
+            for idx in indexers
+        }
+        await _sse(resp, "progress", {"pending": [idx["name"] for idx in pending.values()]})
+
+        all_results, all_failed = [], []
+        deadline = loop.time() + JACKETT_INDEXER_TIMEOUT + 2
+        while pending:
+            done, _ = await asyncio.wait(
+                pending, timeout=max(0, deadline - loop.time()), return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done:
+                break
+            for fut in done:
+                idx = pending.pop(fut)
+                data = fut.result()
+                failed = [idx["name"]] if data["error"] else []
+                all_results.extend(data["results"])
+                all_failed.extend(failed)
+                await _sse(resp, "results", {"results": data["results"], "failed": failed})
+                await _sse(resp, "progress", {"pending": [i["name"] for i in pending.values()]})
+        # past the deadline: the threads keep running but their answers are dropped
+        all_failed.extend(idx["name"] for idx in pending.values())
+        if pending:
+            await _sse(resp, "results", {"results": [], "failed": [i["name"] for i in pending.values()]})
+            await _sse(resp, "progress", {"pending": []})
+
+        cache[query] = {"results": jackett_sort(all_results), "failed": all_failed, "ts": time.monotonic()}
+        await _sse(resp, "done", {})
+    except ConnectionResetError:
+        pass  # client went away (new query or screen closed)
+    return resp
 
 
 @routes.post("/api/search/add")

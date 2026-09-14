@@ -35,6 +35,48 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return resp.json() as Promise<T>;
 }
 
+export type SearchEvent =
+  | { type: "progress"; pending: string[] }
+  | { type: "results"; results: SearchResult[]; failed: string[] }
+  | { type: "error"; error: string }
+  | { type: "done" };
+
+// EventSource can't send the Authorization header, so SSE is read over fetch.
+async function sse(path: string, onEvent: (event: SearchEvent) => void, signal: AbortSignal): Promise<void> {
+  const resp = await fetch(path, { headers: { Authorization: `tma ${initData}` }, signal });
+  if (!resp.ok || !resp.body) {
+    let msg = `HTTP ${resp.status}`;
+    try {
+      const j = await resp.json();
+      if (j?.error) msg = j.error;
+    } catch {
+      /* keep default */
+    }
+    throw new Error(msg);
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+    let sep = buffer.indexOf("\n\n");
+    while (sep !== -1) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      let type = "";
+      let data = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) type = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (type) onEvent({ ...(data ? JSON.parse(data) : {}), type } as SearchEvent);
+      sep = buffer.indexOf("\n\n");
+    }
+  }
+}
+
 export const api = {
   config: () => req<AppConfig>("GET", "/api/config"),
 
@@ -107,10 +149,8 @@ export const api = {
   toggleAltSpeed: () => req<{ alt_speed_enabled: boolean }>("POST", "/api/qb/toggle_alt_speed"),
   scan: () => req<{ ok: boolean }>("POST", "/api/scan"),
 
-  search: (q: string, page = 1, pageSize = 5) =>
-    req<{ query: string; results: SearchResult[]; total: number; page: number; page_size: number; failed: string[] }>(
-      "GET", `/api/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}`
-    ),
+  searchStream: (q: string, onEvent: (event: SearchEvent) => void, signal: AbortSignal) =>
+    sse(`/api/search/stream?q=${encodeURIComponent(q)}`, onEvent, signal),
   searchAdd: (result: SearchResult, categoryId?: number) =>
     req<{ added: boolean }>("POST", "/api/search/add", {
       magnet: result.magnet, link: result.link, category_id: categoryId,

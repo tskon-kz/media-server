@@ -1,3 +1,12 @@
 .content {
   padding: 0 16px 16px;
 }
+
+.searchProgress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color);
+}

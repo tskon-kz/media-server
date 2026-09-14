@@ -5,17 +5,19 @@ interface SearchState {
   query: string
   results: SearchResult[] | null
   loading: boolean
+  pending: string[]
   page: number
-  total: number
 }
 
 const initialState: SearchState = {
   query: "",
   results: null,
   loading: false,
+  pending: [],
   page: 1,
-  total: 0,
 }
+
+const bySeeders = (a: SearchResult, b: SearchResult) => b.seeders - a.seeders
 
 const searchSlice = createSlice({
   name: "search",
@@ -24,23 +26,34 @@ const searchSlice = createSlice({
     setQuery(state, action: PayloadAction<string>) {
       state.query = action.payload
     },
-    setLoading(state, action: PayloadAction<boolean>) {
-      state.loading = action.payload
+    startSearch(state) {
+      state.results = []
+      state.loading = true
+      state.pending = []
+      state.page = 1
     },
-    setResults(state, action: PayloadAction<{ results: SearchResult[]; total: number; page: number }>) {
-      state.results = action.payload.results
-      state.total = action.payload.total
-      state.page = action.payload.page
+    setPending(state, action: PayloadAction<string[]>) {
+      state.pending = action.payload
+    },
+    appendResults(state, action: PayloadAction<SearchResult[]>) {
+      state.results = [...(state.results ?? []), ...action.payload].sort(bySeeders)
+    },
+    finishSearch(state) {
+      state.loading = false
+      state.pending = []
+    },
+    setPage(state, action: PayloadAction<number>) {
+      state.page = action.payload
     },
     clearSearch(state) {
       state.query = ""
       state.results = null
-      state.total = 0
-      state.page = 1
       state.loading = false
+      state.pending = []
+      state.page = 1
     },
   },
 })
 
-export const { setQuery, setLoading, setResults, clearSearch } = searchSlice.actions
+export const { setQuery, startSearch, setPending, appendResults, finishSearch, setPage, clearSearch } = searchSlice.actions
 export default searchSlice.reducer
