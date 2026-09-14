@@ -5,6 +5,7 @@ import socket
 import struct
 import urllib.request
 import urllib.parse
+from xml.etree import ElementTree
 from concurrent.futures import ThreadPoolExecutor, wait
 import qbittorrentapi
 from config import (
@@ -260,12 +261,22 @@ def _jackett_get(path: str, params: list, timeout: int):
 
 
 def jackett_list_indexers(key: str) -> list[dict] | None:
-    """Configured indexers as [{id, name}], None if Jackett is unreachable."""
+    """Configured indexers as [{id, name}], None if Jackett is unreachable.
+
+    Uses the Torznab `t=indexers` endpoint: the JSON `/indexers` route is
+    admin-UI only (cookie auth) and rejects the API key.
+    """
+    params = urllib.parse.urlencode([("apikey", key), ("t", "indexers"), ("configured", "true")])
+    url = f"{JACKETT_URL}/api/v2.0/indexers/all/results/torznab/api?{params}"
     try:
-        data = _jackett_get("indexers", [("apikey", key), ("configured", "true")], timeout=10)
+        with urllib.request.urlopen(url, timeout=10) as r:
+            root = ElementTree.fromstring(r.read())
     except Exception:
         return None
-    return [{"id": i.get("id"), "name": i.get("name") or i.get("id")} for i in data if i.get("id")]
+    return [
+        {"id": el.get("id"), "name": el.findtext("title") or el.get("id")}
+        for el in root.iter("indexer") if el.get("id")
+    ]
 
 
 def _jackett_normalize(r: dict) -> dict:
